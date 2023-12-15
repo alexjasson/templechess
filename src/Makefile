@@ -9,8 +9,8 @@ TARGET = myprogram
 .PHONY: all
 all: $(TARGET)
 
-$(TARGET): test.c BitBoard.c
-	$(CC) $(CFLAGS) -o $(TARGET) test.c BitBoard.c -lm
+$(TARGET): test.c BitBoard.c AttackTable.c
+	$(CC) $(CFLAGS) -o $(TARGET) test.c BitBoard.c AttackTable.c -lm
 
 .PHONY: clean
 clean:

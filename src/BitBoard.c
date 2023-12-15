@@ -3,10 +3,10 @@
 #include "BitBoard.h"
 
 void BitBoardPrint(BitBoard b) {
-  for (int rank = EDGE_SIZE; rank > 0; rank--) {
-    printf("%d ", rank);
+  for (int rank = 0; rank < EDGE_SIZE; rank++) {
+    printf("%d ", EDGE_SIZE - rank);
     for (int file = 0; file < EDGE_SIZE; file++) {
-      int square = (rank - 1) * EDGE_SIZE + file;
+      int square = (EDGE_SIZE - 1 - rank) * EDGE_SIZE + file;
       printf("%ld ", (b >> square) & 1);
     }
     printf("\n");
