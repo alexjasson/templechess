@@ -1,22 +1,26 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include "BitBoard.h"
 #include "AttackTable.h"
 
-#define WHITE_PAWN_ATTACKS {{1, -1}, {1, 1}}
-#define BLACK_PAWN_ATTACKS {{-1, -1}, {-1, 1}}
-#define KNIGHT_ATTACKS {{-2, -1}, {-2, 1}, {-1, -2}, {-1, 2}, {1, -2}, {1, 2}, {2, -1}, {2, 1}}
-#define KING_ATTACKS {{-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 1}, {1, -1}, {1, 0}, {1, 1}}
+#define PIECE_QUADRANCES { (int[]){2},                        \
+                           (int[]){5},                        \
+                           (int[]){2, 8, 18, 32, 50, 72, 98}, \
+                           (int[]){1, 2},                     \
+                           (int[]){1, 4, 9, 16, 25, 36, 49}   \
+                         }
+#define PIECE_QUADRANCES_SIZE { 1, 1, 7, 2, 7 }
+#define PIECE_SIZE 6
+#define MAX_ATTACKS 14
 
 struct attackTable {
-  BitBoard whitePawnAttacks[BOARD_SIZE];
-  BitBoard blackPawnAttacks[BOARD_SIZE];
-  BitBoard knightAttacks[BOARD_SIZE];
-  BitBoard kingAttacks[BOARD_SIZE];
+  BitBoard pieceAttacks[5][2][BOARD_SIZE];
 };
 
-static BitBoard getNonSlidingPieceAttacks(Square s, Move *moves, int numMoves);
+static BitBoard getPieceAttacks(Piece p, Color c, Square s);
+static Vector2D* getPieceAttackVectors(Piece p, Color c);
 
 AttackTable AttackTableNew(void) {
   AttackTable a = malloc(sizeof(struct attackTable));
@@ -25,16 +29,12 @@ AttackTable AttackTableNew(void) {
     exit(EXIT_FAILURE);
   }
 
-  Move whitePawnAttacks[2] = WHITE_PAWN_ATTACKS;
-  Move blackPawnAttacks[2] = BLACK_PAWN_ATTACKS;
-  Move knightAttacks[8] = KNIGHT_ATTACKS;
-  Move kingAttacks[8] = KING_ATTACKS;
-
-  for (Square s = a1; s <= h8; s++) {
-    a->whitePawnAttacks[s] = getNonSlidingPieceAttacks(s, whitePawnAttacks, 2);
-    a->blackPawnAttacks[s] = getNonSlidingPieceAttacks(s, blackPawnAttacks, 2);
-    a->knightAttacks[s] = getNonSlidingPieceAttacks(s, knightAttacks, 8);
-    a->kingAttacks[s] = getNonSlidingPieceAttacks(s, kingAttacks, 8);
+  for (Piece p = Pawn; p <= Rook; p++) {
+    for (Color c = White; c <= Black; c++) {
+      for (Square s = a1; s <= h8; s++) {
+        a->pieceAttacks[p][c][s] = getPieceAttacks(p, c, s);
+      }
+    }
   }
 
   return a;
@@ -44,32 +44,58 @@ void AttackTableFree(AttackTable a) {
   free(a);
 }
 
-BitBoard AttackTableGetWhitePawnAttacks(AttackTable a, Square s) {
-  return a->whitePawnAttacks[s];
+BitBoard AttackTableGetPieceAttacks(AttackTable a, Piece p, Color c, Square s) {
+  return a->pieceAttacks[p][c][s];
 }
 
-BitBoard AttackTableGetBlackPawnAttacks(AttackTable a, Square s) {
-  return a->blackPawnAttacks[s];
-}
-
-BitBoard AttackTableGetKnightAttacks(AttackTable a, Square s) {
-  return a->knightAttacks[s];
-}
-
-static BitBoard getNonSlidingPieceAttacks(Square s, Move *moves, int numMoves) {
+static BitBoard getPieceAttacks(Piece p, Color c, Square s) {
   BitBoard b = 0;
+  Vector2D *attackVectors = getPieceAttackVectors(p, c);
   int rank = s / EDGE_SIZE;
   int file = s % EDGE_SIZE;
 
-  for (int i = 0; i < numMoves; i++) {
-    int newRank = rank + moves[i].rankOffset;
-    int newFile = file + moves[i].fileOffset;
+  int i = 0;
+  while (attackVectors[i].x || attackVectors[i].y) {
+    int newRank = rank + attackVectors[i].y;
+    int newFile = file + attackVectors[i].x;
 
     // Check if the new position is within the board boundaries
     if (newRank >= 0 && newRank < EDGE_SIZE && newFile >= 0 && newFile < EDGE_SIZE) {
       b = BitBoardSetBit(b, newRank * EDGE_SIZE + newFile);
     }
+    i++;
   }
+  free(attackVectors);
 
   return b;
+}
+
+// Get the attack vectors for a piece
+static Vector2D* getPieceAttackVectors(Piece p, Color c) {
+  Vector2D *attackVectors = calloc(MAX_ATTACKS + 100, sizeof(Vector2D));
+  if (attackVectors == NULL) {
+    fprintf(stderr, "Insufficient memory!\n");
+    exit(EXIT_FAILURE);
+  }
+
+  int *pieceQuadrances[] = PIECE_QUADRANCES;
+  int pieceQuadrancesSize[] = PIECE_QUADRANCES_SIZE;
+  int *quadrances = pieceQuadrances[p];
+  int quadrancesSize = pieceQuadrancesSize[p];
+  int count = 0;
+
+  for (int i = 0; i < quadrancesSize; i++) {
+    int max = (int)sqrt(quadrances[i]);
+    for (int x = -max; x <= max; x++) {
+      for (int y = -max; y <= max; y++) {
+        if (x * x + y * y == quadrances[i] &&
+            !((p == Pawn && ((c == White && y < 0) || (c == Black && y > 0))) ||
+            (p == Bishop && abs(x) != abs(y)) || (p == Rook && x * y != 0))) {
+          attackVectors[count++] = (Vector2D){x, y};
+        }
+      }
+    }
+  }
+
+  return attackVectors;
 }

@@ -4,16 +4,14 @@
 typedef struct attackTable *AttackTable;
 
 typedef struct {
-    int rankOffset;
-    int fileOffset;
-} Move;
+    int x, y;
+} Vector2D;
+
+typedef enum { Pawn, Knight, Bishop, King, Rook, Queen } Piece;
+typedef enum { White, Black } Color;
 
 AttackTable AttackTableNew(void);
-
 void AttackTableFree(AttackTable a);
-
-BitBoard AttackTableGetWhitePawnAttacks(AttackTable a, Square s);
-BitBoard AttackTableGetBlackPawnAttacks(AttackTable a, Square s);
-BitBoard AttackTableGetKnightAttacks(AttackTable a, Square s);
+BitBoard AttackTableGetPieceAttacks(AttackTable a, Piece p, Color c, Square s);
 
 #endif
