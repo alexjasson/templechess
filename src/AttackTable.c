@@ -5,22 +5,16 @@
 #include "BitBoard.h"
 #include "AttackTable.h"
 
-#define PIECE_QUADRANCES { (int[]){2},                        \
-                           (int[]){5},                        \
-                           (int[]){2, 8, 18, 32, 50, 72, 98}, \
-                           (int[]){1, 2},                     \
-                           (int[]){1, 4, 9, 16, 25, 36, 49}   \
-                         }
-#define PIECE_QUADRANCES_SIZE { 1, 1, 7, 2, 7 }
+// Maximum size of all possible combinations of relevant occupancies for any piece
+#define OCCUPANCY_POWERSET_SIZE 4096
 #define PIECE_SIZE 6
-#define MAX_ATTACKS 14
 
 struct attackTable {
   BitBoard pieceAttacks[5][2][BOARD_SIZE];
 };
 
-static BitBoard getPieceAttacks(Piece p, Color c, Square s);
-static Vector2D* getPieceAttackVectors(Piece p, Color c);
+static BitBoard getPieceAttacks(Piece p, Color c, Square s, BitBoard occupancies);
+static BitBoard getAttackSquare(Square s, Direction d, Magnitude m);
 
 AttackTable AttackTableNew(void) {
   AttackTable a = malloc(sizeof(struct attackTable));
@@ -32,7 +26,8 @@ AttackTable AttackTableNew(void) {
   for (Piece p = Pawn; p <= Rook; p++) {
     for (Color c = White; c <= Black; c++) {
       for (Square s = a1; s <= h8; s++) {
-        a->pieceAttacks[p][c][s] = getPieceAttacks(p, c, s);
+        // loop through occupancies powerset
+        a->pieceAttacks[p][c][s] = getPieceAttacks(p, c, s, EMPTY_BOARD);
       }
     }
   }
@@ -48,54 +43,46 @@ BitBoard AttackTableGetPieceAttacks(AttackTable a, Piece p, Color c, Square s) {
   return a->pieceAttacks[p][c][s];
 }
 
-static BitBoard getPieceAttacks(Piece p, Color c, Square s) {
-  BitBoard b = 0;
-  Vector2D *attackVectors = getPieceAttackVectors(p, c);
-  int rank = s / EDGE_SIZE;
-  int file = s % EDGE_SIZE;
+static BitBoard getPieceAttacks(Piece p, Color c, Square s, BitBoard occupancies) {
+  if (c) printf("lol!");
+  if (p != 2 && p!= 4) return 0;
+  BitBoard pieceAttacks = EMPTY_BOARD;
 
-  int i = 0;
-  while (attackVectors[i].x || attackVectors[i].y) {
-    int newRank = rank + attackVectors[i].y;
-    int newFile = file + attackVectors[i].x;
-
-    // Check if the new position is within the board boundaries
-    if (newRank >= 0 && newRank < EDGE_SIZE && newFile >= 0 && newFile < EDGE_SIZE) {
-      b = BitBoardSetBit(b, newRank * EDGE_SIZE + newFile);
+  for (Direction d = North; d <= Northwest; d++) {
+    for (Magnitude m = 1; m < EDGE_SIZE; m++) {
+      if ((p == Bishop && d % 2 == 0) || (p == Rook && d % 2 == 1)) continue;
+      pieceAttacks |= getAttackSquare(s, d, m);
+      if (getAttackSquare(s, d, m) & occupancies) break;
     }
-    i++;
   }
-  free(attackVectors);
-
-  return b;
+  return pieceAttacks;
 }
 
-// Get the attack vectors for a piece
-static Vector2D* getPieceAttackVectors(Piece p, Color c) {
-  Vector2D *attackVectors = calloc(MAX_ATTACKS + 100, sizeof(Vector2D));
-  if (attackVectors == NULL) {
-    fprintf(stderr, "Insufficient memory!\n");
-    exit(EXIT_FAILURE);
-  }
+static BitBoard getAttackSquare(Square s, Direction d, Magnitude m) {
+  if (m >= EDGE_SIZE) return EMPTY_BOARD;
+  Square attack;
+  int file = s % EDGE_SIZE;
 
-  int *pieceQuadrances[] = PIECE_QUADRANCES;
-  int pieceQuadrancesSize[] = PIECE_QUADRANCES_SIZE;
-  int *quadrances = pieceQuadrances[p];
-  int quadrancesSize = pieceQuadrancesSize[p];
-  int count = 0;
+  // Check out of bounds
+  if (d == East && file + m >= EDGE_SIZE) return EMPTY_BOARD;
+  if (d == Northeast && file + m >= EDGE_SIZE) return EMPTY_BOARD;
+  if (d == Southeast && file + m >= EDGE_SIZE) return EMPTY_BOARD;
+  if (d == West && file - m < 0) return EMPTY_BOARD;
+  if (d == Northwest && file - m < 0) return EMPTY_BOARD;
+  if (d == Southwest && file - m < 0) return EMPTY_BOARD;
 
-  for (int i = 0; i < quadrancesSize; i++) {
-    int max = (int)sqrt(quadrances[i]);
-    for (int x = -max; x <= max; x++) {
-      for (int y = -max; y <= max; y++) {
-        if (x * x + y * y == quadrances[i] &&
-            !((p == Pawn && ((c == White && y < 0) || (c == Black && y > 0))) ||
-            (p == Bishop && abs(x) != abs(y)) || (p == Rook && x * y != 0))) {
-          attackVectors[count++] = (Vector2D){x, y};
-        }
-      }
-    }
-  }
+  if (d == North) attack = s + (EDGE_SIZE * m);
+  if (d == Northeast) attack = s + (EDGE_SIZE * m + m);
+  if (d == East) attack = s + m;
+  if (d == Southeast) attack = s - (EDGE_SIZE * m - m);
+  if (d == South) attack = s - (EDGE_SIZE * m);
+  if (d == Southwest) attack = s - (EDGE_SIZE * m + m);
+  if (d == West) attack = s - m;
+  if (d == Northwest) attack = s + (EDGE_SIZE * m - m);
 
-  return attackVectors;
+  if (attack > 63) return EMPTY_BOARD;
+  return BitBoardSetBit(EMPTY_BOARD, attack);
+
+  fprintf(stderr, "Invalid direction!\n");
+  exit(EXIT_FAILURE);
 }

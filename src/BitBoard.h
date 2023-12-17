@@ -5,8 +5,19 @@
 
 #define EDGE_SIZE 8
 #define BOARD_SIZE 64
+#define EMPTY_BOARD 0
+#define FILE_A 0x0101010101010101
+#define FILE_H 0x8080808080808080
+#define RANK_1 0x00000000000000FF
+#define RANK_8 0xFF00000000000000
 
 typedef uint64_t BitBoard;
+
+typedef uint8_t Magnitude;
+
+typedef enum {
+  North, Northeast, East, Southeast, South, Southwest, West, Northwest
+} Direction;
 
 typedef enum {
   a1, b1, c1, d1, e1, f1, g1, h1,
@@ -20,7 +31,7 @@ typedef enum {
 } Square;
 
 void BitBoardPrint(BitBoard b);
-
 BitBoard BitBoardSetBit(BitBoard b, Square s);
+// BitBoard BitBoardShiftBit(BitBoard b, Direction d, Magnitude m);
 
 #endif
