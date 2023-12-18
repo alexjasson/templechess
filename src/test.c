@@ -8,7 +8,7 @@ int main() {
     AttackTable a = AttackTableNew();
     // b = BitBoardSetBit(b, a2);
     // b = BitBoardSetBit(b, g1);
-    c = AttackTableGetPieceAttacks(a, Bishop, White, e4);
+    c = AttackTableGetPieceAttacks(a, Bishop, White, e2);
     BitBoardPrint(c);
     //b = BitBoardShiftBit(b, East, 4);
     // BitBoardPrint(b);

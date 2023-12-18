@@ -3,10 +3,6 @@
 
 typedef struct attackTable *AttackTable;
 
-typedef struct {
-    int x, y;
-} Vector2D;
-
 typedef enum { Pawn, Knight, Bishop, King, Rook, Queen } Piece;
 typedef enum { White, Black } Color;
 
