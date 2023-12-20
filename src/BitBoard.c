@@ -11,28 +11,27 @@ void BitBoardPrint(BitBoard b) {
     }
     printf("%d \n", EDGE_SIZE - rank);
   }
-  printf("a b c d e f g h\n");
+  printf("a b c d e f g h\n\n");
 }
 
 BitBoard BitBoardSetBit(BitBoard b, Square s) {
   return b | ((BitBoard)1 << s);
 }
 
-// BitBoard BitBoardShiftBit(Square s, Direction d, Magnitude m) {
-//   if (m >= EDGE_SIZE) return EMPTY_BOARD;
+BitBoard BitBoardPopBit(BitBoard b, Square s) {
+  return b & ~((BitBoard)1 << s);
+}
 
-//   int rank = s / EDGE_SIZE;
-//   int file = s % EDGE_SIZE;
+int BitBoardCountBits(BitBoard b) {
+  int count = 0;
+  while (b) {
+    count++;
+    b &= b - 1;
+  }
+  return count;
+}
 
-//   if (d == North) return (b << (EDGE_SIZE * m));
-//   if (d == Northeast) return (b << (EDGE_SIZE * m + m)) & (~FILE_H << m);
-//   if (d == East) return (b << m) & ~(FILE_A << m);
-//   if (d == Southeast) return (b >> (EDGE_SIZE * m - m)) & (~FILE_H << m);
-//   if (d == South) return (b >> (EDGE_SIZE * m));
-//   if (d == Southwest) return (b >> (EDGE_SIZE * m + m)) & (~FILE_A >> m);
-//   if (d == West) return (b >> m) & (~FILE_H >> m);
-//   if (d == Northwest) return (b << (EDGE_SIZE * m - m)) & (~FILE_A >> m);
-
-//   fprintf(stderr, "Invalid direction!\n");
-//   exit(EXIT_FAILURE);
-// }
+int BitBoardLeastSignificantBit(BitBoard b) {
+  if (b == 0) return UNDEFINED;
+  return BitBoardCountBits((b & -b) - 1);
+}

@@ -1,28 +1,22 @@
 #include "BitBoard.h"
 #include "AttackTable.h"
+#include <stdio.h>
+
+#define FILE_A 0x0101010101010101
+#define FILE_H 0x8080808080808080
+#define RANK_1 0x00000000000000FF
+#define RANK_8 0xFF00000000000000
 
 int main() {
-    // BitBoard b = 0;
+    BitBoard b = 0;
     BitBoard c = 0;
-    //b = BitBoardSetBit(b, e4);
     AttackTable a = AttackTableNew();
-    // b = BitBoardSetBit(b, a2);
-    // b = BitBoardSetBit(b, g1);
-    c = AttackTableGetPieceAttacks(a, Bishop, White, e2);
+
+    b = BitBoardSetBit(b, c6);
+    b = BitBoardSetBit(b, d5);
+    b = BitBoardSetBit(b, g2);
+    c = AttackTableGetPieceAttacks(a, Bishop, White, e4, b);
     BitBoardPrint(c);
-    //b = BitBoardShiftBit(b, East, 4);
-    // BitBoardPrint(b);
-    // BitBoardPrint(FILE_H << 1);
-    // b = BitBoardSetBit(b, h8);
-    // c = AttackTableGetPieceAttacks(a, Knight, White, e4);
-    // d = AttackTableGetPieceAttacks(a, Rook, White, a1);
-    // BitBoardPrint(b);
-    // b = BitBoardShiftBit(b, Northwest, 3);
-    // BitBoardPrint(b);
-    // BitBoard c = FILE_H;
-    // BitBoardPrint(c);
-    // BitBoardPrint(c);
-    // BitBoardPrint(d);
 
     AttackTableFree(a);
 

@@ -6,10 +6,7 @@
 #define EDGE_SIZE 8
 #define BOARD_SIZE 64
 #define EMPTY_BOARD 0
-#define FILE_A 0x0101010101010101
-#define FILE_H 0x8080808080808080
-#define RANK_1 0x00000000000000FF
-#define RANK_8 0xFF00000000000000
+#define UNDEFINED -1
 
 typedef uint64_t BitBoard;
 
@@ -26,5 +23,8 @@ typedef enum {
 
 void BitBoardPrint(BitBoard b);
 BitBoard BitBoardSetBit(BitBoard b, Square s);
+BitBoard BitBoardPopBit(BitBoard b, Square s);
+int BitBoardCountBits(BitBoard b);
+int BitBoardLeastSignificantBit(BitBoard b);
 
 #endif
