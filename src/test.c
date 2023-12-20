@@ -8,15 +8,15 @@
 #define RANK_8 0xFF00000000000000
 
 int main() {
-    BitBoard b = 0;
-    BitBoard c = 0;
+    //BitBoard b = 0;
+    //BitBoard c = 0;
     AttackTable a = AttackTableNew();
 
-    b = BitBoardSetBit(b, c6);
-    b = BitBoardSetBit(b, d5);
-    b = BitBoardSetBit(b, g2);
-    c = AttackTableGetPieceAttacks(a, Bishop, White, e4, b);
-    BitBoardPrint(c);
+    // b = BitBoardSetBit(b, c6);
+    // b = BitBoardSetBit(b, d5);
+    // b = BitBoardSetBit(b, g2);
+    // c = AttackTableGetPieceAttacks(a, Bishop, White, e4, b);
+    // BitBoardPrint(c);
 
     AttackTableFree(a);
 

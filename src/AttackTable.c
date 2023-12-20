@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "BitBoard.h"
 #include "AttackTable.h"
@@ -44,7 +45,14 @@ AttackTable AttackTableNew(void) {
         int numBits = BitBoardCountBits(relevantOccupancies);
         int occupancyPowersetSize = 1 << numBits;
         for (int i = 0; i < occupancyPowersetSize; i++) {
-          a->pieceAttacks[p][c][s][i] = 0;
+          printf("Piece: %d, Color: %d, Square: %d, NumBits: %d PowersetSize: %d\n", p, c, s, numBits, occupancyPowersetSize);
+          printf("Occupancy set bitboard:\n");
+          BitBoardPrint(getOccupancySet(i, numBits, relevantOccupancies));
+          printf("Piece attacks bitboard:\n");
+          BitBoardPrint(getPieceAttacks(p, c, s, getOccupancySet(i, numBits, relevantOccupancies)));
+          printf("------------------\n\n");
+          usleep(10000);
+          a->pieceAttacks[p][c][s][i] = getOccupancySet(i, numBits, relevantOccupancies);
         }
       }
     }
