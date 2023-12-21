@@ -11,6 +11,9 @@ int main() {
     //BitBoard b = 0;
     //BitBoard c = 0;
     AttackTable a = AttackTableNew();
+    BitBoard c = BitBoardSetBit(0, e5);
+    BitBoard b = AttackTableGetPieceAttacks(a, Rook, White, e4, c);
+    BitBoardPrint(b);
 
     // b = BitBoardSetBit(b, c6);
     // b = BitBoardSetBit(b, d5);

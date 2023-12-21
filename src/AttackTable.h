@@ -11,4 +11,10 @@ AttackTable AttackTableNew(void);
 void AttackTableFree(AttackTable a);
 BitBoard AttackTableGetPieceAttacks(AttackTable a, Piece p, Color c, Square s, BitBoard o);
 
+unsigned int generateRandomNumber(void);
+U64 randomU64(void);
+U64 randomFewbits(void);
+int hashFunction(BitBoard key, U64 magicNumber, int occupancySize);
+U64 getMagicNumber(Piece p, Color c, Square s, int occupancySize);
+
 #endif
