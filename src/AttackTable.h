@@ -4,7 +4,7 @@
 typedef struct attackTable *AttackTable;
 typedef uint64_t U64;
 
-typedef enum { Pawn, Knight, Bishop, King, Rook, Queen } Piece;
+typedef enum { Pawn, Knight, King, Bishop, Rook, Queen } Piece;
 typedef enum { White, Black } Color;
 
 AttackTable AttackTableNew(void);
@@ -15,6 +15,6 @@ unsigned int generateRandomNumber(void);
 U64 randomU64(void);
 U64 randomFewbits(void);
 int hashFunction(BitBoard key, U64 magicNumber, int occupancySize);
-U64 getMagicNumber(Piece p, Color c, Square s, int occupancySize);
+U64 getMagicNumber(Piece p, Square s, int occupancySize);
 
 #endif
