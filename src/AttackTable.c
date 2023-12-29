@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <limits.h>
 #include <pthread.h>
 
 #include "BitBoard.h"
@@ -12,8 +13,8 @@
 #define PIECE_SIZE 5 // Number of unique pieces
 #define COLOR_SIZE 2
 
-#define EDGES { 0x0101010101010101, 0x8080808080808080, 0x00000000000000FF, 0xFF00000000000000 }
 #define SEED 1804289383
+#define EDGES { 0x0101010101010101, 0x8080808080808080, 0x00000000000000FF, 0xFF00000000000000 }
 #define NUM_EDGES 4
 
 #define DEFAULT_COLOR White
@@ -24,16 +25,14 @@ typedef enum {
 
 struct attackTable {
   // Precalculated attack tables
-  BitBoard leaperAttacks[PIECE_SIZE][COLOR_SIZE][BOARD_SIZE];
-  BitBoard sliderAttacks[PIECE_SIZE][BOARD_SIZE][OCCUPANCY_POWERSET_SIZE];
+  BitBoard leapingAttacks[PIECE_SIZE][COLOR_SIZE][BOARD_SIZE];
+  BitBoard slidingAttacks[PIECE_SIZE][BOARD_SIZE][OCCUPANCY_POWERSET_SIZE];
 
-  // Precalculated tables for indexing to the sliderAttacks hash table
+  // Precalculated tables for indexing to the slidingAttacks hash table
   BitBoard relevantOccupancies[PIECE_SIZE][BOARD_SIZE];
   int occupancySize[PIECE_SIZE][BOARD_SIZE];
   U64 magicNumbers[PIECE_SIZE][BOARD_SIZE];
 };
-
-static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 static BitBoard getPieceAttacks(Piece p, Color c, Square s, BitBoard occupancies);
 static BitBoard getPieceAttack(Piece p, Square s, Direction d, int steps);
@@ -55,7 +54,7 @@ AttackTable AttackTableNew(void) {
   for (Piece p = Pawn; p <= King; p++) {
     for (Color c = White; c <= Black; c++) {
       for (Square s = a1; s <= h8; s++) {
-        a->leaperAttacks[p][c][s] = getPieceAttacks(p, c, s, EMPTY_BOARD);
+        a->leapingAttacks[p][c][s] = getPieceAttacks(p, c, s, EMPTY_BOARD);
       }
     }
   }
@@ -74,7 +73,7 @@ AttackTable AttackTableNew(void) {
       for (int i = 0; i < occupancyPowersetSize; i++) {
         BitBoard o = getOccupancySet(i, a->occupancySize[p][s], a->relevantOccupancies[p][s]);
         int index = hash(o, a->magicNumbers[p][s], a->occupancySize[p][s]);
-        a->sliderAttacks[p][s][index] = getPieceAttacks(p, DEFAULT_COLOR, s, o);
+        a->slidingAttacks[p][s][index] = getPieceAttacks(p, DEFAULT_COLOR, s, o);
       }
     }
   }
@@ -88,10 +87,10 @@ void AttackTableFree(AttackTable a) {
 
 BitBoard AttackTableGetPieceAttacks(AttackTable a, Piece p, Color c, Square s, BitBoard occupancies) {
   if (p <= King) {
-    return a->leaperAttacks[p][c][s];
+    return a->leapingAttacks[p][c][s];
   } else if (p <= Rook) {
     int index = hash(a->relevantOccupancies[p][s] & occupancies, a->magicNumbers[p][s], a->occupancySize[p][s]);
-    return a->sliderAttacks[p][s][index];
+    return a->slidingAttacks[p][s][index];
   } else {
     return (AttackTableGetPieceAttacks(a, Bishop, c, s, occupancies) | AttackTableGetPieceAttacks(a, Rook, c, s, occupancies));
   }
@@ -106,7 +105,7 @@ static BitBoard getPieceAttacks(Piece p, Color c, Square s, BitBoard occupancies
     for (int steps = 1; steps < EDGE_SIZE; steps++) {
       if ((p == Bishop && isDiagional(d)) || (p == Rook && !isDiagional(d))) continue;
       else if (p == Knight && !isDiagional(d)) break;
-      else if ((p <= King) && steps > 1) break;
+      else if (p <= King && steps > 1) break;
       else if (p == Pawn && c == White && d != Northeast && d != Northwest) break;
       else if (p == Pawn && c == Black && d != Southeast && d != Southwest) break;
 
@@ -167,20 +166,15 @@ static BitBoard getRelevantOccupancies(Piece p, Square s) {
   return relevantOccupancies;
 }
 
-// 32-bit number pseudo random generator
+// 32-bit number pseudo random generator - not thread safe
 static U32 Xorshift() {
-  pthread_mutex_lock(&lock);
-
   static U32 state = 0;
   static bool seeded = false;
 
   // Seed only once
   if (!seeded) {
     state = SEED;
-    if (state == 0) {
-      state = 1; // Ensure the state is never zero
-    }
-      seeded = true;
+    seeded = true;
   }
 
   U32 x = state;
@@ -188,23 +182,19 @@ static U32 Xorshift() {
   x ^= x >> 17;
   x ^= x << 5;
 
-  pthread_mutex_unlock(&lock);
   return state = x;
 }
 
 // generate random U64 number
 static U64 getRandomNumber() {
-    // init numbers to randomize
-    U64 u1, u2, u3, u4;
+  U64 u1, u2, u3, u4;
 
-    // randomize numbers
-    u1 = (U64)(Xorshift()) & 0xFFFF;
-    u2 = (U64)(Xorshift()) & 0xFFFF;
-    u3 = (U64)(Xorshift()) & 0xFFFF;
-    u4 = (U64)(Xorshift()) & 0xFFFF;
+  u1 = (U64)(Xorshift()) & 0xFFFF;
+  u2 = (U64)(Xorshift()) & 0xFFFF;
+  u3 = (U64)(Xorshift()) & 0xFFFF;
+  u4 = (U64)(Xorshift()) & 0xFFFF;
 
-    // shuffle bits and return
-    return u1 | (u2 << 16) | (u3 << 32) | (u4 << 48);
+  return u1 | (u2 << 16) | (u3 << 32) | (u4 << 48);
 }
 
 static int hash(BitBoard key, U64 magicNumber, int occupancySize) {
@@ -219,13 +209,12 @@ static U64 getMagicNumber(Piece p, Square s, int occupancySize) {
   BitBoard relevantOccupancies = getRelevantOccupancies(p, s);
   int occupancyPowersetSize = 1 << occupancySize;
 
-
   for (int i = 0; i < occupancyPowersetSize; i++) {
     occupancies[i] = getOccupancySet(i, occupancySize, relevantOccupancies);
     attacks[i] = getPieceAttacks(p, DEFAULT_COLOR, s, occupancies[i]);
   }
 
-  for (int i = 0; i < 100000000; i++) {
+  for (int i = 0; i < INT_MAX; i++) {
     U64 magicNumber = getRandomNumber() & getRandomNumber() & getRandomNumber();
 
     // Heuristic to skip inappropridate numbers
@@ -245,7 +234,7 @@ static U64 getMagicNumber(Piece p, Square s, int occupancySize) {
     }
     if (!collision) return magicNumber;
   }
-  printf("FAIL");
-  return 0;
+  fprintf(stderr, "Failed to find magic number!\n");
+  exit(1);
 }
 

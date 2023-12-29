@@ -9,8 +9,10 @@ typedef enum { Pawn, Knight, King, Bishop, Rook, Queen } Piece;
 typedef enum { White, Black } Color;
 /*
  * Let p = number of pieces, c = number of colors, s = number of squares,
- * o = occupancy powerset size, l = number of leaper pieces, t = number of slider pieces
- * Memory allocated = 8(p*c*s) + 8(p*s*o) + 20(p*s) + 8 ~ 10.5MB
+ * o = rook powerset size, m = bishop powerset size,  l = number of leaper pieces,
+ * t = number of slider pieces
+ * Memory allocated = 8pcs + 8pso + 20ps ~ 10.5MB
+ * Memory used = 8ls + 8s + 8so + 8sm + 20ts ~ 2.4MB
  */
 
 AttackTable AttackTableNew(void);
