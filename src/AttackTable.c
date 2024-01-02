@@ -21,12 +21,12 @@ typedef enum {
 
 struct attackTable {
   // Precalculated attack tables
-  BitBoard *pieceAttacks[PIECE_SIZE - 1][COLOR_SIZE][BOARD_SIZE];
+  BitBoard *pieceAttacks[PIECE_SIZE][COLOR_SIZE][BOARD_SIZE];
 
   // Precalculated tables for indexing to the pieceAttacks hash table
-  BitBoard relevantOccupancies[PIECE_SIZE - 1][COLOR_SIZE][BOARD_SIZE];
-  int occupancySize[PIECE_SIZE - 1][COLOR_SIZE][BOARD_SIZE];
-  U64 magicNumbers[PIECE_SIZE - 1][COLOR_SIZE][BOARD_SIZE];
+  BitBoard relevantOccupancies[PIECE_SIZE][COLOR_SIZE][BOARD_SIZE];
+  int occupancySize[PIECE_SIZE][COLOR_SIZE][BOARD_SIZE];
+  U64 magicNumbers[PIECE_SIZE][COLOR_SIZE][BOARD_SIZE];
 };
 
 static BitBoard getPieceAttacks(Piece p, Color c, Square s, BitBoard occupancies);
@@ -47,11 +47,11 @@ AttackTable AttackTableNew(void) {
   }
 
   bool emptyFile = isFileEmpty(MAGIC_NUMBERS_FILEPATH);
-  int fileElementsSize = (PIECE_SIZE - 1) * COLOR_SIZE * BOARD_SIZE;
+  int fileElementsSize = PIECE_SIZE * COLOR_SIZE * BOARD_SIZE;
 
   if (!emptyFile) readFromFile(a->magicNumbers, sizeof(U64), fileElementsSize, MAGIC_NUMBERS_FILEPATH);
 
-  for (Piece p = Pawn; p <= Rook; p++) {
+  for (Piece p = Pawn; p <= Queen; p++) {
     for (Color c = White; c <= Black; c++) {
       for (Square s = a1; s <= h8; s++) {
         a->relevantOccupancies[p][c][s] = getRelevantOccupancies(p, c, s);
@@ -107,7 +107,6 @@ static int getPowersetSize(int setSize) {
   return 1 << setSize;
 }
 
-// Assume that a queen piece will not be passed to this function
 static BitBoard getPieceAttacks(Piece p, Color c, Square s, BitBoard occupancies) {
   BitBoard pieceAttacks = EMPTY_BOARD;
 

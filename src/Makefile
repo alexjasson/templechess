@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -Werror
-TARGET = myprogram
+TARGET = go
 
 # List all your supporting .c files here. Do NOT include .h files in this list.
 # Example: SUPPORTING_FILES = hello.c world.c
