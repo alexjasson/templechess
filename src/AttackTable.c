@@ -5,16 +5,16 @@
 
 #include "BitBoard.h"
 #include "AttackTable.h"
+#include "utility.h"
 
-// Maximum size of all possible combinations of relevant occupancies for
-// unique pieces (ie. the pieces not including queen)
-#define OCCUPANCY_POWERSET_SIZE 4096
-#define PIECE_SIZE 5 // Number of unique pieces
+#define PIECE_SIZE 6
 #define COLOR_SIZE 2
 
 #define SEED 1804289383
 #define EDGES { 0x0101010101010101, 0x8080808080808080, 0x00000000000000FF, 0xFF00000000000000 }
 #define NUM_EDGES 4
+
+#define MAGIC_NUMBERS_FILEPATH "data/magicNumbers.dat"
 
 typedef enum {
   North, Northeast, East, Southeast, South, Southwest, West, Northwest
@@ -22,23 +22,25 @@ typedef enum {
 
 struct attackTable {
   // Precalculated attack tables
-  BitBoard pieceAttacks[PIECE_SIZE][COLOR_SIZE][BOARD_SIZE][OCCUPANCY_POWERSET_SIZE];
+  BitBoard *pieceAttacks[PIECE_SIZE - 1][COLOR_SIZE][BOARD_SIZE];
 
   // Precalculated tables for indexing to the pieceAttacks hash table
-  BitBoard relevantOccupancies[PIECE_SIZE][COLOR_SIZE][BOARD_SIZE];
-  int occupancySize[PIECE_SIZE][COLOR_SIZE][BOARD_SIZE];
-  U64 magicNumbers[PIECE_SIZE][COLOR_SIZE][BOARD_SIZE];
+  BitBoard relevantOccupancies[PIECE_SIZE - 1][COLOR_SIZE][BOARD_SIZE];
+  int occupancySize[PIECE_SIZE - 1][COLOR_SIZE][BOARD_SIZE];
+  U64 magicNumbers[PIECE_SIZE - 1][COLOR_SIZE][BOARD_SIZE];
 };
 
 static BitBoard getPieceAttacks(Piece p, Color c, Square s, BitBoard occupancies);
 static BitBoard getPieceAttack(Piece p, Square s, Direction d, int steps);
-static BitBoard getOccupancySet(int index, int occupancySize, BitBoard occupancies);
+static BitBoard getOccupanciesSubset(int index, int occupancySize, BitBoard occupancies);
 static BitBoard getRelevantOccupancies(Piece p, Color c, Square s);
 static U64 getMagicNumber(Piece p, Color c, Square s, int occupancySize);
 static int hash(BitBoard key, U64 magicNumber, int occupancySize);
 static bool isDiagional(Direction d);
 static U32 Xorshift();
 static U64 getRandomNumber();
+static BitBoard *getAllPieceAttacks(Piece p, Color c, Square s, AttackTable a);
+static int getPowersetSize(int setSize);
 
 AttackTable AttackTableNew(void) {
   AttackTable a = malloc(sizeof(struct attackTable));
@@ -47,36 +49,36 @@ AttackTable AttackTableNew(void) {
     exit(EXIT_FAILURE);
   }
 
+  bool emptyFile = isFileEmpty(MAGIC_NUMBERS_FILEPATH);
+  int fileElementsSize = (PIECE_SIZE - 1) * COLOR_SIZE * BOARD_SIZE;
+
+  if (!emptyFile) readFromFile(a->magicNumbers, sizeof(U64), fileElementsSize, MAGIC_NUMBERS_FILEPATH);
+
   for (Piece p = Pawn; p <= Rook; p++) {
     for (Color c = White; c <= Black; c++) {
       for (Square s = a1; s <= h8; s++) {
         a->relevantOccupancies[p][c][s] = getRelevantOccupancies(p, c, s);
         a->occupancySize[p][c][s] = BitBoardCountBits(a->relevantOccupancies[p][c][s]);
-        a->magicNumbers[p][c][s] = getMagicNumber(p, c, s, a->occupancySize[p][c][s]);
+        if (emptyFile) a->magicNumbers[p][c][s] = getMagicNumber(p, c, s, a->occupancySize[p][c][s]);
+        a->pieceAttacks[p][c][s] = getAllPieceAttacks(p, c, s, a);
         printf("Piece: %d, Color: %d, Square: %d, Occupancy Size: %d, Magic Number: %lu\n", p, c, s, a->occupancySize[p][c][s], a->magicNumbers[p][c][s]);
       }
     }
   }
 
-  printf("YO\n");
-
-  for (Piece p = Pawn; p <= Rook; p++) {
-    for (Color c = White; c <= Black; c++) {
-      for (Square s = a1; s <= h8; s++) {
-        int occupancyPowersetSize = 1 << a->occupancySize[p][c][s];
-        for (int i = 0; i < occupancyPowersetSize; i++) {
-          BitBoard o = getOccupancySet(i, a->occupancySize[p][c][s], a->relevantOccupancies[p][c][s]);
-          int index = hash(o, a->magicNumbers[p][c][s], a->occupancySize[p][c][s]);
-          a->pieceAttacks[p][c][s][index] = getPieceAttacks(p, c, s, o);
-        }
-      }
-    }
-  }
+  if (emptyFile) writeToFile(a->magicNumbers, sizeof(U64), fileElementsSize, MAGIC_NUMBERS_FILEPATH);
 
   return a;
 }
 
 void AttackTableFree(AttackTable a) {
+  for (Piece p = Pawn; p <= Rook; p++) {
+    for (Color c = White; c <= Black; c++) {
+      for (Square s = a1; s <= h8; s++) {
+        free(a->pieceAttacks[p][c][s]);
+      }
+    }
+  }
   free(a);
 }
 
@@ -87,6 +89,26 @@ BitBoard AttackTableGetPieceAttacks(AttackTable a, Piece p, Color c, Square s, B
   } else {
     return (AttackTableGetPieceAttacks(a, Bishop, c, s, occupancies) | AttackTableGetPieceAttacks(a, Rook, c, s, occupancies));
   }
+}
+
+static BitBoard *getAllPieceAttacks(Piece p, Color c, Square s, AttackTable a) {
+  int occupancyPowersetSize = getPowersetSize(a->occupancySize[p][c][s]);
+  BitBoard *allPieceAttacks = malloc(sizeof(BitBoard) * occupancyPowersetSize);
+  if (allPieceAttacks == NULL) {
+    fprintf(stderr, "Insufficient memory!\n");
+    exit(EXIT_FAILURE);
+  }
+
+  for (int i = 0; i < occupancyPowersetSize; i++) {
+    BitBoard o = getOccupanciesSubset(i, a->occupancySize[p][c][s], a->relevantOccupancies[p][c][s]);
+    int index = hash(o, a->magicNumbers[p][c][s], a->occupancySize[p][c][s]);
+    allPieceAttacks[index] = getPieceAttacks(p, c, s, o);
+  }
+  return allPieceAttacks;
+}
+
+static int getPowersetSize(int setSize) {
+  return 1 << setSize;
 }
 
 // Assume that a queen piece will not be passed to this function
@@ -137,14 +159,14 @@ static bool isDiagional(Direction d) {
 }
 
 // get unique set of occupancies for index
-static BitBoard getOccupancySet(int index, int occupancySize, BitBoard occupancies) {
-  BitBoard occupancy = EMPTY_BOARD;
+static BitBoard getOccupanciesSubset(int index, int occupancySize, BitBoard occupancies) {
+  BitBoard occupanciesSubset = EMPTY_BOARD;
   for (int i = 0; i < occupancySize; i++) {
     int square = BitBoardLeastSignificantBit(occupancies);
     occupancies = BitBoardPopBit(occupancies, square);
-    if (index & (1 << i)) occupancy = BitBoardSetBit(occupancy, square);
+    if (index & (1 << i)) occupanciesSubset = BitBoardSetBit(occupanciesSubset, square);
   }
-  return occupancy;
+  return occupanciesSubset;
 }
 
 static BitBoard getRelevantOccupancies(Piece p, Color c, Square s) {
@@ -195,15 +217,14 @@ static int hash(BitBoard key, U64 magicNumber, int occupancySize) {
 }
 
 static U64 getMagicNumber(Piece p, Color c, Square s, int occupancySize) {
-  BitBoard occupancies[OCCUPANCY_POWERSET_SIZE];
-  BitBoard attacks[OCCUPANCY_POWERSET_SIZE];
-  BitBoard usedAttacks[OCCUPANCY_POWERSET_SIZE];
-
+  int occupancyPowersetSize = getPowersetSize(occupancySize);
+  BitBoard occupancies[occupancyPowersetSize];
+  BitBoard attacks[occupancyPowersetSize];
+  BitBoard usedAttacks[occupancyPowersetSize];
   BitBoard relevantOccupancies = getRelevantOccupancies(p, c, s);
-  int occupancyPowersetSize = 1 << occupancySize;
 
   for (int i = 0; i < occupancyPowersetSize; i++) {
-    occupancies[i] = getOccupancySet(i, occupancySize, relevantOccupancies);
+    occupancies[i] = getOccupanciesSubset(i, occupancySize, relevantOccupancies);
     attacks[i] = getPieceAttacks(p, c, s, occupancies[i]);
   }
 
