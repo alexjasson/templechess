@@ -10,7 +10,6 @@
 #define PIECE_SIZE 6
 #define COLOR_SIZE 2
 
-#define SEED 1804289383
 #define EDGES { 0x0101010101010101, 0x8080808080808080, 0x00000000000000FF, 0xFF00000000000000 }
 #define NUM_EDGES 4
 
@@ -37,8 +36,6 @@ static BitBoard getRelevantOccupancies(Piece p, Color c, Square s);
 static U64 getMagicNumber(Piece p, Color c, Square s, int occupancySize);
 static int hash(BitBoard key, U64 magicNumber, int occupancySize);
 static bool isDiagional(Direction d);
-static U32 Xorshift();
-static U64 getRandomNumber();
 static BitBoard *getAllPieceAttacks(Piece p, Color c, Square s, AttackTable a);
 static int getPowersetSize(int setSize);
 
@@ -61,7 +58,6 @@ AttackTable AttackTableNew(void) {
         a->occupancySize[p][c][s] = BitBoardCountBits(a->relevantOccupancies[p][c][s]);
         if (emptyFile) a->magicNumbers[p][c][s] = getMagicNumber(p, c, s, a->occupancySize[p][c][s]);
         a->pieceAttacks[p][c][s] = getAllPieceAttacks(p, c, s, a);
-        printf("Piece: %d, Color: %d, Square: %d, Occupancy Size: %d, Magic Number: %lu\n", p, c, s, a->occupancySize[p][c][s], a->magicNumbers[p][c][s]);
       }
     }
   }
@@ -179,37 +175,6 @@ static BitBoard getRelevantOccupancies(Piece p, Color c, Square s) {
     }
   }
   return relevantOccupancies;
-}
-
-// 32-bit number pseudo random generator - not thread safe
-static U32 Xorshift() {
-  static U32 state = 0;
-  static bool seeded = false;
-
-  // Seed only once
-  if (!seeded) {
-    state = SEED;
-    seeded = true;
-  }
-
-  U32 x = state;
-  x ^= x << 13;
-  x ^= x >> 17;
-  x ^= x << 5;
-
-  return state = x;
-}
-
-// generate random U64 number
-static U64 getRandomNumber() {
-  U64 u1, u2, u3, u4;
-
-  u1 = (U64)(Xorshift()) & 0xFFFF;
-  u2 = (U64)(Xorshift()) & 0xFFFF;
-  u3 = (U64)(Xorshift()) & 0xFFFF;
-  u4 = (U64)(Xorshift()) & 0xFFFF;
-
-  return u1 | (u2 << 16) | (u3 << 32) | (u4 << 48);
 }
 
 static int hash(BitBoard key, U64 magicNumber, int occupancySize) {

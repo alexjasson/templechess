@@ -3,7 +3,6 @@
 
 typedef struct attackTable *AttackTable;
 typedef uint64_t U64;
-typedef uint32_t U32;
 
 typedef enum { Pawn, Knight, King, Bishop, Rook, Queen } Piece;
 typedef enum { White, Black } Color;

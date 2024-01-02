@@ -1,7 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+
 #include "utility.h"
+
+#define SEED 1804289383
+
+static U32 xorshift();
 
 void writeToFile(void *array, Size elementSize, Size numElements, char *filename) {
   FILE *fp = fopen(filename, "wb");
@@ -44,4 +49,35 @@ bool isFileEmpty(char *filename) {
   fclose(fp);
 
   return size == 0;
+}
+
+// generate random U64 number
+U64 getRandomNumber() {
+  U64 u1, u2, u3, u4;
+
+  u1 = (U64)(xorshift()) & 0xFFFF;
+  u2 = (U64)(xorshift()) & 0xFFFF;
+  u3 = (U64)(xorshift()) & 0xFFFF;
+  u4 = (U64)(xorshift()) & 0xFFFF;
+
+  return u1 | (u2 << 16) | (u3 << 32) | (u4 << 48);
+}
+
+// 32-bit number pseudo random generator - not thread safe
+static U32 xorshift() {
+  static U32 state = 0;
+  static bool seeded = false;
+
+  // Seed only once
+  if (!seeded) {
+    state = SEED;
+    seeded = true;
+  }
+
+  U32 x = state;
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+
+  return state = x;
 }
