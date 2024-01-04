@@ -8,36 +8,35 @@
 
 static U32 xorshift();
 
-void writeToFile(void *array, Size elementSize, Size numElements, char *filename) {
-  FILE *fp = fopen(filename, "wb");
+void writeElementToFile(void *element, Size elementSize, Size position, char *filename) {
+  FILE *fp = fopen(filename, "r+b"); // Open for reading and writing; file must exist
   if (fp == NULL) {
     fprintf(stderr, "Failed to open '%s' for writing\n", filename);
     exit(EXIT_FAILURE);
   }
 
-  Size written = fwrite(array, elementSize, numElements, fp);
-  if (written != numElements) {
-    fprintf(stderr, "Failed to write all elements to '%s'\n", filename);
+  fseek(fp, position * elementSize, SEEK_SET);
+
+  Size written = fwrite(element, elementSize, 1, fp);
+  if (written != 1) {
+    fprintf(stderr, "Failed to write the element to '%s'\n", filename);
     exit(EXIT_FAILURE);
   }
 
   fclose(fp);
 }
 
-void readFromFile(void *array, Size elementSize, Size numElements, char *filename) {
+bool readElementFromFile(void *element, Size elementSize, Size position, char *filename) {
   FILE *fp = fopen(filename, "rb");
-  if (fp == NULL) {
-    fprintf(stderr, "Failed to open '%s' for reading\n", filename);
-    exit(EXIT_FAILURE);
-  }
+  if (fp == NULL) return false;
 
-  Size read = fread(array, elementSize, numElements, fp);
-  if (read != numElements) {
-    fprintf(stderr, "Failed to read all elements from '%s'\n", filename);
-    exit(EXIT_FAILURE);
-  }
+  fseek(fp, position * elementSize, SEEK_SET);
 
+  Size read = fread(element, elementSize, 1, fp);
+  printf("read: %zu\n", read);
+  printf("position: %zu\n", position);
   fclose(fp);
+  return (read != 1) ? false : true;
 }
 
 bool isFileEmpty(char *filename) {

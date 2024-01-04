@@ -6,9 +6,9 @@ int main() {
     //BitBoard b = 0;
     //BitBoard c = 0;
     AttackTable a = AttackTableNew();
-    BitBoard c = BitBoardSetBit(0, d3);
+    BitBoard c = BitBoardSetBit(0, e4);
     //BitBoard d = 0xFFFFFFFFFFFFFFFF;
-    BitBoard b = AttackTableGetPieceAttacks(a, Bishop, White, e2, c);
+    BitBoard b = AttackTableGetPieceAttacks(a, 7 + 256 + 256, c);
     BitBoardPrint(b);
 
     // b = BitBoardSetBit(b, c6);
