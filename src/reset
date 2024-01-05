@@ -1,5 +1,5 @@
 #!/bin/bash
 
-FILEPATH="data/pieceAttacksData.dat"
+FILEPATH="data/attacks.dat"
 
 > $FILEPATH
