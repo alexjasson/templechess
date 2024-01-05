@@ -38,8 +38,8 @@ typedef struct {
 typedef struct {
   volatile bool stop;
   pthread_mutex_t lock;
-  BitBoard *attacks;
   BitBoard *occupancies;
+  BitBoard *attacks;
   PieceAttacksData attacksData;
   int relevantOccupanciesPowersetSize;
 } ThreadData;
@@ -70,8 +70,8 @@ AttackTable AttackTableNew(void) {
     fprintf(stderr, "Insufficient memory!\n");
     exit(EXIT_FAILURE);
   }
-
-  for (Piece p = 0; p < 640; p++) {
+  //
+  for (Piece p = 0; p < 641; p++) {
     if (!readElementFromFile(&a->data[p], sizeof(PieceAttacksData), p, PIECE_ATTACKS_DATA_FILEPATH)) {
       a->data[p] = getPieceAttacksData(p);
       writeElementToFile(&a->data[p], sizeof(PieceAttacksData), p, PIECE_ATTACKS_DATA_FILEPATH);
@@ -79,7 +79,7 @@ AttackTable AttackTableNew(void) {
     a->pieceAttacks[p] = getAllPieceAttacks(p, a);
     printf("Type: %d, Color: %d, Square: %d, Occupancy Size: %d, Magic Number:%lu\n", GET_TYPE(p), GET_COLOR(p), GET_SQUARE(p), a->data[p].relevantOccupanciesSize, a->data[p].magicNumber);
   }
-
+  printf("yo\n");
   return a;
 }
 
