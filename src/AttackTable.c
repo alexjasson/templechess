@@ -61,7 +61,7 @@ static BitBoard getRelevantBits(Piece p);
 static BitBoard getRelevantBitsSubset(int index, BitBoard relevantBits, int relevantBitsSize);
 static U64 getMagicNumber(Piece p, BitBoard relevantBits, int relevantBitsSize);
 static void *magicNumberSearch(void *arg);
-static int hash(PieceData attacks, BitBoard relevantBits);
+static int hash(PieceData attacks, BitBoard occupancies);
 
 AttackTable AttackTableNew(void) {
   AttackTable a = malloc(sizeof(struct attackTable));
@@ -184,8 +184,8 @@ static BitBoard getRelevantBits(Piece p) {
   return relevantBits;
 }
 
-static int hash(PieceData attacks, BitBoard relevantBits) {
-  return (int)(((attacks.relevantBits & relevantBits) * attacks.magicNumber) >> (64 - attacks.relevantBitsSize));
+static int hash(PieceData attacks, BitBoard occupancies) {
+  return (int)(((attacks.relevantBits & occupancies) * attacks.magicNumber) >> (64 - attacks.relevantBitsSize));
 }
 
 static U64 getMagicNumber(Piece p, BitBoard relevantBits, int relevantBitsSize) {
