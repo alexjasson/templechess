@@ -48,7 +48,7 @@ struct attackTable {
   // Precalculated attack tables
   BitBoard *pieceAttacks[PIECE_SIZE];
 
-  // Precalculated table for indexing to the pieceAttacks hash table
+  // Precalculated data for indexing to the pieceAttacks hash table
   PieceData attacksData[PIECE_SIZE];
 };
 
@@ -70,8 +70,12 @@ AttackTable AttackTableNew(void) {
     exit(EXIT_FAILURE);
   }
 
+  // Assumes that data will be read/written consecutively
   for (Piece p = 0; p < 640; p++) {
-    if (!readElementFromFile(&a->attacksData[p], sizeof(PieceData), p, ATTACKS_DATA)) {
+    if (p != Pawn && GET_COLOR(p) == Black) {
+      a->attacksData[p] = a->attacksData[p - BOARD_SIZE];
+      writeElementToFile(&a->attacksData[p], sizeof(PieceData), p, ATTACKS_DATA);
+    } else if (!readElementFromFile(&a->attacksData[p], sizeof(PieceData), p, ATTACKS_DATA)) {
       a->attacksData[p] = getPieceAttacksData(p);
       writeElementToFile(&a->attacksData[p], sizeof(PieceData), p, ATTACKS_DATA);
     }
