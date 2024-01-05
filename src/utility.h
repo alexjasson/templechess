@@ -3,13 +3,12 @@
 
 #include <stdint.h>
 
-typedef size_t Size;
 typedef uint32_t U32;
 typedef uint64_t U64;
 
-void writeElementToFile(void *element, Size elementSize, Size position, char *filename);
-bool readElementFromFile(void *element, Size elementSize, Size position, char *filename);
+void writeElementToFile(void *element, size_t elementSize, int position, char *filename);
+bool readElementFromFile(void *element, size_t elementSize, int position, char *filename);
 bool isFileEmpty(char *filename);
-U64 getRandomNumber();
+U64 getRandomNumber(pthread_mutex_t *lock);
 
 #endif

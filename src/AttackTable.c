@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <limits.h>
+#include <pthread.h>
 
 #include "BitBoard.h"
 #include "AttackTable.h"
@@ -19,6 +20,8 @@
 #define EDGES { 0x0101010101010101, 0x8080808080808080, 0x00000000000000FF, 0xFF00000000000000 }
 #define NUM_EDGES 4
 
+#define NUM_CORES 8
+
 #define PIECE_ATTACKS_DATA_FILEPATH "data/pieceAttacksData.dat"
 
 typedef enum {
@@ -30,6 +33,15 @@ typedef struct {
   int relevantOccupanciesSize;
   U64 magicNumber;
 } PieceAttacksData;
+
+typedef struct {
+  volatile bool stop;
+  pthread_mutex_t lock;
+  BitBoard *occupancies;
+  BitBoard *attacks;
+  PieceAttacksData attacksData;
+  int relevantOccupanciesPowersetSize;
+} ThreadData;
 
 struct attackTable {
   // Precalculated attack tables
@@ -43,7 +55,8 @@ static BitBoard getPieceAttacks(Piece p, BitBoard occupancies);
 static BitBoard getPieceAttack(Piece p, Direction d, int steps);
 static BitBoard getRelevantOccupanciesSubset(int index, int relevantOccupanciesSize, BitBoard relevantOccupancies);
 static BitBoard getRelevantOccupancies(Piece p);
-static U64 getMagicNumber(Piece p, int relevantOccupanciesSize);
+static U64 getMagicNumber(Piece p);
+static void *magicNumberSearch(void *arg);
 static int hash(PieceAttacksData data, BitBoard occupancies);
 static bool isDiagional(Direction d);
 static BitBoard *getAllPieceAttacks(Piece p, AttackTable a);
@@ -100,7 +113,7 @@ static PieceAttacksData getPieceAttacksData(Piece p) {
   PieceAttacksData data;
   data.relevantOccupancies = getRelevantOccupancies(p);
   data.relevantOccupanciesSize = BitBoardCountBits(data.relevantOccupancies);
-  data.magicNumber = getMagicNumber(p, data.relevantOccupanciesSize);
+  data.magicNumber = getMagicNumber(p);
   return data;
 }
 
@@ -184,37 +197,82 @@ static int hash(PieceAttacksData data, BitBoard occupancies) {
   return (int)(((data.relevantOccupancies & occupancies) * data.magicNumber) >> (64 - data.relevantOccupanciesSize));
 }
 
-static U64 getMagicNumber(Piece p, int relevantOccupanciesSize) {
-  int relevantOccupanciesPowersetSize = getPowersetSize(relevantOccupanciesSize);
+static U64 getMagicNumber(Piece p) {
   BitBoard relevantOccupancies = getRelevantOccupancies(p);
-  BitBoard occupancies[relevantOccupanciesPowersetSize];
-  BitBoard attacks[relevantOccupanciesPowersetSize];
-  BitBoard usedAttacks[relevantOccupanciesPowersetSize];
+  int relevantOccupanciesSize = BitBoardCountBits(relevantOccupancies);
+  int relevantOccupanciesPowersetSize = getPowersetSize(relevantOccupanciesSize);
 
+  BitBoard *occupancies = malloc(sizeof(BitBoard) * relevantOccupanciesPowersetSize);
+  BitBoard *attacks = malloc(sizeof(BitBoard) * relevantOccupanciesPowersetSize);
+  if (occupancies == NULL || attacks == NULL) {
+    fprintf(stderr, "Insufficient memory!\n");
+    exit(EXIT_FAILURE);
+  }
   for (int i = 0; i < relevantOccupanciesPowersetSize; i++) {
     occupancies[i] = getRelevantOccupanciesSubset(i, relevantOccupanciesSize, relevantOccupancies);
     attacks[i] = getPieceAttacks(p, occupancies[i]);
   }
 
-  for (int i = 0; i < INT_MAX; i++) {
-    U64 magicNumber = getRandomNumber() & getRandomNumber() & getRandomNumber();
+  ThreadData td = { false, PTHREAD_MUTEX_INITIALIZER, occupancies, attacks, { relevantOccupancies, relevantOccupanciesSize, UNDEFINED }, relevantOccupanciesPowersetSize };
 
-    for (int j = 0; j < relevantOccupanciesPowersetSize; j++) usedAttacks[j] = EMPTY_BOARD;
+  // create threads
+  pthread_t threads[NUM_CORES];
+  for (int i = 0; i < NUM_CORES; i++) {
+    pthread_create(&threads[i], NULL, magicNumberSearch, &td);
+  }
+
+  // join threads
+  for (int i = 0; i < NUM_CORES; i++) {
+    pthread_join(threads[i], NULL);
+  }
+
+  pthread_mutex_destroy(&td.lock);
+  free(occupancies);
+  free(attacks);
+  return td.attacksData.magicNumber;
+}
+
+static void *magicNumberSearch(void *arg) {
+  ThreadData *td = (ThreadData *)arg;
+
+  BitBoard *usedAttacks = malloc(sizeof(BitBoard) * td->relevantOccupanciesPowersetSize);
+  if (usedAttacks == NULL) {
+    fprintf(stderr, "Insufficient memory!\n");
+    exit(EXIT_FAILURE);
+  }
+
+  while(true) {
+    pthread_mutex_lock(&td->lock);
+    if (td->stop) {
+      pthread_mutex_unlock(&td->lock);
+      break;
+    }
+    pthread_mutex_unlock(&td->lock);
+
+    U64 magicNumber = getRandomNumber(&td->lock) & getRandomNumber(&td->lock) & getRandomNumber(&td->lock);
+
+    for (int j = 0; j < td->relevantOccupanciesPowersetSize; j++) usedAttacks[j] = EMPTY_BOARD;
     int collision = false;
 
     // Test magic index
-    for (int j = 0; j < relevantOccupanciesPowersetSize; j++) {
-      PieceAttacksData data = { relevantOccupancies, relevantOccupanciesSize, magicNumber };
-      int index = hash(data, occupancies[j]);
-      if (usedAttacks[index] == 0) {
-        usedAttacks[index] = attacks[j];
-      } else if (usedAttacks[index] != attacks[j]) {
+    for (int j = 0; j < td->relevantOccupanciesPowersetSize; j++) {
+      PieceAttacksData data = { td->attacksData.relevantOccupancies, td->attacksData.relevantOccupanciesSize, magicNumber };
+      int index = hash(data, td->occupancies[j]);
+      if (usedAttacks[index] == EMPTY_BOARD) {
+        usedAttacks[index] = td->attacks[j];
+      } else if (usedAttacks[index] != td->attacks[j]) {
         collision = true;
       }
     }
-    if (!collision) return magicNumber;
+    if (!collision) {
+      pthread_mutex_lock(&td->lock);
+      td->stop = true;
+      td->attacksData.magicNumber = magicNumber;
+      pthread_mutex_unlock(&td->lock);
+    }
   }
-  fprintf(stderr, "Failed to find magic number!\n");
-  exit(1);
+
+  free(usedAttacks);
+  return NULL;
 }
 
