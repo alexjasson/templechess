@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <limits.h>
 #include <pthread.h>
+#include <unistd.h>
 
 #include "BitBoard.h"
 #include "AttackTable.h"
@@ -20,7 +21,7 @@
 #define EDGES { 0x0101010101010101, 0x8080808080808080, 0x00000000000000FF, 0xFF00000000000000 }
 #define NUM_EDGES 4
 
-#define NUM_CORES 8
+#define NUM_CORES sysconf(_SC_NPROCESSORS_ONLN)
 
 #define PIECE_ATTACKS_DATA_FILEPATH "data/pieceAttacksData.dat"
 
@@ -37,8 +38,8 @@ typedef struct {
 typedef struct {
   volatile bool stop;
   pthread_mutex_t lock;
-  BitBoard *occupancies;
   BitBoard *attacks;
+  BitBoard *occupancies;
   PieceAttacksData attacksData;
   int relevantOccupanciesPowersetSize;
 } ThreadData;
