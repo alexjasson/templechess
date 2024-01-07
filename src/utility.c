@@ -1,12 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <time.h>
 #include <pthread.h>
 
 #include "utility.h"
 
-static U32 xorshift();
+static uint32_t xorshift(pthread_mutex_t *lock);
 
 void writeElementToFile(void *element, size_t elementSize, int position, char *filename) {
   FILE *fp = fopen(filename, "r+b"); // Open for reading and writing; file must exist
@@ -48,31 +49,31 @@ bool isFileEmpty(char *filename) {
   return size == 0;
 }
 
-// generate pseudo random U64 number - thread safe
-U64 getRandomNumber(pthread_mutex_t *lock) {
-  U64 u1, u2, u3, u4;
+// generate pseudo random 64 bit number - thread safe
+uint64_t getRandomNumber(pthread_mutex_t *lock) {
+  uint64_t u1, u2, u3, u4;
 
-  u1 = (U64)(xorshift(lock)) & 0xFFFF;
-  u2 = (U64)(xorshift(lock)) & 0xFFFF;
-  u3 = (U64)(xorshift(lock)) & 0xFFFF;
-  u4 = (U64)(xorshift(lock)) & 0xFFFF;
+  u1 = (uint64_t)(xorshift(lock)) & 0xFFFF;
+  u2 = (uint64_t)(xorshift(lock)) & 0xFFFF;
+  u3 = (uint64_t)(xorshift(lock)) & 0xFFFF;
+  u4 = (uint64_t)(xorshift(lock)) & 0xFFFF;
 
   return u1 | (u2 << 16) | (u3 << 32) | (u4 << 48);
 }
 
 // 32-bit number pseudo random generator - thread safe
-static U32 xorshift(pthread_mutex_t *lock) {
-  static U32 state = 0;
+static uint32_t xorshift(pthread_mutex_t *lock) {
+  static uint32_t state = 0;
   static bool seeded = false;
 
   pthread_mutex_lock(lock);
   // Seed only once
   if (!seeded) {
-    state = (U32)time(NULL);
+    state = (uint32_t)time(NULL);
     seeded = true;
   }
 
-  U32 x = state;
+  uint32_t x = state;
   x ^= x << 13;
   x ^= x >> 17;
   x ^= x << 5;

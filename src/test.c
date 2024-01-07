@@ -8,7 +8,7 @@ int main() {
     AttackTable a = AttackTableNew();
     BitBoard c = BitBoardSetBit(0, e4);
     //BitBoard d = 0xFFFFFFFFFFFFFFFF;
-    BitBoard b = AttackTableGetPieceAttacks(a, 7 + 256 + 128 + 128, c);
+    BitBoard b = AttackTableGetPieceAttacks(a, e4, Pawn, White, c);
     BitBoardPrint(b);
 
     // b = BitBoardSetBit(b, c6);
