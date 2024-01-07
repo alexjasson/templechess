@@ -9,8 +9,8 @@ TARGET = go
 .PHONY: all
 all: $(TARGET)
 
-$(TARGET): test.c BitBoard.c AttackTable.c utility.c
-	$(CC) $(CFLAGS) -o $(TARGET) test.c BitBoard.c AttackTable.c utility.c -lm
+$(TARGET): test.c BitBoard.c LookupTable.c utility.c
+	$(CC) $(CFLAGS) -o $(TARGET) test.c BitBoard.c LookupTable.c utility.c -lm
 
 .PHONY: clean
 clean:

@@ -6,7 +6,7 @@
 #include <unistd.h>
 
 #include "BitBoard.h"
-#include "AttackTable.h"
+#include "LookupTable.h"
 #include "utility.h"
 
 #define PIECE_SIZE 5
@@ -40,7 +40,7 @@ typedef struct {
   LookupData attacksData;
 } ThreadData;
 
-struct attackTable {
+struct lookupTable {
   // Precalculated attack tables
   BitBoard *pieceAttacks[BOARD_SIZE][PIECE_SIZE][COLOR_SIZE];
 
@@ -59,9 +59,9 @@ static uint64_t getMagicNumber(Square s, Piece p, Color c, BitBoard relevantBits
 static void *magicNumberSearch(void *arg);
 static int hash(LookupData attacks, BitBoard occupancies);
 
-AttackTable AttackTableNew(void) {
-  AttackTable a = malloc(sizeof(struct attackTable));
-  if (a == NULL) {
+LookupTable LookupTableNew(void) {
+  LookupTable l = malloc(sizeof(struct lookupTable));
+  if (l == NULL) {
     fprintf(stderr, "Insufficient memory!\n");
     exit(EXIT_FAILURE);
   }
@@ -71,35 +71,39 @@ AttackTable AttackTableNew(void) {
       for (Color c = White; c <= Black; c++) {
         int index = GET_1D_INDEX(s, p, c);
         if (p != Pawn && c == Black) {
-          a->attacksData[s][p][c] = a->attacksData[s][p][c - 1];
-          writeElementToFile(&a->attacksData[s][p][c], sizeof(LookupData), index, ATTACKS_DATA);
-        } else if (!readElementFromFile(&a->attacksData[s][p][c], sizeof(LookupData), index, ATTACKS_DATA)) {
-          a->attacksData[s][p][c] = getPieceAttacksData(s, p, c);
-          writeElementToFile(&a->attacksData[s][p][c], sizeof(LookupData), index, ATTACKS_DATA);
+          l->attacksData[s][p][c] = l->attacksData[s][p][c - 1];
+          writeElementToFile(&l->attacksData[s][p][c], sizeof(LookupData), index, ATTACKS_DATA);
+        } else if (!readElementFromFile(&l->attacksData[s][p][c], sizeof(LookupData), index, ATTACKS_DATA)) {
+          l->attacksData[s][p][c] = getPieceAttacksData(s, p, c);
+          writeElementToFile(&l->attacksData[s][p][c], sizeof(LookupData), index, ATTACKS_DATA);
         }
-        a->pieceAttacks[s][p][c] = getAllPieceAttacks(s, p, c, a->attacksData[s][p][c]);
-        printf("Type: %d, Color: %d, Square: %d, Occupancy Size: %d, Magic Number:%lu\n", p, c, s, a->attacksData[s][p][c].relevantBitsSize, a->attacksData[s][p][c].magicNumber);
+        l->pieceAttacks[s][p][c] = getAllPieceAttacks(s, p, c, l->attacksData[s][p][c]);
+        printf("Type: %d, Color: %d, Square: %d, Occupancy Size: %d, Magic Number:%lu\n", p, c, s, l->attacksData[s][p][c].relevantBitsSize, l->attacksData[s][p][c].magicNumber);
       }
     }
   }
 
-  return a;
+  return l;
 }
 
-void AttackTableFree(AttackTable a) {
+void LookupTableFree(LookupTable l) {
   for (Square s = a1; s <= h8; s++) {
     for (Piece p = Pawn; p <= Rook; p++) {
       for (Color c = White; c <= Black; c++) {
-        free(a->pieceAttacks[s][p][c]);
+        free(l->pieceAttacks[s][p][c]);
       }
     }
   }
-  free(a);
+  free(l);
 }
 
-BitBoard AttackTableGetPieceAttacks(AttackTable a, Square s, Piece p, Color c, BitBoard occupancies) {
-  int index = hash(a->attacksData[s][p][c], occupancies);
-  return a->pieceAttacks[s][p][c][index];
+BitBoard LookupTableGetPieceAttacks(LookupTable l, Square s, Piece p, Color c, BitBoard occupancies) {
+  if (p != Queen) {
+    int index = hash(l->attacksData[s][p][c], occupancies);
+    return l->pieceAttacks[s][p][c][index];
+  } else {
+    return LookupTableGetPieceAttacks(l, s, Bishop, c, occupancies) | LookupTableGetPieceAttacks(l, s, Rook, c, occupancies);
+  }
 }
 
 static BitBoard *getAllPieceAttacks(Square s, Piece p, Color c, LookupData attacks) {

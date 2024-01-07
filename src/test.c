@@ -1,14 +1,14 @@
 #include "BitBoard.h"
-#include "AttackTable.h"
+#include "LookupTable.h"
 #include <stdio.h>
 
 int main() {
     //BitBoard b = 0;
     //BitBoard c = 0;
-    AttackTable a = AttackTableNew();
-    BitBoard c = BitBoardSetBit(0, e4);
+    LookupTable l = LookupTableNew();
+    BitBoard c = BitBoardSetBit(0, d4);
     //BitBoard d = 0xFFFFFFFFFFFFFFFF;
-    BitBoard b = AttackTableGetPieceAttacks(a, e4, Pawn, White, c);
+    BitBoard b = LookupTableGetPieceAttacks(l, d5, Queen, Black, c);
     BitBoardPrint(b);
 
     // b = BitBoardSetBit(b, c6);
@@ -17,7 +17,7 @@ int main() {
     // c = AttackTableGetPieceAttacks(a, Bishop, White, e4, b);
     // BitBoardPrint(c);
 
-    AttackTableFree(a);
+    LookupTableFree(l);
 
     return 0;
 }
