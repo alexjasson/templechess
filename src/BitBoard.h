@@ -6,7 +6,6 @@
 #define EDGE_SIZE 8
 #define BOARD_SIZE 64
 #define EMPTY_BOARD 0
-#define UNDEFINED -1
 
 typedef uint64_t BitBoard;
 
@@ -25,6 +24,6 @@ void BitBoardPrint(BitBoard b);
 BitBoard BitBoardSetBit(BitBoard b, Square s);
 BitBoard BitBoardPopBit(BitBoard b, Square s);
 int BitBoardCountBits(BitBoard b);
-int BitBoardLeastSignificantBit(BitBoard b);
+Square BitBoardLeastSignificantBit(BitBoard b);
 
 #endif

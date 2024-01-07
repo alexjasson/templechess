@@ -9,12 +9,13 @@
 #include "LookupTable.h"
 #include "utility.h"
 
+#define UNDEFINED -1
 #define PIECE_SIZE 5
 #define COLOR_SIZE 2
+#define GET_1D_INDEX(s, p, c) (s * PIECE_SIZE * COLOR_SIZE + p * COLOR_SIZE + c)
 
 #define IS_DIAGONAL(d) (d % 2 == 0)
 #define GET_POWERSET_SIZE(n) (1 << n)
-#define GET_1D_INDEX(s, p, c) (s * PIECE_SIZE * COLOR_SIZE + p * COLOR_SIZE + c)
 
 #define EDGES { 0x0101010101010101, 0x8080808080808080, 0x00000000000000FF, 0xFF00000000000000 }
 #define NUM_EDGES 4
@@ -175,9 +176,9 @@ static BitBoard getPieceAttack(Square s, Piece p, Direction d, int steps) {
 static BitBoard getRelevantBitsSubset(int index, BitBoard relevantBits, int relevantBitsSize) {
   BitBoard relevantBitsSubset = EMPTY_BOARD;
   for (int i = 0; i < relevantBitsSize; i++) {
-    int square = BitBoardLeastSignificantBit(relevantBits);
-    relevantBits = BitBoardPopBit(relevantBits, square);
-    if (index & (1 << i)) relevantBitsSubset = BitBoardSetBit(relevantBitsSubset, square);
+    Square s = BitBoardLeastSignificantBit(relevantBits);
+    relevantBits = BitBoardPopBit(relevantBits, s);
+    if (index & (1 << i)) relevantBitsSubset = BitBoardSetBit(relevantBitsSubset, s);
   }
   return relevantBitsSubset;
 }
@@ -195,7 +196,7 @@ static BitBoard getRelevantBits(Square s, Piece p, Color c) {
 }
 
 static int hash(LookupData attacks, BitBoard occupancies) {
-  return (int)(((attacks.relevantBits & occupancies) * attacks.magicNumber) >> (64 - attacks.relevantBitsSize));
+  return (int)(((attacks.relevantBits & occupancies) * attacks.magicNumber) >> (BOARD_SIZE - attacks.relevantBitsSize));
 }
 
 static uint64_t getMagicNumber(Square s, Piece p, Color c, BitBoard relevantBits, int relevantBitsSize) {

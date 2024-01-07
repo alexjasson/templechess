@@ -8,7 +8,7 @@ int main() {
     LookupTable l = LookupTableNew();
     BitBoard c = BitBoardSetBit(0, d4);
     //BitBoard d = 0xFFFFFFFFFFFFFFFF;
-    BitBoard b = LookupTableGetPieceAttacks(l, d5, Queen, Black, c);
+    BitBoard b = LookupTableGetPieceAttacks(l, a2, Knight, White, c);
     BitBoardPrint(b);
 
     // b = BitBoardSetBit(b, c6);

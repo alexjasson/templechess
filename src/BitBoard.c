@@ -6,8 +6,8 @@
 void BitBoardPrint(BitBoard b) {
   for (int rank = 0; rank < EDGE_SIZE; rank++) {
     for (int file = 0; file < EDGE_SIZE; file++) {
-      int square = (EDGE_SIZE - 1 - rank) * EDGE_SIZE + file;
-      printf("%ld ", (b >> square) & 1);
+      Square s = (EDGE_SIZE - 1 - rank) * EDGE_SIZE + file;
+      printf("%ld ", (b >> s) & 1);
     }
     printf("%d \n", EDGE_SIZE - rank);
   }
@@ -31,7 +31,6 @@ int BitBoardCountBits(BitBoard b) {
   return count;
 }
 
-int BitBoardLeastSignificantBit(BitBoard b) {
-  if (b == 0) return UNDEFINED;
+Square BitBoardLeastSignificantBit(BitBoard b) {
   return BitBoardCountBits((b & -b) - 1);
 }
