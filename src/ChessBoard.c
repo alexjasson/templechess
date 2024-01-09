@@ -16,10 +16,11 @@ static Color getColorFromASCII(char asciiColor);
 static Piece getPieceFromASCII(char asciiPiece);
 static char getASCIIFromPiece(Piece p);
 
-ChessBoard ChessBoardFromFEN(char *fen) {
+ChessBoard ChessBoardFromFEN(char *fen, LookupTable l) {
   ChessBoard board;
   memset(board.pieces, EMPTY_BOARD, PIECE_SIZE * sizeof(BitBoard));
   memset(board.occupancies, EMPTY_BOARD, (COLOR_SIZE + 1) * sizeof(BitBoard));
+  memset(board.pieceAttacks, EMPTY_BOARD, PIECE_SIZE * sizeof(BitBoard));
 
   Square s = a8;
   while (s <= h1 && *fen) {
@@ -46,6 +47,16 @@ ChessBoard ChessBoardFromFEN(char *fen) {
   fen++;
 
   board.turn = getColorFromASCII(*fen);
+  for (Type t = Pawn; t <= Queen; t++) {
+    for (Color c = White; c <= Black; c++) {
+      BitBoard pieces = board.pieces[t][c];
+      while (pieces) {
+        Square s = BitBoardLeastSignificantBit(pieces);
+        board.pieceAttacks[t][c] |= LookupTableGetPieceAttacks(l, s, t, c, board.occupancies[Union]);
+        pieces = BitBoardPopBit(pieces, s);
+      }
+    }
+  }
 
   return board;
 }
@@ -124,6 +135,7 @@ ChessBoard *ChessBoardGetChildren(ChessBoard board, LookupTable l) {
         newBoard.occupancies[board.turn] = BitBoardSetBit(BitBoardPopBit(newBoard.occupancies[board.turn], s), a);
         newBoard.occupancies[Union] = BitBoardSetBit(BitBoardPopBit(newBoard.occupancies[Union], s), a);
         newBoard.turn = !board.turn;
+        newBoard.pieceAttacks[t][board.turn] |= LookupTableGetPieceAttacks(l, a, t, board.turn, newBoard.occupancies[Union]);
 
         children[numChildren++] = newBoard;
         attacks = BitBoardPopBit(attacks, a);
