@@ -9,17 +9,15 @@
 #include "LookupTable.h"
 #include "utility.h"
 
-#define UNDEFINED -1
 #define GET_1D_INDEX(s, t, c) (s * (TYPE_SIZE - 1) * COLOR_SIZE + t * COLOR_SIZE + c)
 
 #define IS_DIAGONAL(d) (d % 2 == 0)
 #define GET_POWERSET_SIZE(n) (1 << n)
 
-#define EDGES { 0x0101010101010101, 0x8080808080808080, 0x00000000000000FF, 0xFF00000000000000 }
-#define NUM_EDGES 4
-
 #define NUM_CORES sysconf(_SC_NPROCESSORS_ONLN)
 #define ATTACKS_DATA "data/attacks.dat"
+
+#define DEFAULT_COLOR White
 
 typedef enum {
   North, Northeast, East, Southeast, South, Southwest, West, Northwest
@@ -42,6 +40,7 @@ typedef struct {
 struct lookupTable {
   // Precalculated attack tables
   BitBoard *pieceAttacks[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE];
+  // add aquares between
 
   // Precalculated data for indexing to the pieceAttacks hash table
   LookupData attacksData[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE];
@@ -129,6 +128,7 @@ static LookupData getPieceAttacksData(Square s, Type t, Color c) {
   return attacks;
 }
 
+// occupancies = relevantData - more general?
 static BitBoard getPieceAttacks(Square s, Type t, Color c, BitBoard occupancies) {
   BitBoard pieceAttacks = EMPTY_BOARD;
 
@@ -153,8 +153,8 @@ static BitBoard getPieceAttack(Square s, Type t, Direction d, int steps) {
   // Check out of bounds conditions
   int rankOffset = d >= Southeast && d <= Southwest ? steps : d <= Northeast || d == Northwest ? -steps : 0;
   int fileOffset = d >= Northeast && d <= Southeast ? steps : d >= Southwest && d <= Northwest ? -steps : 0;
-  int rank = s / EDGE_SIZE;
-  int file = s % EDGE_SIZE;
+  int rank = BitBoardGetRank(s);
+  int file = BitBoardGetFile(s);
   if ((rank + rankOffset >= EDGE_SIZE || rank + rankOffset < 0) ||
       (file + fileOffset >= EDGE_SIZE || file + fileOffset < 0)) {
     return EMPTY_BOARD;
@@ -275,4 +275,17 @@ static void *magicNumberSearch(void *arg) {
   free(usedAttacks);
   return NULL;
 }
+
+// BitBoard getSquaresBetween(LookupTable l, Square s1, Square s2) {
+//   BitBoard squaresBetween;
+//   for (Square s1 = a8; s1 <= h1; s1++) {
+//     for (Square s2 = a8; s2 <= h1; s2++) {
+//       squaresBetween = BitBoardSetBit(EMPTY_BOARD, s1) | BitBoardSetBit(EMPTY_BOARD, s2);
+//       if (BitBoardGetFile(s1) == BitBoardGetFile(s2) || BitBoardGetRank(s1) == BitBoardGetRank(s2)) {
+//         squaresBetween = LookupTableGetPieceAttacks(l, s1, Rook, DEFAULT_COLOR, squaresBetween) &
+//                          LookupTableGetPieceAttacks(l, s2, Rook, DEFAULT_COLOR, squaresBetween);
+//       }
+//     }
+//   }
+// }
 

@@ -10,18 +10,33 @@
 #define GET_TYPE(p) (p >> 1)
 #define GET_COLOR(p) (p & 1)
 
+#define WHITE_KINGSIDE_CASTLING 0x9000000000000000
+#define WHITE_QUEENSIDE_CASTLING 0x1100000000000000
+#define BLACK_KINGSIDE_CASTLING 0x0000000000000090
+#define BLACK_QUEENSIDE_CASTLING 0x0000000000000011
+
+#define MAX_CHILDREN 218
+
 typedef uint8_t Piece;
 
 static Color getColorFromASCII(char asciiColor);
 static Piece getPieceFromASCII(char asciiPiece);
 static char getASCIIFromPiece(Piece p);
+static ChessBoard newChessBoard(void);
+static ChessBoard makeMove(ChessBoard cb, Type t, Square from, Square to); // ie set data
+// static void setMetadata(ChessBoard *cb, LookupTable l);
 
+static ChessBoard newChessBoard(void) {
+  ChessBoard cb;
+  memset(&cb, 0, sizeof(ChessBoard));
+  return cb;
+}
+
+// Assumes FEN is valid
 ChessBoard ChessBoardFromFEN(char *fen, LookupTable l) {
-  ChessBoard board;
-  memset(board.pieces, EMPTY_BOARD, PIECE_SIZE * sizeof(BitBoard));
-  memset(board.occupancies, EMPTY_BOARD, (COLOR_SIZE + 1) * sizeof(BitBoard));
-  memset(board.pieceAttacks, EMPTY_BOARD, PIECE_SIZE * sizeof(BitBoard));
+  ChessBoard cb = newChessBoard();
 
+  // Parse pieces
   Square s = a8;
   while (s <= h1 && *fen) {
     if (*fen == '/') {
@@ -32,41 +47,66 @@ ChessBoard ChessBoardFromFEN(char *fen, LookupTable l) {
     } else {
       Piece p = getPieceFromASCII(*fen);
       Type t = GET_TYPE(p); Color c = GET_COLOR(p);
-      board.pieces[t][c] = BitBoardSetBit(board.pieces[t][c], s);
-      board.occupancies[c] = BitBoardSetBit(board.occupancies[c], s);
-      board.occupancies[Union] = BitBoardSetBit(board.occupancies[Union], s);
+      cb.pieces[t][c] = BitBoardSetBit(cb.pieces[t][c], s);
+      cb.occupancies[c] = BitBoardSetBit(cb.occupancies[c], s);
+      cb.occupancies[Union] = BitBoardSetBit(cb.occupancies[Union], s);
       s++;
       fen++;
     }
   }
+  fen++;
 
-  if (*fen != ' ') {
-    printf("Invalid FEN!\n");
-    exit(1);
+  cb.turn = getColorFromASCII(*fen);
+
+  fen++;
+  fen++;
+  if (*fen != '-') {
+    while (*fen != ' ') {
+      switch (*fen) {
+        case 'K': cb.castling |= WHITE_KINGSIDE_CASTLING; break;
+        case 'Q': cb.castling |= WHITE_QUEENSIDE_CASTLING; break;
+        case 'k': cb.castling |= BLACK_KINGSIDE_CASTLING; break;
+        case 'q': cb.castling |= BLACK_QUEENSIDE_CASTLING; break;
+      }
+      fen++;
+    }
   }
   fen++;
 
-  board.turn = getColorFromASCII(*fen);
-  for (Type t = Pawn; t <= Queen; t++) {
+  if (*fen != '-') {
+    int file = *fen - 'a';
+    fen++;
+    int rank = *fen - '0';
+    cb.enPassant = rank * EDGE_SIZE + file;
+  }
+
     for (Color c = White; c <= Black; c++) {
-      BitBoard pieces = board.pieces[t][c];
+    for (Type t = Pawn; t <= Queen; t++) {
+      cb.occupancies[c] |= cb.pieces[t][c];
+    }
+    cb.occupancies[Union] |= cb.occupancies[c];
+  }
+
+  // Attacks
+  for (Color c = White; c <= Black; c++) {
+    for (Type t = Pawn; t <= Queen; t++) {
+      BitBoard pieces = cb.pieces[t][c];
       while (pieces) {
         Square s = BitBoardLeastSignificantBit(pieces);
-        board.pieceAttacks[t][c] |= LookupTableGetPieceAttacks(l, s, t, c, board.occupancies[Union]);
+        cb.attacks[c] |= LookupTableGetPieceAttacks(l, s, t, c, cb.occupancies[Union]);
         pieces = BitBoardPopBit(pieces, s);
       }
     }
   }
-
-  return board;
+  return cb;
 }
 
-void ChessBoardPrint(ChessBoard board) {
+void ChessBoardPrint(ChessBoard cb) {
   for (int rank = 0; rank < EDGE_SIZE; rank++) {
     for (int file = 0; file < EDGE_SIZE; file++) {
-      Square s = (EDGE_SIZE + rank) * EDGE_SIZE + file;
+      Square s = rank * EDGE_SIZE + file;
       for (Piece p = 0; p < PIECE_SIZE; p++) {
-        if (BitBoardGetBit(board.pieces[GET_TYPE(p)][GET_COLOR(p)], s)) {
+        if (BitBoardGetBit(cb.pieces[GET_TYPE(p)][GET_COLOR(p)], s)) {
           printf("%c ", getASCIIFromPiece(p));
           goto nextSquare;
         }
@@ -79,7 +119,7 @@ void ChessBoardPrint(ChessBoard board) {
   printf("a b c d e f g h\n\n");
 }
 
-// Assumes that FEN is valid
+// Assumes that asciiPiece is valid
 static Piece getPieceFromASCII(char asciiPiece) {
   Type t; Color c;
   switch (asciiPiece) {
@@ -114,28 +154,23 @@ static Color getColorFromASCII(char asciiColor) {
 }
 
 // NEEDS WORK!
-ChessBoard *ChessBoardGetChildren(ChessBoard board, LookupTable l) {
-  ChessBoard *children = malloc(218 * sizeof(ChessBoard));
+ChessBoard *ChessBoardGetChildren(ChessBoard cb, LookupTable l) {
+  ChessBoard *children = malloc(MAX_CHILDREN * sizeof(ChessBoard));
   int numChildren = 0;
   for (Type t = Pawn; t <= Queen; t++) {
-    BitBoard pieces = board.pieces[t][board.turn];
+    BitBoard pieces = cb.pieces[t][cb.turn];
     while (pieces) {
       Square s = BitBoardLeastSignificantBit(pieces);
       // Get attacks
-      BitBoard attacks = LookupTableGetPieceAttacks(l, s, t, board.turn, board.occupancies[Union]);
-      attacks &= ~board.occupancies[board.turn];
-      if (t == Pawn) attacks &= board.occupancies[!board.turn];
+      BitBoard attacks = LookupTableGetPieceAttacks(l, s, t, cb.turn, cb.occupancies[Union]);
+      attacks &= ~cb.occupancies[cb.turn];
+      if (t == Pawn) attacks &= cb.occupancies[!cb.turn];
       // Get moves
       // Add function here
+      // I think should just be one lookup with some moves pruned
       while (attacks) {
         Square a = BitBoardLeastSignificantBit(attacks);
-        ChessBoard newBoard = board;  // Copy the original board
-
-        newBoard.pieces[t][board.turn] = BitBoardSetBit(BitBoardPopBit(newBoard.pieces[t][board.turn], s), a);
-        newBoard.occupancies[board.turn] = BitBoardSetBit(BitBoardPopBit(newBoard.occupancies[board.turn], s), a);
-        newBoard.occupancies[Union] = BitBoardSetBit(BitBoardPopBit(newBoard.occupancies[Union], s), a);
-        newBoard.turn = !board.turn;
-        newBoard.pieceAttacks[t][board.turn] |= LookupTableGetPieceAttacks(l, a, t, board.turn, newBoard.occupancies[Union]);
+        ChessBoard newBoard = makeMove(cb, t, s, a);
 
         children[numChildren++] = newBoard;
         attacks = BitBoardPopBit(attacks, a);
@@ -145,3 +180,42 @@ ChessBoard *ChessBoardGetChildren(ChessBoard board, LookupTable l) {
   }
   return children;
 }
+
+static ChessBoard makeMove(ChessBoard cb, Type t, Square from, Square to) {
+  int offset = abs((int)(from - to));
+
+  // Remove piece from from square and set it to to square
+  cb.pieces[t][cb.turn] = BitBoardSetBit(BitBoardPopBit(cb.pieces[t][cb.turn], from), to);
+  // Remove piece from to square if it exists
+  for (Type t = Pawn; t <= Queen; t++) {
+    cb.pieces[t][!cb.turn] = BitBoardPopBit(cb.pieces[t][!cb.turn], to);
+  }
+
+  // Occupancies can be calculated quickly here without looping over pieces
+  cb.occupancies[cb.turn] = BitBoardSetBit(BitBoardPopBit(cb.occupancies[cb.turn], from), to);
+  cb.occupancies[!cb.turn] = BitBoardPopBit(cb.occupancies[!cb.turn], to);
+  cb.occupancies[Union] = BitBoardSetBit(BitBoardPopBit(cb.occupancies[Union], from), to);
+
+
+  // Update castling
+  cb.castling ^= cb.castling & BitBoardSetBit(EMPTY_BOARD, from);
+  // Update en passant square
+  cb.enPassant = (t == Pawn && offset > EDGE_SIZE + 1) ? (from + to) / 2 : UNDEFINED;
+
+
+
+  // if (t == Pawn && offset == 1) {
+  //   // Handle enPassant - make move again
+  // } else if (t == King && offset == 2) {
+  //   // Handle castling - make move again
+  // }
+
+  // Update color
+  cb.turn = !cb.turn;
+  return cb;
+}
+
+// setMetadata
+// static void setMetadata(ChessBoard *cb, LookupTable l) {
+//   // Occupancies
+// }

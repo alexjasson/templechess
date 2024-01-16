@@ -10,7 +10,7 @@ Bit BitBoardGetBit(BitBoard b, Square s) {
 void BitBoardPrint(BitBoard b) {
   for (int rank = 0; rank < EDGE_SIZE; rank++) {
     for (int file = 0; file < EDGE_SIZE; file++) {
-      Square s = (EDGE_SIZE + rank) * EDGE_SIZE + file;
+      Square s = rank * EDGE_SIZE + file;
       printf("%u ", BitBoardGetBit(b, s));
     }
     printf("%d \n", EDGE_SIZE - rank);
@@ -35,6 +35,31 @@ int BitBoardCountBits(BitBoard b) {
   return count;
 }
 
+int BitBoardGetRank(Square s) {
+  return s >> 0b11;
+}
+
+int BitBoardGetFile(Square s) {
+  return s & 0b111;
+}
+
+
 Square BitBoardLeastSignificantBit(BitBoard b) {
   return BitBoardCountBits((b & -b) - 1);
+}
+
+BitBoard BitBoardShiftNorth(BitBoard b, int magnitude) {
+  return b >> EDGE_SIZE * magnitude;
+}
+
+BitBoard BitBoardShiftEast(BitBoard b, int magnitude) {
+  return b << magnitude;
+}
+
+BitBoard BitBoardShiftSouth(BitBoard b, int magnitude) {
+  return b << EDGE_SIZE * magnitude;
+}
+
+BitBoard BitBoardShiftWest(BitBoard b, int magnitude) {
+  return b >> magnitude;
 }

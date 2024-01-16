@@ -27,5 +27,13 @@ BitBoard BitBoardSetBit(BitBoard b, Square s);
 BitBoard BitBoardPopBit(BitBoard b, Square s);
 int BitBoardCountBits(BitBoard b);
 Square BitBoardLeastSignificantBit(BitBoard b);
+int BitBoardGetRank(Square s);
+int BitBoardGetFile(Square s);
+
+// Probably not needed
+BitBoard BitBoardShiftNorth(BitBoard b, int magnitude);
+BitBoard BitBoardShiftEast(BitBoard b, int magnitude);
+BitBoard BitBoardShiftSouth(BitBoard b, int magnitude);
+BitBoard BitBoardShiftWest(BitBoard b, int magnitude);
 
 #endif

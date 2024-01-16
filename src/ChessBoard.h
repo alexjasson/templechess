@@ -4,16 +4,19 @@
 #include "BitBoard.h"
 #include "LookupTable.h"
 
-typedef struct ChessBoard {
+typedef struct {
+  // Data - Represents a position and must be given
   BitBoard pieces[TYPE_SIZE][COLOR_SIZE];
-  BitBoard occupancies[COLOR_SIZE + 1]; // White, Black, Union
   Color turn;
-
-  BitBoard pieceAttacks[TYPE_SIZE][COLOR_SIZE]; // Type might not be necessary
+  Square enPassant;
+  BitBoard castling;
+  // Metadata - Determined by the data
+  BitBoard occupancies[COLOR_SIZE + 1]; // White, Black, Union
+  BitBoard attacks[COLOR_SIZE];
 } ChessBoard;
 
 ChessBoard ChessBoardFromFEN(char *fen, LookupTable l);
-ChessBoard *ChessBoardGetChildren(ChessBoard board, LookupTable l);
-void ChessBoardPrint(ChessBoard board);
+ChessBoard *ChessBoardGetChildren(ChessBoard cb, LookupTable l);
+void ChessBoardPrint(ChessBoard cb);
 
 #endif
