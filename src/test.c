@@ -2,10 +2,15 @@
 #include "LookupTable.h"
 #include "ChessBoard.h"
 #include <stdio.h>
+#include <stdlib.h>
+
+// static BitBoard getRelevantBitsSubset(int index, BitBoard relevantBits, int relevantBitsSize);
+// BitBoard nextHigherWithSameBits(BitBoard x);
 
 int main() {
     LookupTable l = LookupTableNew();
     BitBoard c = BitBoardSetBit(0, e6);
+
     BitBoard b = LookupTableGetPieceAttacks(l, e5, Rook, White, c);
     BitBoardPrint(b);
     // ChessBoard cb = ChessBoardFromFEN("rnbqkbnr/pppppppp/4N3/8/8/8/PPPPPPPP/R1BQKBNR w KQkq h6", l);
@@ -34,3 +39,12 @@ int main() {
     // BitBoardPrint(g);
     return 0;
 }
+
+// BitBoard nextHigherWithSameBits(BitBoard x) {
+//     BitBoard rightmostOne = x & -x;
+//     BitBoard nextHigherOneBit = x + rightmostOne;
+//     BitBoard rightOnesPattern = x ^ nextHigherOneBit;
+//     rightOnesPattern = (rightOnesPattern) / rightmostOne;
+//     rightOnesPattern >>= 2;
+//     return nextHigherOneBit | rightOnesPattern;
+// }

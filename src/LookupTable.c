@@ -9,9 +9,7 @@
 #include "LookupTable.h"
 #include "utility.h"
 
-
-// #define GET_1D_INDEX(s, t, c) (s * (TYPE_SIZE - 1) * COLOR_SIZE + t * COLOR_SIZE + c)
-#define GET_1D_INDEX(s, t, c, d) (s * (TYPE_SIZE - 1) * COLOR_SIZE * MOVE_TYPE_SIZE + t * COLOR_SIZE * MOVE_TYPE_SIZE + c * MOVE_TYPE_SIZE + d)
+#define GET_1D_INDEX(s, t, c) (s * (TYPE_SIZE - 1) * COLOR_SIZE + t * COLOR_SIZE + c)
 
 #define IS_DIAGONAL(d) (d % 2 == 1)
 #define GET_POWERSET_SIZE(n) (1 << n)
@@ -20,12 +18,6 @@
 #define ATTACKS_DATA "data/attacks.dat"
 
 #define DEFAULT_COLOR White
-
-#define MOVE_TYPE_SIZE 2
-
-typedef enum {
-  Leaf, Composite
-} MoveType;
 
 typedef enum {
   North, Northeast, East, Southeast, South, Southwest, West, Northwest
@@ -47,11 +39,11 @@ typedef struct {
 
 struct lookupTable {
   // Precalculated attack tables
-  BitBoard *moves[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE][MOVE_TYPE_SIZE];
-  Magic magics[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE][MOVE_TYPE_SIZE];
+  BitBoard *moves[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE];
   // add aquares between
 
   // Precalculated data for indexing to the pieceAttacks hash table
+  Magic magics[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE];
 };
 
 static BitBoard getMove(Square s, Type t, Direction d, int steps);
@@ -74,19 +66,16 @@ LookupTable LookupTableNew(void) {
   for (Square s = a8; s <= h1; s++) {
     for (Type t = Pawn; t <= Rook; t++) {
       for (Color c = White; c <= Black; c++) {
-        for (MoveType mt = Leaf; mt <= Composite; mt++) {
-          int index = GET_1D_INDEX(s, t, c, mt);
-          if (mt == Composite) continue;
-          if (t != Pawn && c == Black) {
-            l->magics[s][t][c][mt] = l->magics[s][t][c - 1][mt];
-            writeElementToFile(&l->magics[s][t][c][mt], sizeof(Magic), index, ATTACKS_DATA);
-          } else if (!readElementFromFile(&l->magics[s][t][c][mt], sizeof(Magic), index, ATTACKS_DATA)) {
-            l->magics[s][t][c][mt] = getMagic(s, t, c);
-            writeElementToFile(&l->magics[s][t][c][mt], sizeof(Magic), index, ATTACKS_DATA);
-          }
-          l->moves[s][t][c][mt] = getAllPieceMoves(s, t, c, l->magics[s][t][c][mt]);
-          printf("Type: %d, Color: %d, Square: %d, Occupancy Size: %d, Magic Number:%lu\n", t, c, s, l->magics[s][t][c][mt].relevantBitsSize, l->magics[s][t][c][mt].magicNumber);
+        int index = GET_1D_INDEX(s, t, c);
+        if (t != Pawn && c == Black) {
+          l->magics[s][t][c] = l->magics[s][t][c - 1];
+          writeElementToFile(&l->magics[s][t][c], sizeof(Magic), index, ATTACKS_DATA);
+        } else if (!readElementFromFile(&l->magics[s][t][c], sizeof(Magic), index, ATTACKS_DATA)) {
+          l->magics[s][t][c] = getMagic(s, t, c);
+          writeElementToFile(&l->magics[s][t][c], sizeof(Magic), index, ATTACKS_DATA);
         }
+        l->moves[s][t][c] = getAllPieceMoves(s, t, c, l->magics[s][t][c]);
+        printf("Type: %d, Color: %d, Square: %d, Occupancy Size: %d, Magic Number:%lu\n", t, c, s, l->magics[s][t][c].relevantBitsSize, l->magics[s][t][c].magicNumber);
       }
     }
   }
@@ -98,8 +87,7 @@ void LookupTableFree(LookupTable l) {
   for (Square s = a8; s <= h1; s++) {
     for (Type t = Pawn; t <= Rook; t++) {
       for (Color c = White; c <= Black; c++) {
-        for (MoveType mt = Leaf; mt <= Composite; mt++)
-          free(l->moves[s][t][c][mt]);
+        free(l->moves[s][t][c]);
       }
     }
   }
@@ -108,8 +96,8 @@ void LookupTableFree(LookupTable l) {
 
 BitBoard LookupTableGetPieceAttacks(LookupTable l, Square s, Type t, Color c, BitBoard occupancies) {
   if (t != Queen) {
-    int index = hash(l->magics[s][t][c][Leaf], occupancies);
-    return l->moves[s][t][c][Leaf][index];
+    int index = hash(l->magics[s][t][c], occupancies);
+    return l->moves[s][t][c][index];
   } else {
     return LookupTableGetPieceAttacks(l, s, Bishop, c, occupancies) | LookupTableGetPieceAttacks(l, s, Rook, c, occupancies);
   }
