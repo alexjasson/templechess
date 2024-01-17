@@ -6,7 +6,7 @@
 int main() {
     LookupTable l = LookupTableNew();
     BitBoard c = BitBoardSetBit(0, e6);
-    BitBoard b = LookupTableGetPieceAttacks(l, e3, Queen, White, c);
+    BitBoard b = LookupTableGetPieceAttacks(l, e5, Rook, White, c);
     BitBoardPrint(b);
     // ChessBoard cb = ChessBoardFromFEN("rnbqkbnr/pppppppp/4N3/8/8/8/PPPPPPPP/R1BQKBNR w KQkq h6", l);
     // // printf("here?\n");

@@ -11,7 +11,7 @@
 
 #define GET_1D_INDEX(s, t, c) (s * (TYPE_SIZE - 1) * COLOR_SIZE + t * COLOR_SIZE + c)
 
-#define IS_DIAGONAL(d) (d % 2 == 0)
+#define IS_DIAGONAL(d) (d % 2 == 1)
 #define GET_POWERSET_SIZE(n) (1 << n)
 
 #define NUM_CORES sysconf(_SC_NPROCESSORS_ONLN)
@@ -39,22 +39,22 @@ typedef struct {
 
 struct lookupTable {
   // Precalculated attack tables
-  BitBoard *pieceAttacks[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE];
+  BitBoard *moves[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE];
   // add aquares between
 
   // Precalculated data for indexing to the pieceAttacks hash table
-  Magic attacksData[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE];
+  Magic magics[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE];
 };
 
-static BitBoard getPieceAttack(Square s, Type t, Direction d, int steps);
-static BitBoard getPieceAttacks(Square s, Type t, Color c, BitBoard occupancies);
-static BitBoard *getAllPieceAttacks(Square s, Type t, Color c, Magic attacks);
+static BitBoard getMove(Square s, Type t, Direction d, int steps);
+static BitBoard getLeafMoves(Square s, Type t, Color c, BitBoard occupancies);
+static BitBoard *getAllPieceMoves(Square s, Type t, Color c, Magic m);
 
 static BitBoard getRelevantBits(Square s, Type t, Color c);
 static BitBoard getRelevantBitsSubset(int index, BitBoard relevantBits, int relevantBitsSize);
 static Magic getMagic(Square s, Type t, Color c);
 static void *magicNumberSearch(void *arg);
-static int hash(Magic attacks, BitBoard occupancies);
+static int hash(Magic m, BitBoard occupancies);
 
 LookupTable LookupTableNew(void) {
   LookupTable l = malloc(sizeof(struct lookupTable));
@@ -68,14 +68,14 @@ LookupTable LookupTableNew(void) {
       for (Color c = White; c <= Black; c++) {
         int index = GET_1D_INDEX(s, t, c);
         if (t != Pawn && c == Black) {
-          l->attacksData[s][t][c] = l->attacksData[s][t][c - 1];
-          writeElementToFile(&l->attacksData[s][t][c], sizeof(Magic), index, ATTACKS_DATA);
-        } else if (!readElementFromFile(&l->attacksData[s][t][c], sizeof(Magic), index, ATTACKS_DATA)) {
-          l->attacksData[s][t][c] = getMagic(s, t, c);
-          writeElementToFile(&l->attacksData[s][t][c], sizeof(Magic), index, ATTACKS_DATA);
+          l->magics[s][t][c] = l->magics[s][t][c - 1];
+          writeElementToFile(&l->magics[s][t][c], sizeof(Magic), index, ATTACKS_DATA);
+        } else if (!readElementFromFile(&l->magics[s][t][c], sizeof(Magic), index, ATTACKS_DATA)) {
+          l->magics[s][t][c] = getMagic(s, t, c);
+          writeElementToFile(&l->magics[s][t][c], sizeof(Magic), index, ATTACKS_DATA);
         }
-        l->pieceAttacks[s][t][c] = getAllPieceAttacks(s, t, c, l->attacksData[s][t][c]);
-        printf("Type: %d, Color: %d, Square: %d, Occupancy Size: %d, Magic Number:%lu\n", t, c, s, l->attacksData[s][t][c].relevantBitsSize, l->attacksData[s][t][c].magicNumber);
+        l->moves[s][t][c] = getAllPieceMoves(s, t, c, l->magics[s][t][c]);
+        printf("Type: %d, Color: %d, Square: %d, Occupancy Size: %d, Magic Number:%lu\n", t, c, s, l->magics[s][t][c].relevantBitsSize, l->magics[s][t][c].magicNumber);
       }
     }
   }
@@ -87,7 +87,7 @@ void LookupTableFree(LookupTable l) {
   for (Square s = a8; s <= h1; s++) {
     for (Type t = Pawn; t <= Rook; t++) {
       for (Color c = White; c <= Black; c++) {
-        free(l->pieceAttacks[s][t][c]);
+        free(l->moves[s][t][c]);
       }
     }
   }
@@ -96,15 +96,15 @@ void LookupTableFree(LookupTable l) {
 
 BitBoard LookupTableGetPieceAttacks(LookupTable l, Square s, Type t, Color c, BitBoard occupancies) {
   if (t != Queen) {
-    int index = hash(l->attacksData[s][t][c], occupancies);
-    return l->pieceAttacks[s][t][c][index];
+    int index = hash(l->magics[s][t][c], occupancies);
+    return l->moves[s][t][c][index];
   } else {
     return LookupTableGetPieceAttacks(l, s, Bishop, c, occupancies) | LookupTableGetPieceAttacks(l, s, Rook, c, occupancies);
   }
 }
 
-static BitBoard *getAllPieceAttacks(Square s, Type t, Color c, Magic attacks) {
-  int relevantBitsPowersetSize = GET_POWERSET_SIZE(attacks.relevantBitsSize);
+static BitBoard *getAllPieceMoves(Square s, Type t, Color c, Magic m) {
+  int relevantBitsPowersetSize = GET_POWERSET_SIZE(m.relevantBitsSize);
   BitBoard *allPieceAttacks = malloc(sizeof(BitBoard) * relevantBitsPowersetSize);
   if (allPieceAttacks == NULL) {
     fprintf(stderr, "Insufficient memory!\n");
@@ -112,55 +112,69 @@ static BitBoard *getAllPieceAttacks(Square s, Type t, Color c, Magic attacks) {
   }
 
   for (int i = 0; i < relevantBitsPowersetSize; i++) {
-    BitBoard occupancies = getRelevantBitsSubset(i, attacks.relevantBits, attacks.relevantBitsSize);
-    int index = hash(attacks, occupancies);
-    allPieceAttacks[index] = getPieceAttacks(s, t, c, occupancies);
+    BitBoard occupancies = getRelevantBitsSubset(i, m.relevantBits, m.relevantBitsSize);
+    int index = hash(m, occupancies);
+    allPieceAttacks[index] = getLeafMoves(s, t, c, occupancies);
   }
   return allPieceAttacks;
 }
 
 // occupancies = relevantData - more general?
-static BitBoard getPieceAttacks(Square s, Type t, Color c, BitBoard occupancies) {
-  BitBoard pieceAttacks = EMPTY_BOARD;
+static BitBoard getLeafMoves(Square s, Type t, Color c, BitBoard occupancies) {
+  BitBoard moves = EMPTY_BOARD;
 
-  // Loop through attacks, if attack does not meet criteria for piece/color then break/continue
+  // Loop through potential moves, if a piece can't move that move, continue to next move
   for (Direction d = North; d <= Northwest; d++) {
     for (int steps = 1; steps < EDGE_SIZE; steps++) {
-      if ((t == Bishop && IS_DIAGONAL(d)) || (t == Rook && !IS_DIAGONAL(d))) continue;
-      else if (t == Knight && !IS_DIAGONAL(d)) break;
-      else if (t <= King && steps > 1) break;
-      else if (t == Pawn && c == White && d != Northeast && d != Northwest) break;
-      else if (t == Pawn && c == Black && d != Southeast && d != Southwest) break;
+      if (t == Pawn) {
+        if ((steps > 1 && ((c == White && d != North) || (c == Black && d != South))) ||
+            (c == White && (d > Northeast && d < Northwest)) ||
+            (c == Black && (d < Southeast || d > Southwest)) ||
+            (steps > 2)) continue;
+      } else {
+        if ((t == Bishop && !IS_DIAGONAL(d)) || (t == Rook && IS_DIAGONAL(d)) ||
+            (t == Knight && (IS_DIAGONAL(d) || steps > 1)) ||
+            (t == King && steps > 1)) continue;
+      }
 
-      pieceAttacks |= getPieceAttack(s, t, d, steps);
-      if (getPieceAttack(s, t, d, steps) & occupancies) break;
+      BitBoard move = getMove(s, t, d, steps);
+      bool capture = move & occupancies;
+
+      // Don't add move if it's a pawn push and capture
+      if (capture && t == Pawn && !IS_DIAGONAL(d)) break;
+      moves |= move;
+      // Continue to next direction if it's a capture
+      if (capture) break;
     }
   }
-  return pieceAttacks;
+  return moves;
 }
 
 // Return a bitboard that represents a square that a piece is attacking
-static BitBoard getPieceAttack(Square s, Type t, Direction d, int steps) {
-  // Check out of bounds conditions
-  int rankOffset = d >= Southeast && d <= Southwest ? steps : d <= Northeast || d == Northwest ? -steps : 0;
-  int fileOffset = d >= Northeast && d <= Southeast ? steps : d >= Southwest && d <= Northwest ? -steps : 0;
-  int rank = BitBoardGetRank(s);
-  int file = BitBoardGetFile(s);
-  if ((rank + rankOffset >= EDGE_SIZE || rank + rankOffset < 0) ||
-      (file + fileOffset >= EDGE_SIZE || file + fileOffset < 0)) {
-    return EMPTY_BOARD;
-  }
+static BitBoard getMove(Square s, Type t, Direction d, int steps) {
+    int rankOffset = (d >= Southeast && d <= Southwest) ? steps : (d <= Northeast || d == Northwest) ? -steps : 0;
+    int fileOffset = (d >= Northeast && d <= Southeast) ? steps : (d >= Southwest && d <= Northwest) ? -steps : 0;
+    int rank = BitBoardGetRank(s);
+    int file = BitBoardGetFile(s);
 
-  if (!(t == Knight && steps == 1)) {
-    return BitBoardSetBit(EMPTY_BOARD, s + EDGE_SIZE * rankOffset + fileOffset);
-  }
+    // Check for out-of-bounds conditions
+    if ((rank + rankOffset >= EDGE_SIZE || rank + rankOffset < 0) ||
+        (file + fileOffset >= EDGE_SIZE || file + fileOffset < 0)) {
+        return EMPTY_BOARD;
+    }
 
-  // Handle case where knight hasn't finished it's move
-  int offset = (d == North) ? EDGE_SIZE : (d == South) ? -EDGE_SIZE : (d == East) ? 1 : -1;
-  Direction d1 = (d == North || d == South) ? East : North;
-  Direction d2 = (d == North || d == South) ? West : South;
-  return (getPieceAttack(s + offset, t, d1, 2) | getPieceAttack(s + offset, t, d2, 2));
+    if (!(t == Knight && steps == 1)) {
+        return BitBoardSetBit(EMPTY_BOARD, s + EDGE_SIZE * rankOffset + fileOffset);
+    }
+
+    // Handle case where the knight hasn't finished its move
+    int offset = (d == North) ? -EDGE_SIZE : (d == South) ? EDGE_SIZE : (d == East) ? 1 : -1;
+    Direction d1 = (d == North || d == South) ? East : North;
+    Direction d2 = (d == North || d == South) ? West : South;
+    return (getMove(s + offset, t, d1, 2) | getMove(s + offset, t, d2, 2));
 }
+
+
 
 static BitBoard getRelevantBitsSubset(int index, BitBoard relevantBits, int relevantBitsSize) {
   BitBoard relevantBitsSubset = EMPTY_BOARD;
@@ -173,7 +187,7 @@ static BitBoard getRelevantBitsSubset(int index, BitBoard relevantBits, int rele
 }
 
 static BitBoard getRelevantBits(Square s, Type t, Color c) {
-  BitBoard relevantBits = getPieceAttacks(s, t, c, EMPTY_BOARD);
+  BitBoard relevantBits = getLeafMoves(s, t, c, EMPTY_BOARD);
   BitBoard edges[NUM_EDGES] = EDGES;
   BitBoard piece = BitBoardSetBit(EMPTY_BOARD, s);
   for (int i = 0; i < NUM_EDGES; i++) {
@@ -184,8 +198,8 @@ static BitBoard getRelevantBits(Square s, Type t, Color c) {
   return relevantBits;
 }
 
-static int hash(Magic attacks, BitBoard occupancies) {
-  return (int)(((attacks.relevantBits & occupancies) * attacks.magicNumber) >> (BOARD_SIZE - attacks.relevantBitsSize));
+static int hash(Magic m, BitBoard occupancies) {
+  return (int)(((m.relevantBits & occupancies) * m.magicNumber) >> (BOARD_SIZE - m.relevantBitsSize));
 }
 
 static Magic getMagic(Square s, Type t, Color c) {
@@ -201,7 +215,7 @@ static Magic getMagic(Square s, Type t, Color c) {
   }
   for (int i = 0; i < relevantBitsPowersetSize; i++) {
     relevantBitsPowerset[i] = getRelevantBitsSubset(i, relevantBits, relevantBitsSize);
-    moves[i] = getPieceAttacks(s, t, c, relevantBitsPowerset[i]);
+    moves[i] = getLeafMoves(s, t, c, relevantBitsPowerset[i]);
   }
 
   ThreadData td = { false, PTHREAD_MUTEX_INITIALIZER, relevantBitsPowerset, moves, { relevantBits, relevantBitsSize, UNDEFINED }};
@@ -249,8 +263,8 @@ static void *magicNumberSearch(void *arg) {
 
     // Test magic index
     for (int j = 0; j < relevantBitsPowersetSize; j++) {
-      Magic attacks = { td->magic.relevantBits, td->magic.relevantBitsSize, magicNumberCandidate };
-      int index = hash(attacks, td->relevantBitsPowerset[j]);
+      Magic m = { td->magic.relevantBits, td->magic.relevantBitsSize, magicNumberCandidate };
+      int index = hash(m, td->relevantBitsPowerset[j]);
       if (usedAttacks[index] == EMPTY_BOARD) {
         usedAttacks[index] = td->moves[j];
       } else if (usedAttacks[index] != td->moves[j]) {
