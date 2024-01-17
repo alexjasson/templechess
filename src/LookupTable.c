@@ -27,14 +27,14 @@ typedef struct {
   BitBoard relevantBits;
   int relevantBitsSize;
   uint64_t magicNumber;
-} LookupData;
+} Magic;
 
 typedef struct {
   volatile bool stop;
   pthread_mutex_t lock;
   BitBoard *relevantBitsPowerset;
-  BitBoard *attacks;
-  LookupData attacksData;
+  BitBoard *moves;
+  Magic magic;
 } ThreadData;
 
 struct lookupTable {
@@ -43,19 +43,18 @@ struct lookupTable {
   // add aquares between
 
   // Precalculated data for indexing to the pieceAttacks hash table
-  LookupData attacksData[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE];
+  Magic attacksData[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE];
 };
 
 static BitBoard getPieceAttack(Square s, Type t, Direction d, int steps);
 static BitBoard getPieceAttacks(Square s, Type t, Color c, BitBoard occupancies);
-static BitBoard *getAllPieceAttacks(Square s, Type t, Color c, LookupData attacks);
-static LookupData getPieceAttacksData(Square s, Type t, Color c);
+static BitBoard *getAllPieceAttacks(Square s, Type t, Color c, Magic attacks);
 
 static BitBoard getRelevantBits(Square s, Type t, Color c);
 static BitBoard getRelevantBitsSubset(int index, BitBoard relevantBits, int relevantBitsSize);
-static uint64_t getMagicNumber(Square s, Type t, Color c, BitBoard relevantBits, int relevantBitsSize);
+static Magic getMagic(Square s, Type t, Color c);
 static void *magicNumberSearch(void *arg);
-static int hash(LookupData attacks, BitBoard occupancies);
+static int hash(Magic attacks, BitBoard occupancies);
 
 LookupTable LookupTableNew(void) {
   LookupTable l = malloc(sizeof(struct lookupTable));
@@ -70,10 +69,10 @@ LookupTable LookupTableNew(void) {
         int index = GET_1D_INDEX(s, t, c);
         if (t != Pawn && c == Black) {
           l->attacksData[s][t][c] = l->attacksData[s][t][c - 1];
-          writeElementToFile(&l->attacksData[s][t][c], sizeof(LookupData), index, ATTACKS_DATA);
-        } else if (!readElementFromFile(&l->attacksData[s][t][c], sizeof(LookupData), index, ATTACKS_DATA)) {
-          l->attacksData[s][t][c] = getPieceAttacksData(s, t, c);
-          writeElementToFile(&l->attacksData[s][t][c], sizeof(LookupData), index, ATTACKS_DATA);
+          writeElementToFile(&l->attacksData[s][t][c], sizeof(Magic), index, ATTACKS_DATA);
+        } else if (!readElementFromFile(&l->attacksData[s][t][c], sizeof(Magic), index, ATTACKS_DATA)) {
+          l->attacksData[s][t][c] = getMagic(s, t, c);
+          writeElementToFile(&l->attacksData[s][t][c], sizeof(Magic), index, ATTACKS_DATA);
         }
         l->pieceAttacks[s][t][c] = getAllPieceAttacks(s, t, c, l->attacksData[s][t][c]);
         printf("Type: %d, Color: %d, Square: %d, Occupancy Size: %d, Magic Number:%lu\n", t, c, s, l->attacksData[s][t][c].relevantBitsSize, l->attacksData[s][t][c].magicNumber);
@@ -104,7 +103,7 @@ BitBoard LookupTableGetPieceAttacks(LookupTable l, Square s, Type t, Color c, Bi
   }
 }
 
-static BitBoard *getAllPieceAttacks(Square s, Type t, Color c, LookupData attacks) {
+static BitBoard *getAllPieceAttacks(Square s, Type t, Color c, Magic attacks) {
   int relevantBitsPowersetSize = GET_POWERSET_SIZE(attacks.relevantBitsSize);
   BitBoard *allPieceAttacks = malloc(sizeof(BitBoard) * relevantBitsPowersetSize);
   if (allPieceAttacks == NULL) {
@@ -118,14 +117,6 @@ static BitBoard *getAllPieceAttacks(Square s, Type t, Color c, LookupData attack
     allPieceAttacks[index] = getPieceAttacks(s, t, c, occupancies);
   }
   return allPieceAttacks;
-}
-
-static LookupData getPieceAttacksData(Square s, Type t, Color c) {
-  LookupData attacks;
-  attacks.relevantBits = getRelevantBits(s, t, c);
-  attacks.relevantBitsSize = BitBoardCountBits(attacks.relevantBits);
-  attacks.magicNumber = getMagicNumber(s, t, c, attacks.relevantBits, attacks.relevantBitsSize);
-  return attacks;
 }
 
 // occupancies = relevantData - more general?
@@ -193,25 +184,27 @@ static BitBoard getRelevantBits(Square s, Type t, Color c) {
   return relevantBits;
 }
 
-static int hash(LookupData attacks, BitBoard occupancies) {
+static int hash(Magic attacks, BitBoard occupancies) {
   return (int)(((attacks.relevantBits & occupancies) * attacks.magicNumber) >> (BOARD_SIZE - attacks.relevantBitsSize));
 }
 
-static uint64_t getMagicNumber(Square s, Type t, Color c, BitBoard relevantBits, int relevantBitsSize) {
+static Magic getMagic(Square s, Type t, Color c) {
+  BitBoard relevantBits = getRelevantBits(s, t, c);
+  int relevantBitsSize = BitBoardCountBits(relevantBits);
   int relevantBitsPowersetSize = GET_POWERSET_SIZE(relevantBitsSize);
 
   BitBoard *relevantBitsPowerset = malloc(sizeof(BitBoard) * relevantBitsPowersetSize);
-  BitBoard *attacks = malloc(sizeof(BitBoard) * relevantBitsPowersetSize);
-  if (relevantBitsPowerset == NULL || attacks == NULL) {
+  BitBoard *moves = malloc(sizeof(BitBoard) * relevantBitsPowersetSize);
+  if (relevantBitsPowerset == NULL || moves == NULL) {
     fprintf(stderr, "Insufficient memory!\n");
     exit(EXIT_FAILURE);
   }
   for (int i = 0; i < relevantBitsPowersetSize; i++) {
     relevantBitsPowerset[i] = getRelevantBitsSubset(i, relevantBits, relevantBitsSize);
-    attacks[i] = getPieceAttacks(s, t, c, relevantBitsPowerset[i]);
+    moves[i] = getPieceAttacks(s, t, c, relevantBitsPowerset[i]);
   }
 
-  ThreadData td = { false, PTHREAD_MUTEX_INITIALIZER, relevantBitsPowerset, attacks, { relevantBits, relevantBitsSize, UNDEFINED }};
+  ThreadData td = { false, PTHREAD_MUTEX_INITIALIZER, relevantBitsPowerset, moves, { relevantBits, relevantBitsSize, UNDEFINED }};
   int numCores = NUM_CORES;
 
   // create threads
@@ -227,13 +220,13 @@ static uint64_t getMagicNumber(Square s, Type t, Color c, BitBoard relevantBits,
 
   pthread_mutex_destroy(&td.lock);
   free(relevantBitsPowerset);
-  free(attacks);
-  return td.attacksData.magicNumber;
+  free(moves);
+  return td.magic;
 }
 
 static void *magicNumberSearch(void *arg) {
   ThreadData *td = (ThreadData *)arg;
-  int relevantBitsPowersetSize = GET_POWERSET_SIZE(td->attacksData.relevantBitsSize);
+  int relevantBitsPowersetSize = GET_POWERSET_SIZE(td->magic.relevantBitsSize);
 
   BitBoard *usedAttacks = malloc(sizeof(BitBoard) * relevantBitsPowersetSize);
   if (usedAttacks == NULL) {
@@ -256,18 +249,18 @@ static void *magicNumberSearch(void *arg) {
 
     // Test magic index
     for (int j = 0; j < relevantBitsPowersetSize; j++) {
-      LookupData attacks = { td->attacksData.relevantBits, td->attacksData.relevantBitsSize, magicNumberCandidate };
+      Magic attacks = { td->magic.relevantBits, td->magic.relevantBitsSize, magicNumberCandidate };
       int index = hash(attacks, td->relevantBitsPowerset[j]);
       if (usedAttacks[index] == EMPTY_BOARD) {
-        usedAttacks[index] = td->attacks[j];
-      } else if (usedAttacks[index] != td->attacks[j]) {
+        usedAttacks[index] = td->moves[j];
+      } else if (usedAttacks[index] != td->moves[j]) {
         collision = true;
       }
     }
     if (!collision) {
       pthread_mutex_lock(&td->lock);
       td->stop = true;
-      td->attacksData.magicNumber = magicNumberCandidate;
+      td->magic.magicNumber = magicNumberCandidate;
       pthread_mutex_unlock(&td->lock);
     }
   }
