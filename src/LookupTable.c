@@ -53,7 +53,7 @@ static BitBoard getLeafMoves(Square s, Type t, Color c, BitBoard occupancies);
 static BitBoard *getAllPieceMoves(Square s, Type t, Color c, Magic m);
 
 static BitBoard getRelevantBits(Square s, Type t, Color c);
-static BitBoard getRelevantBitsSubset(int index, BitBoard relevantBits, int relevantBitsSize);
+static BitBoard getBitsSubset(int index, BitBoard relevantBits, int relevantBitsSize);
 static Magic getMagic(Square s, Type t, Color c);
 static void *magicNumberSearch(void *arg);
 static int magicHash(Magic m, BitBoard occupancies);
@@ -135,7 +135,7 @@ static BitBoard *getAllPieceMoves(Square s, Type t, Color c, Magic m) {
   }
 
   for (int i = 0; i < relevantBitsSetSize; i++) {
-    BitBoard occupancies = getRelevantBitsSubset(i, m.relevantBits, m.relevantBitsSize);
+    BitBoard occupancies = getBitsSubset(i, m.relevantBits, m.relevantBitsSize);
     int index = magicHash(m, occupancies);
     allMoves[index] = getLeafMoves(s, t, c, occupancies);
   }
@@ -212,7 +212,7 @@ static BitBoard getMove(Square s, Type t, Direction d, int steps) {
 
 
 
-static BitBoard getRelevantBitsSubset(int index, BitBoard relevantBits, int relevantBitsSize) {
+static BitBoard getBitsSubset(int index, BitBoard relevantBits, int relevantBitsSize) {
   BitBoard relevantBitsSubset = EMPTY_BOARD;
   for (int i = 0; i < relevantBitsSize; i++) {
     Square s = BitBoardLeastSignificantBit(relevantBits);
@@ -260,7 +260,7 @@ static Magic getMagic(Square s, Type t, Color c) {
     exit(EXIT_FAILURE);
   }
   for (int i = 0; i < relevantBitsPowersetSize; i++) {
-    relevantBitsPowerset[i] = getRelevantBitsSubset(i, relevantBits, relevantBitsSize);
+    relevantBitsPowerset[i] = getBitsSubset(i, relevantBits, relevantBitsSize);
     moves[i] = getLeafMoves(s, t, c, relevantBitsPowerset[i]);
   }
 
