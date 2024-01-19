@@ -35,10 +35,12 @@ int BitBoardCountBits(BitBoard b) {
   return count;
 }
 
+// Note: a8 is rank 0, a1 is rank 7
 int BitBoardGetRank(Square s) {
   return s >> 0b11;
 }
 
+// Note: a8 is file 0, h8 is file 7
 int BitBoardGetFile(Square s) {
   return s & 0b111;
 }

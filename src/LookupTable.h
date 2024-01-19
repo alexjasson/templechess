@@ -16,7 +16,7 @@
 
 typedef struct lookupTable *LookupTable;
 
-typedef enum { Pawn, Knight, King, Bishop, Rook, Queen } Type;
+typedef enum { Pawn, Knight, King, Bishop, Rook, Queen } Type; // new Order? Pawn, Bishop, Rook, Knight, King, Queen
 typedef enum { White, Black, Union } Color;
 
 LookupTable LookupTableNew(void);
