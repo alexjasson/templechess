@@ -6,7 +6,8 @@
 
 int main() {
     LookupTable l = LookupTableNew();
-    BitBoard c = LookupTableGetPieceAttacks(l, e4, Knight, White, EMPTY_BOARD);
+    BitBoard b = BitBoardSetBit(EMPTY_BOARD, e5);
+    BitBoard c = LookupTableGetPieceAttacks(l, e4, Rook, White, b);
 
     BitBoardPrint(c);
     LookupTableFree(l);

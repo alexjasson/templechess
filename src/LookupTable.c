@@ -9,13 +9,11 @@
 #include "LookupTable.h"
 #include "utility.h"
 
-#define GET_1D_INDEX(s, t, c) (s * (TYPE_SIZE - 1) * COLOR_SIZE + t * COLOR_SIZE + c)
-
 #define IS_DIAGONAL(d) (d % 2 == 1)
 #define GET_POWERSET_SIZE(n) (1 << n)
 
 #define NUM_CORES sysconf(_SC_NPROCESSORS_ONLN)
-#define ATTACKS_DATA "data/attacks.dat"
+#define MAGICS_FILEPATH "data/magics.dat"
 
 #define DEFAULT_COLOR White
 
@@ -28,6 +26,11 @@ typedef struct {
   int relevantBitsSize;
   uint64_t magicNumber;
 } Magic;
+
+// For king:
+// bits = bottom rank
+// bitShift = 0 for black, 8 for white - so not same as usual magic
+// magicNumber = 1
 
 typedef struct {
   volatile bool stop;
@@ -42,25 +45,22 @@ struct lookupTable {
   // which can be indexed using the occupancies. Note that knights/kings only have 1
   // move set so they are indexed with 0. Pawns are treated the same as bishops/rooks.
   // A move set is determined by the occupancies.
-  BitBoard *moves[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE]; // implement soon ^
+  BitBoard *attacks[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE]; // implement soon ^
   // add aquares between
 
   Magic magics[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE]; // Data used in magic hash
 };
 
 static BitBoard getMove(Square s, Type t, Direction d, int steps);
-static BitBoard getLeafMoves(Square s, Type t, Color c, BitBoard occupancies);
-static BitBoard *getAllPieceMoves(Square s, Type t, Color c, Magic m);
+static BitBoard getAttacks(Square s, Type t, Color c, BitBoard occupancies);
+static BitBoard *getAllAttacks(Square s, Type t, Color c, Magic m);
 
-static BitBoard getRelevantBits(Square s, Type t, Color c);
+static BitBoard getAttackBits(Square s, Type t, Color c);
 static BitBoard getBitsSubset(int index, BitBoard relevantBits, int relevantBitsSize);
+
 static Magic getMagic(Square s, Type t, Color c);
 static void *magicNumberSearch(void *arg);
 static int magicHash(Magic m, BitBoard occupancies);
-
-// static int binomialCoefficient(int n, int k);
-// static void generateSubsets(BitBoard currentSet, int cardinality, BitBoard* subsets, int* subsetCount, BitBoard relevantBits);
-// static BitBoard* getBitSubsets(BitBoard relevantBits, int* numSets, int maxCardinality);
 
 LookupTable LookupTableNew(void) {
   LookupTable l = malloc(sizeof(struct lookupTable));
@@ -69,22 +69,21 @@ LookupTable LookupTableNew(void) {
     exit(EXIT_FAILURE);
   }
 
+  bool emptyFile = isFileEmpty(MAGICS_FILEPATH);
+  int fileElementsSize = BOARD_SIZE * (TYPE_SIZE - 1) * COLOR_SIZE;
+  if (!emptyFile) readFromFile(l->magics, sizeof(Magic), fileElementsSize, MAGICS_FILEPATH);
+
   for (Square s = a8; s <= h1; s++) {
     for (Type t = Pawn; t <= Rook; t++) {
       for (Color c = White; c <= Black; c++) {
-        int index = GET_1D_INDEX(s, t, c);
-        if (t != Pawn && c == Black) {
-          l->magics[s][t][c] = l->magics[s][t][c - 1];
-          writeElementToFile(&l->magics[s][t][c], sizeof(Magic), index, ATTACKS_DATA);
-        } else if (!readElementFromFile(&l->magics[s][t][c], sizeof(Magic), index, ATTACKS_DATA)) {
-          l->magics[s][t][c] = getMagic(s, t, c);
-          writeElementToFile(&l->magics[s][t][c], sizeof(Magic), index, ATTACKS_DATA);
-        }
-        l->moves[s][t][c] = getAllPieceMoves(s, t, c, l->magics[s][t][c]);
+        if (emptyFile) l->magics[s][t][c] = getMagic(s, t, c);
+        l->attacks[s][t][c] = getAllAttacks(s, t, c, l->magics[s][t][c]);
         printf("Type: %d, Color: %d, Square: %d, Occupancy Size: %d, Magic Number:%lu\n", t, c, s, l->magics[s][t][c].relevantBitsSize, l->magics[s][t][c].magicNumber);
       }
     }
   }
+
+  if (emptyFile) writeToFile(l->magics, sizeof(Magic), fileElementsSize, MAGICS_FILEPATH);
 
   return l;
 }
@@ -93,7 +92,7 @@ void LookupTableFree(LookupTable l) {
   for (Square s = a8; s <= h1; s++) {
     for (Type t = Pawn; t <= Rook; t++) {
       for (Color c = White; c <= Black; c++) {
-        free(l->moves[s][t][c]);
+        free(l->attacks[s][t][c]);
       }
     }
   }
@@ -101,49 +100,38 @@ void LookupTableFree(LookupTable l) {
 }
 
 BitBoard LookupTableGetPieceAttacks(LookupTable l, Square s, Type t, Color c, BitBoard occupancies) {
-  if (t != Queen) {
+  if (t <= Knight) {
+    return l->attacks[s][t][c][0];
+  } else if (t != Queen) {
     int index = magicHash(l->magics[s][t][c], occupancies);
-    return l->moves[s][t][c][index];
+    return l->attacks[s][t][c][index];
   } else {
     return LookupTableGetPieceAttacks(l, s, Bishop, c, occupancies) | LookupTableGetPieceAttacks(l, s, Rook, c, occupancies);
   }
 }
 
-// Return a set of all possible moves for a piece/square
-static BitBoard *getAllPieceMoves(Square s, Type t, Color c, Magic m) {
-  // Determine number of move sets for each piece/square
+// Return a set of all possible attacks for a piece/square
+static BitBoard *getAllAttacks(Square s, Type t, Color c, Magic m) {
+  // For Pawns, knight and king there is only 1 attack set for each square
+  int numSets = (t <= Knight) ? 1 : GET_POWERSET_SIZE(m.relevantBitsSize);
 
-
-  // For Knight and King we only consider the empty set aka empty board
-  int relevantBitsSetSize;
-  if (t == Knight || t == King) {
-    relevantBitsSetSize = 1;
-  } else {
-    relevantBitsSetSize = GET_POWERSET_SIZE(m.relevantBitsSize);
-  }
-
-  BitBoard *allMoves = malloc(sizeof(BitBoard) * relevantBitsSetSize);
-  if (allMoves == NULL) {
+  BitBoard *allAttacks = malloc(sizeof(BitBoard) * numSets);
+  if (allAttacks == NULL) {
     fprintf(stderr, "Insufficient memory!\n");
     exit(EXIT_FAILURE);
   }
 
-  if (t == Knight || t == King) {
-    int index = 0;
-    allMoves[index] = getLeafMoves(s, t, c, EMPTY_BOARD);
-    return allMoves;
+  if (t <= Knight) {
+    allAttacks[0] = getAttacks(s, t, c, EMPTY_BOARD);
+  } else {
+    for (int i = 0; i < numSets; i++) {
+      BitBoard occupancies = getBitsSubset(i, m.relevantBits, m.relevantBitsSize);
+      int index = magicHash(m, occupancies);
+      allAttacks[index] = getAttacks(s, t, c, occupancies);
+    }
   }
 
-  for (int i = 0; i < relevantBitsSetSize; i++) {
-    BitBoard occupancies = getBitsSubset(i, m.relevantBits, m.relevantBitsSize);
-    int index = magicHash(m, occupancies);
-    allMoves[index] = getLeafMoves(s, t, c, occupancies);
-  }
-
-  // have a king hash later
-
-
-  return allMoves;
+  return allAttacks;
 }
 
 
@@ -154,36 +142,42 @@ static BitBoard *getAllPieceMoves(Square s, Type t, Color c, Magic m) {
  * Relevant bits for Bishop: occupancies
  * Relevant bits for Rook: occupancies
 */
-static BitBoard getLeafMoves(Square s, Type t, Color c, BitBoard occupancies) {
-  BitBoard moves = EMPTY_BOARD;
+static BitBoard getAttacks(Square s, Type t, Color c, BitBoard occupancies) {
+  BitBoard attacks = EMPTY_BOARD;
 
-  // Loop through potential moves, if a piece can't make that move, continue to next move
+  // Loop through attacks, if attack does not meet criteria for piece/color then break/continue
   for (Direction d = North; d <= Northwest; d++) {
     for (int steps = 1; steps < EDGE_SIZE; steps++) {
-      if (t == Pawn) {
-        if ((steps > 1 && BitBoardGetRank(s) != 1 && c != White) ||
-            (steps > 1 && BitBoardGetRank(s) != 6 && c != Black) ||
-            (steps > 1 && ((c == White && d != North) || (c == Black && d != South))) ||
-            (c == White && (d > Northeast && d < Northwest)) ||
-            (c == Black && (d < Southeast || d > Southwest)) ||
-            (steps > 2)) continue;
-      } else {
-        if ((t == Bishop && !IS_DIAGONAL(d)) || (t == Rook && IS_DIAGONAL(d)) ||
-            (t == Knight && (IS_DIAGONAL(d) || steps > 1)) ||
-            (t == King && steps > 1)) continue;
-      }
+      if ((t == Bishop && !IS_DIAGONAL(d)) || (t == Rook && IS_DIAGONAL(d))) continue;
+      else if (t == Knight && IS_DIAGONAL(d)) break;
+      else if (t <= Knight && steps > 1) break;
+      else if (t == Pawn && c == White && d != Northeast && d != Northwest) break;
+      else if (t == Pawn && c == Black && d != Southeast && d != Southwest) break;
 
-      BitBoard move = getMove(s, t, d, steps);
-      bool capture = move & occupancies;
-
-      // Don't add move if it's a pawn push and capture
-      if (capture && t == Pawn && !IS_DIAGONAL(d)) break;
-      moves |= move;
-      // Continue to next direction if it's a capture, king check may not be necessary
-      if (capture && t != King) break;
+      BitBoard attack = getMove(s, t, d, steps);
+      bool capture = attack & occupancies;
+      attacks |= attack;
+      if (capture) break;
     }
   }
-  return moves;
+  return attacks;
+}
+
+// can only pass move bits to this function
+// BitBoard getMoves(Square s, Type t, Color c, BitBoard moveBits) {
+//   BitBoard edges[NUM_EDGES] = EDGES;
+
+//   BitBoard moves = getAttacks(s, t, c, moveBits);
+//   // Knights, bishops, rooks and queens only have attacking moves
+//   if (t > King) return moves;
+
+//   // Decode enPassant square
+//   Square enPassant = (Square) (moveBits & edges[c]) >> (!c * EDGE_SIZE * (EDGE_SIZE - 1));
+
+//   if (t == Pawn) {
+//     if (c == White )
+//   }
+
 }
 
 // Return a bitboard that represents a square that a piece is attacking
@@ -210,8 +204,6 @@ static BitBoard getMove(Square s, Type t, Direction d, int steps) {
     return (getMove(s + offset, t, d1, 2) | getMove(s + offset, t, d2, 2));
 }
 
-
-
 static BitBoard getBitsSubset(int index, BitBoard relevantBits, int relevantBitsSize) {
   BitBoard relevantBitsSubset = EMPTY_BOARD;
   for (int i = 0; i < relevantBitsSize; i++) {
@@ -222,10 +214,8 @@ static BitBoard getBitsSubset(int index, BitBoard relevantBits, int relevantBits
   return relevantBitsSubset;
 }
 
-// static BitBoard getBitSets(BitBoard relevantBits, int *numSets)
-
-static BitBoard getRelevantBits(Square s, Type t, Color c) {
-  BitBoard relevantBits = getLeafMoves(s, t, c, EMPTY_BOARD);
+static BitBoard getAttackBits(Square s, Type t, Color c) {
+  BitBoard relevantBits = getAttacks(s, t, c, EMPTY_BOARD);
   BitBoard edges[NUM_EDGES] = EDGES;
   BitBoard piece = BitBoardSetBit(EMPTY_BOARD, s);
   for (int i = 0; i < NUM_EDGES; i++) {
@@ -240,16 +230,11 @@ static int magicHash(Magic m, BitBoard occupancies) {
   return (int)(((m.relevantBits & occupancies) * m.magicNumber) >> (BOARD_SIZE - m.relevantBitsSize));
 }
 
-// static int getLeafIndex(LookupTable l, Magic m, BitBoard occupancies, Type t) {
-//   if (t == Knight || t == King) {
-//     return 0;
-//   } else {
-//     return magicHash(m, occupancies);
-//   }
-// }
-
 static Magic getMagic(Square s, Type t, Color c) {
-  BitBoard relevantBits = getRelevantBits(s, t, c);
+
+  // account for king and knight later etc
+
+  BitBoard relevantBits = getAttackBits(s, t, c);
   int relevantBitsSize = BitBoardCountBits(relevantBits);
   int relevantBitsPowersetSize = GET_POWERSET_SIZE(relevantBitsSize);
 
@@ -261,7 +246,7 @@ static Magic getMagic(Square s, Type t, Color c) {
   }
   for (int i = 0; i < relevantBitsPowersetSize; i++) {
     relevantBitsPowerset[i] = getBitsSubset(i, relevantBits, relevantBitsSize);
-    moves[i] = getLeafMoves(s, t, c, relevantBitsPowerset[i]);
+    moves[i] = getAttacks(s, t, c, relevantBitsPowerset[i]);
   }
 
   ThreadData td = { false, PTHREAD_MUTEX_INITIALIZER, relevantBitsPowerset, moves, { relevantBits, relevantBitsSize, UNDEFINED }};
@@ -340,52 +325,4 @@ static void *magicNumberSearch(void *arg) {
 //       }
 //     }
 //   }
-// }
-
-
-// static int binomialCoefficient(int n, int k) {
-//     if (k > n - k) {
-//         k = n - k;
-//     }
-//     int res = 1;
-//     for (int i = 0; i < k; ++i) {
-//         res *= (n - i);
-//         res /= (i + 1);
-//     }
-//     return res;
-// }
-
-// static void generateSubsets(BitBoard currentSet, int cardinality, BitBoard* subsets, int* subsetCount, BitBoard relevantBits) {
-//     if (cardinality == 0) {
-//         subsets[(*subsetCount)++] = currentSet;
-//         return;
-//     }
-
-//     BitBoard temp = relevantBits;
-//     while (temp) {
-//         BitBoard lowestBit = temp & -temp;
-//         generateSubsets(currentSet | lowestBit, cardinality - 1, subsets, subsetCount, temp ^ lowestBit);
-//         temp ^= lowestBit;
-//     }
-// }
-
-// static BitBoard* getBitSubsets(BitBoard relevantBits, int* numSets, int maxCardinality) {
-//     int totalBits = BitBoardCountBits(relevantBits);
-//     *numSets = 0;
-//     for (int i = 0; i <= maxCardinality && i <= totalBits; i++) {
-//         *numSets += binomialCoefficient(totalBits, i);
-//     }
-
-//     BitBoard* subsets = malloc((*numSets) * sizeof(BitBoard));
-//     if (!subsets) {
-//         perror("Failed to allocate memory for subsets");
-//         exit(EXIT_FAILURE);
-//     }
-
-//     int subsetCount = 0;
-//     for (int i = 0; i <= maxCardinality && i <= totalBits; i++) {
-//         generateSubsets(0, i, subsets, &subsetCount, relevantBits);
-//     }
-
-//     return subsets;
 // }

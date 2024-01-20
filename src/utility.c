@@ -9,33 +9,36 @@
 
 static uint32_t xorshift(pthread_mutex_t *lock);
 
-void writeElementToFile(void *element, size_t elementSize, int position, char *filename) {
-  FILE *fp = fopen(filename, "r+b"); // Open for reading and writing; file must exist
+void writeToFile(void *array, size_t elementSize, size_t numElements, char *filename) {
+  FILE *fp = fopen(filename, "wb");
   if (fp == NULL) {
     fprintf(stderr, "Failed to open '%s' for writing\n", filename);
     exit(EXIT_FAILURE);
   }
 
-  fseek(fp, position * elementSize, SEEK_SET);
-
-  size_t written = fwrite(element, elementSize, 1, fp);
-  if (written != 1) {
-    fprintf(stderr, "Failed to write the element to '%s'\n", filename);
+  size_t written = fwrite(array, elementSize, numElements, fp);
+  if (written != numElements) {
+    fprintf(stderr, "Failed to write all elements to '%s'\n", filename);
     exit(EXIT_FAILURE);
   }
 
   fclose(fp);
 }
 
-bool readElementFromFile(void *element, size_t elementSize, int position, char *filename) {
+void readFromFile(void *array, size_t elementSize, size_t numElements, char *filename) {
   FILE *fp = fopen(filename, "rb");
-  if (fp == NULL) return false;
+  if (fp == NULL) {
+    fprintf(stderr, "Failed to open '%s' for reading\n", filename);
+    exit(EXIT_FAILURE);
+  }
 
-  fseek(fp, position * elementSize, SEEK_SET);
+  size_t read = fread(array, elementSize, numElements, fp);
+  if (read != numElements) {
+    fprintf(stderr, "Failed to read all elements from '%s'\n", filename);
+    exit(EXIT_FAILURE);
+  }
 
-  size_t read = fread(element, elementSize, 1, fp);
   fclose(fp);
-  return (read != 1) ? false : true;
 }
 
 bool isFileEmpty(char *filename) {

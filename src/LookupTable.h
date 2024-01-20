@@ -1,9 +1,7 @@
 #ifndef LOOKUP_TABLE_H
 #define LOOKUP_TABLE_H
 
-#include <limits.h>
-
-#define UNDEFINED UINT_MAX
+#define UNDEFINED -1
 #define COLOR_SIZE 2
 #define TYPE_SIZE 6
 #define EDGES { 0xFF00000000000000, 0x00000000000000FF, 0x0101010101010101, 0x8080808080808080 }
@@ -16,7 +14,7 @@
 
 typedef struct lookupTable *LookupTable;
 
-typedef enum { Pawn, Knight, King, Bishop, Rook, Queen } Type; // new Order? Pawn, Bishop, Rook, Knight, King, Queen
+typedef enum { Pawn, King, Knight, Bishop, Rook, Queen } Type;
 typedef enum { White, Black, Union } Color;
 
 LookupTable LookupTableNew(void);

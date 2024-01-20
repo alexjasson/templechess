@@ -1,8 +1,8 @@
 #ifndef UTILITY_H
 #define UTILITY_H
 
-void writeElementToFile(void *element, size_t elementSize, int position, char *filename);
-bool readElementFromFile(void *element, size_t elementSize, int position, char *filename);
+void writeToFile(void *array, size_t elementSize, size_t numElements, char *filename);
+void readFromFile(void *array, size_t elementSize, size_t numElements, char *filename);
 bool isFileEmpty(char *filename);
 uint64_t getRandomNumber(pthread_mutex_t *lock);
 

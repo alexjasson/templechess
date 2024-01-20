@@ -195,7 +195,7 @@ static ChessBoard makeMove(ChessBoard cb, Type t, Square from, Square to) {
   // Update castling
   cb.castling ^= cb.castling & BitBoardSetBit(EMPTY_BOARD, from);
   // Update en passant square
-  cb.enPassant = (t == Pawn && offset > EDGE_SIZE + 1) ? (from + to) / 2 : UNDEFINED;
+  cb.enPassant = (t == Pawn && offset > EDGE_SIZE + 1) ? (from + to) / 2 : None;
 
 
 
