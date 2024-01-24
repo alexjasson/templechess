@@ -181,7 +181,7 @@ static ChessBoard makeMove(ChessBoard cb, Type t, Square from, Square to) {
 
   // Remove piece from from square and set it to to square
   cb.pieces[t][cb.turn] = BitBoardSetBit(BitBoardPopBit(cb.pieces[t][cb.turn], from), to);
-  // Remove piece from to square if it exists
+  // Remove piece from to square if it exists - use square array in future
   for (Type t = Pawn; t <= Queen; t++) {
     cb.pieces[t][!cb.turn] = BitBoardPopBit(cb.pieces[t][!cb.turn], to);
   }

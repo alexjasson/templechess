@@ -46,6 +46,7 @@ struct lookupTable {
   // move set so they are indexed with 0. Pawns are treated the same as bishops/rooks.
   // A move set is determined by the occupancies.
   BitBoard *attacks[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE]; // implement soon ^
+  BitBoard *moves[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE];
   // add aquares between
 
   Magic magics[BOARD_SIZE][TYPE_SIZE - 1][COLOR_SIZE]; // Data used in magic hash
@@ -53,11 +54,14 @@ struct lookupTable {
 
 static BitBoard getMove(Square s, Type t, Direction d, int steps);
 static BitBoard getAttacks(Square s, Type t, Color c, BitBoard occupancies);
+static BitBoard getAttackBits(Square s, Type t, Color c);
 static BitBoard *getAllAttacks(Square s, Type t, Color c, Magic m);
 
-static BitBoard getAttackBits(Square s, Type t, Color c);
-static BitBoard getBitsSubset(int index, BitBoard relevantBits, int relevantBitsSize);
+static BitBoard getMoves(Square s, Type t, Color c, BitBoard occupancies);
+static BitBoard getMoveBits(Square s, Type t, Color c);
+static BitBoard *getAllMoves(Square s, Type t, Color c, Magic m, LookupTable l);
 
+static BitBoard getBitsSubset(int index, BitBoard relevantBits, int relevantBitsSize);
 static Magic getMagic(Square s, Type t, Color c);
 static void *magicNumberSearch(void *arg);
 static int magicHash(Magic m, BitBoard occupancies);
@@ -78,6 +82,7 @@ LookupTable LookupTableNew(void) {
       for (Color c = White; c <= Black; c++) {
         if (emptyFile) l->magics[s][t][c] = getMagic(s, t, c);
         l->attacks[s][t][c] = getAllAttacks(s, t, c, l->magics[s][t][c]);
+        l->moves[s][t][c] = getAllMoves(s, t, c, l->magics[s][t][c], l);
         printf("Type: %d, Color: %d, Square: %d, Occupancy Size: %d, Magic Number:%lu\n", t, c, s, l->magics[s][t][c].relevantBitsSize, l->magics[s][t][c].magicNumber);
       }
     }
@@ -93,6 +98,7 @@ void LookupTableFree(LookupTable l) {
     for (Type t = Pawn; t <= Rook; t++) {
       for (Color c = White; c <= Black; c++) {
         free(l->attacks[s][t][c]);
+        if (t == Pawn) free(l->moves[s][t][c]);
       }
     }
   }
@@ -107,6 +113,17 @@ BitBoard LookupTableGetPieceAttacks(LookupTable l, Square s, Type t, Color c, Bi
     return l->attacks[s][t][c][index];
   } else {
     return LookupTableGetPieceAttacks(l, s, Bishop, c, occupancies) | LookupTableGetPieceAttacks(l, s, Rook, c, occupancies);
+  }
+}
+
+BitBoard LookupTableGetMoves(LookupTable l, Square s, Type t, Color c, BitBoard occupancies) {
+  if (t == King || t == Knight) { // Will only be Knight in future
+    return l->moves[s][t][c][0];
+  } else if (t != Queen) {
+    int index = magicHash(l->magics[s][t][c], occupancies);
+    return l->moves[s][t][c][index];
+  } else {
+    return LookupTableGetMoves(l, s, Bishop, c, occupancies) | LookupTableGetMoves(l, s, Rook, c, occupancies);
   }
 }
 
@@ -132,6 +149,26 @@ static BitBoard *getAllAttacks(Square s, Type t, Color c, Magic m) {
   }
 
   return allAttacks;
+}
+
+static BitBoard *getAllMoves(Square s, Type t, Color c, Magic m, LookupTable l) {
+  if (t != Pawn) return l->attacks[s][t][c];
+
+  int numSets = GET_POWERSET_SIZE(m.relevantBitsSize);
+
+  BitBoard *allMoves = malloc(sizeof(BitBoard) * numSets);
+  if (allMoves == NULL) {
+    fprintf(stderr, "Insufficient memory!\n");
+    exit(EXIT_FAILURE);
+  }
+
+  for (int i = 0; i < numSets; i++) {
+    BitBoard occupancies = getBitsSubset(i, m.relevantBits, m.relevantBitsSize);
+    int index = magicHash(m, occupancies);
+    allMoves[index] = getMoves(s, t, c, occupancies);
+  }
+
+  return allMoves;
 }
 
 
@@ -163,21 +200,25 @@ static BitBoard getAttacks(Square s, Type t, Color c, BitBoard occupancies) {
   return attacks;
 }
 
-// can only pass move bits to this function
-// BitBoard getMoves(Square s, Type t, Color c, BitBoard moveBits) {
-//   BitBoard edges[NUM_EDGES] = EDGES;
+// The same as attacks except pawns cant move to empty squares diagonally
+// and we add pawn pushes
+static BitBoard getMoves(Square s, Type t, Color c, BitBoard occupancies) {
+  BitBoard moves = getAttacks(s, t, c, occupancies);
+  // Return early if piece isn't pawn
+  if (t != Pawn) return moves;
 
-//   BitBoard moves = getAttacks(s, t, c, moveBits);
-//   // Knights, bishops, rooks and queens only have attacking moves
-//   if (t > King) return moves;
-
-//   // Decode enPassant square
-//   Square enPassant = (Square) (moveBits & edges[c]) >> (!c * EDGE_SIZE * (EDGE_SIZE - 1));
-
-//   if (t == Pawn) {
-//     if (c == White )
-//   }
-
+  // Remove any of the pawn attacks if the square is empty since they are not moves
+  moves &= occupancies;
+  bool initialRank = (c == White) ? BitBoardGetRank(s) == 6 : BitBoardGetRank(s) == 1;
+  for (int steps = 1; steps <= 2; steps++) {
+    Direction d = (c == White) ? North : South;
+    BitBoard move = getMove(s, t, d, steps);
+    bool capture = move & occupancies;
+    if (capture) break;
+    if (steps == 2 && !initialRank) break;
+    moves |= move;
+  }
+  return moves;
 }
 
 // Return a bitboard that represents a square that a piece is attacking
@@ -226,6 +267,11 @@ static BitBoard getAttackBits(Square s, Type t, Color c) {
   return relevantBits;
 }
 
+static BitBoard getMoveBits(Square s, Type t, Color c) {
+  if (t != Pawn) return getAttackBits(s, t, c);
+  return getMoves(s, t, c, EMPTY_BOARD) | getAttacks(s, t, c, EMPTY_BOARD);
+}
+
 static int magicHash(Magic m, BitBoard occupancies) {
   return (int)(((m.relevantBits & occupancies) * m.magicNumber) >> (BOARD_SIZE - m.relevantBitsSize));
 }
@@ -234,7 +280,7 @@ static Magic getMagic(Square s, Type t, Color c) {
 
   // account for king and knight later etc
 
-  BitBoard relevantBits = getAttackBits(s, t, c);
+  BitBoard relevantBits = getMoveBits(s, t, c);
   int relevantBitsSize = BitBoardCountBits(relevantBits);
   int relevantBitsPowersetSize = GET_POWERSET_SIZE(relevantBitsSize);
 
@@ -246,7 +292,7 @@ static Magic getMagic(Square s, Type t, Color c) {
   }
   for (int i = 0; i < relevantBitsPowersetSize; i++) {
     relevantBitsPowerset[i] = getBitsSubset(i, relevantBits, relevantBitsSize);
-    moves[i] = getAttacks(s, t, c, relevantBitsPowerset[i]);
+    moves[i] = getMoves(s, t, c, relevantBitsPowerset[i]);
   }
 
   ThreadData td = { false, PTHREAD_MUTEX_INITIALIZER, relevantBitsPowerset, moves, { relevantBits, relevantBitsSize, UNDEFINED }};

@@ -20,5 +20,6 @@ typedef enum { White, Black, Union } Color;
 LookupTable LookupTableNew(void);
 void LookupTableFree(LookupTable l);
 BitBoard LookupTableGetPieceAttacks(LookupTable l, Square s, Type t, Color c, BitBoard o);
+BitBoard LookupTableGetMoves(LookupTable l, Square s, Type t, Color c, BitBoard o);
 
 #endif
