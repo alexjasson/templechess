@@ -75,7 +75,7 @@ ChessBoard ChessBoardFromFEN(char *fen, LookupTable l) {
     cb.enPassant = rank * EDGE_SIZE + file;
   }
 
-    for (Color c = White; c <= Black; c++) {
+  for (Color c = White; c <= Black; c++) {
     for (Type t = Pawn; t <= Queen; t++) {
       cb.occupancies[c] |= cb.pieces[t][c];
     }
@@ -93,6 +93,11 @@ ChessBoard ChessBoardFromFEN(char *fen, LookupTable l) {
       }
     }
   }
+
+  // Given the attacks and occupancies, update the castling bits
+  cb.castling |= cb.occupancies[Union] & CASTLING_OCCUPANCY_MASK;
+  cb.castling |= cb.attacks[!cb.turn] & CASTLING_ATTACK_MASK;
+
   return cb;
 }
 
@@ -193,7 +198,10 @@ static ChessBoard makeMove(ChessBoard cb, Type t, Square from, Square to) {
 
 
   // Update castling
+  cb.castling &= CASTLING_RIGHTS_MASK;
   cb.castling ^= cb.castling & BitBoardSetBit(EMPTY_BOARD, from);
+  cb.castling |= cb.occupancies[Union] & CASTLING_OCCUPANCY_MASK;
+  cb.castling |= cb.attacks[!cb.turn] & CASTLING_ATTACK_MASK;
   // Update en passant square
   cb.enPassant = (t == Pawn && offset > EDGE_SIZE + 1) ? (from + to) / 2 : None;
 
@@ -205,7 +213,7 @@ static ChessBoard makeMove(ChessBoard cb, Type t, Square from, Square to) {
   //   // Handle castling - make move again
   // }
 
-  // Update color
+  // Finally update color
   cb.turn = !cb.turn;
   return cb;
 }
