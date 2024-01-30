@@ -23,24 +23,16 @@ typedef enum {
 
 typedef struct {
   BitBoard bits;
-  int numBits;
+  int bitShift;
   uint64_t magicNumber;
-} Magic;
-
-// Regular hash
-
-// For king:
-// bits = bottom rank
-// bitShift = 0 for black, 56 for white - so not same as usual magic
-// magicNumber = 1
-// note to self call 'Magic' 'HashData'
+} HashData;
 
 typedef struct {
   volatile bool stop;
   pthread_mutex_t lock;
   BitBoard *relevantBitsPowerset;
   BitBoard *moves;
-  Magic magic;
+  HashData magic;
 } ThreadData;
 
 struct lookupTable {
@@ -56,8 +48,8 @@ struct lookupTable {
   BitBoard castling[COLOR_SIZE][CASTLING_POWERSET];
   BitBoard enPassant[BOARD_SIZE][COLOR_SIZE][BOARD_SIZE + 1];
 
-  Magic magics[BOARD_SIZE][MAGICS_SIZE]; // Bishop and rook
-  Magic basics[BOARD_SIZE][COLOR_SIZE][BASICS_SIZE]; // Pawn and king
+  HashData magics[BOARD_SIZE][MAGICS_SIZE]; // Bishop and rook
+  HashData basics[BOARD_SIZE][COLOR_SIZE][BASICS_SIZE]; // Pawn and king
 };
 
 static BitBoard getMove(Square s, Type t, Direction d, int steps);
@@ -68,10 +60,10 @@ static BitBoard getEnPassant(Square s, Color c, Square enPassant);
 
 static BitBoard getRelevantBits(Square s, Type t, Color c);
 static BitBoard getBitsSubset(int index, BitBoard bits);
-static Magic getMagic(Square s, Type t, Color c);
+static HashData getHashData(Square s, Type t, Color c);
 static void *magicNumberSearch(void *arg);
-static int magicHash(Magic m, BitBoard occupancies);
-static int basicHash(Magic b, BitBoard occupancies);
+static int magicHash(HashData h, BitBoard occupancies);
+static int basicHash(HashData h, BitBoard occupancies);
 
 static void initalizeMoveTables(LookupTable l);
 static void initializeHashData(LookupTable l);
@@ -141,24 +133,17 @@ void initializeHashData(LookupTable l) {
   bool emptyFile = isFileEmpty(MAGICS_FILEPATH);
   int fileElementsSize = BOARD_SIZE * MAGICS_SIZE;
 
-  if (!emptyFile) readFromFile(l->magics, sizeof(Magic), fileElementsSize, MAGICS_FILEPATH);
+  if (!emptyFile) readFromFile(l->magics, sizeof(HashData), fileElementsSize, MAGICS_FILEPATH);
   for (Square s = a8; s <= h1; s++) {
-    if (emptyFile) l->magics[s][BISHOP_INDEX] = getMagic(s, Bishop, DEFAULT_COLOR);
-    if (emptyFile) l->magics[s][ROOK_INDEX] = getMagic(s, Rook, DEFAULT_COLOR);
-
-    // printf("Square: %d, Occupancy Size: %d, Magic Number:%lu\n", s, l->magics[s][1].numBits, l->magics[s][1].magicNumber);
-    // printf("Square: %d, Occupancy Size: %d, Magic Number:%lu\n", s, l->magics[s][0].numBits, l->magics[s][0].magicNumber);
-
+    if (emptyFile) l->magics[s][BISHOP_INDEX] = getHashData(s, Bishop, DEFAULT_COLOR);
+    if (emptyFile) l->magics[s][ROOK_INDEX] = getHashData(s, Rook, DEFAULT_COLOR);
   }
-  if (emptyFile) writeToFile(l->magics, sizeof(Magic), fileElementsSize, MAGICS_FILEPATH);
+  if (emptyFile) writeToFile(l->magics, sizeof(HashData), fileElementsSize, MAGICS_FILEPATH);
 
   for (Square s = a8; s <= h1; s++) {
     for (Color c = White; c <= Black; c++) {
-      l->basics[s][c][PAWN_INDEX] = getMagic(s, Pawn, c);
-      l->basics[s][c][KING_INDEX] = getMagic(s, King, c);
-
-      printf("Square: %d, Occupancy Size: %d\n", s, l->basics[s][c][PAWN_INDEX].numBits);
-      // printf("Square: %d, Occupancy Size: %d\n", s, l->basics[s][c][KING_INDEX].numBits);
+      l->basics[s][c][PAWN_INDEX] = getHashData(s, Pawn, c);
+      l->basics[s][c][KING_INDEX] = getHashData(s, King, c);
     }
   }
 }
@@ -323,31 +308,31 @@ static BitBoard getBitsSubset(int index, BitBoard bits) {
   return relevantBitsSubset;
 }
 
-static int magicHash(Magic m, BitBoard occupancies) {
-  return (int)(((m.bits & occupancies) * m.magicNumber) >> (m.numBits));
+static int magicHash(HashData h, BitBoard occupancies) {
+  return (int)(((h.bits & occupancies) * h.magicNumber) >> (h.bitShift));
 }
 
-static int basicHash(Magic b, BitBoard occupancies) {
-  return (int)((b.bits & occupancies) >> (b.numBits));
+static int basicHash(HashData h, BitBoard occupancies) {
+  return (int)((h.bits & occupancies) >> (h.bitShift));
 }
 
-static Magic getMagic(Square s, Type t, Color c) {
-  Magic m;
-  m.bits = getRelevantBits(s, t, c);
+static HashData getHashData(Square s, Type t, Color c) {
+  HashData h;
+  h.bits = getRelevantBits(s, t, c);
 
   // Return early if piece is pawn or king since they do not use magicHash
   if (t == Pawn) {
-    if (c == White) m.numBits = (s - EDGE_SIZE) % BOARD_SIZE;
-    else m.numBits = (s + EDGE_SIZE) % BOARD_SIZE;
-    return m;
+    if (c == White) h.bitShift = (s - EDGE_SIZE) % BOARD_SIZE;
+    else h.bitShift = (s + EDGE_SIZE) % BOARD_SIZE;
+    return h;
   } else if (t == King) {
-    if (c == White) m.numBits = BOARD_SIZE - EDGE_SIZE;
-    else m.numBits = 0;
-    return m;
+    if (c == White) h.bitShift = BOARD_SIZE - EDGE_SIZE;
+    else h.bitShift = 0;
+    return h;
   }
 
-  m.numBits = 64 - BitBoardCountBits(m.bits);
-  int relevantBitsPowersetSize = GET_POWERSET_SIZE((64 - m.numBits));
+  h.bitShift = BOARD_SIZE - BitBoardCountBits(h.bits);
+  int relevantBitsPowersetSize = GET_POWERSET_SIZE((BOARD_SIZE - h.bitShift));
 
   BitBoard *relevantBitsPowerset = malloc(sizeof(BitBoard) * relevantBitsPowersetSize);
   BitBoard *moves = malloc(sizeof(BitBoard) * relevantBitsPowersetSize);
@@ -356,11 +341,11 @@ static Magic getMagic(Square s, Type t, Color c) {
     exit(EXIT_FAILURE);
   }
   for (int i = 0; i < relevantBitsPowersetSize; i++) {
-    relevantBitsPowerset[i] = getBitsSubset(i, m.bits);
+    relevantBitsPowerset[i] = getBitsSubset(i, h.bits);
     moves[i] = getAttacks(s, t, c, relevantBitsPowerset[i]);
   }
 
-  ThreadData td = { false, PTHREAD_MUTEX_INITIALIZER, relevantBitsPowerset, moves, m };
+  ThreadData td = { false, PTHREAD_MUTEX_INITIALIZER, relevantBitsPowerset, moves, h };
   int numCores = NUM_CORES;
 
   // create threads
@@ -382,7 +367,7 @@ static Magic getMagic(Square s, Type t, Color c) {
 
 static void *magicNumberSearch(void *arg) {
   ThreadData *td = (ThreadData *)arg;
-  int relevantBitsPowersetSize = GET_POWERSET_SIZE((64 - td->magic.numBits));
+  int relevantBitsPowersetSize = GET_POWERSET_SIZE((BOARD_SIZE - td->magic.bitShift));
 
   BitBoard *usedAttacks = malloc(sizeof(BitBoard) * relevantBitsPowersetSize);
   if (usedAttacks == NULL) {
@@ -405,8 +390,8 @@ static void *magicNumberSearch(void *arg) {
 
     // Test magic index
     for (int j = 0; j < relevantBitsPowersetSize; j++) {
-      Magic m = { td->magic.bits, td->magic.numBits, magicNumberCandidate };
-      int index = magicHash(m, td->relevantBitsPowerset[j]);
+      HashData h = { td->magic.bits, td->magic.bitShift, magicNumberCandidate };
+      int index = magicHash(h, td->relevantBitsPowerset[j]);
       if (usedAttacks[index] == EMPTY_BOARD) {
         usedAttacks[index] = td->moves[j];
       } else if (usedAttacks[index] != td->moves[j]) {
