@@ -9,12 +9,14 @@
 
 static uint32_t xorshift(pthread_mutex_t *lock);
 
-void writeToFile(void *array, size_t elementSize, size_t numElements, char *filename) {
-  FILE *fp = fopen(filename, "wb");
+void writeToFile(void *array, size_t elementSize, size_t numElements, char *filename, long offset) {
+  FILE *fp = fopen(filename, "r+b");
   if (fp == NULL) {
     fprintf(stderr, "Failed to open '%s' for writing\n", filename);
     exit(EXIT_FAILURE);
   }
+
+  fseek(fp, offset, SEEK_SET);
 
   size_t written = fwrite(array, elementSize, numElements, fp);
   if (written != numElements) {
@@ -25,12 +27,14 @@ void writeToFile(void *array, size_t elementSize, size_t numElements, char *file
   fclose(fp);
 }
 
-void readFromFile(void *array, size_t elementSize, size_t numElements, char *filename) {
+void readFromFile(void *array, size_t elementSize, size_t numElements, char *filename, long offset) {
   FILE *fp = fopen(filename, "rb");
   if (fp == NULL) {
     fprintf(stderr, "Failed to open '%s' for reading\n", filename);
     exit(EXIT_FAILURE);
   }
+
+  fseek(fp, offset, SEEK_SET);
 
   size_t read = fread(array, elementSize, numElements, fp);
   if (read != numElements) {
@@ -52,7 +56,7 @@ bool isFileEmpty(char *filename) {
   return size == 0;
 }
 
-// generate pseudo random 64 bit number - thread safe
+// 64-bit PRNG - thread safe
 uint64_t getRandomNumber(pthread_mutex_t *lock) {
   uint64_t u1, u2, u3, u4;
 
@@ -64,7 +68,7 @@ uint64_t getRandomNumber(pthread_mutex_t *lock) {
   return u1 | (u2 << 16) | (u3 << 32) | (u4 << 48);
 }
 
-// 32-bit number pseudo random generator - thread safe
+// 32-bit PRNG - thread safe
 static uint32_t xorshift(pthread_mutex_t *lock) {
   static uint32_t state = 0;
   static bool seeded = false;

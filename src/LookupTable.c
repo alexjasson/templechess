@@ -32,7 +32,7 @@ typedef struct {
   pthread_mutex_t lock;
   BitBoard *relevantBitsPowerset;
   BitBoard *moves;
-  HashData magic;
+  HashData hashData;
 } ThreadData;
 
 struct lookupTable {
@@ -48,8 +48,10 @@ struct lookupTable {
   BitBoard castling[COLOR_SIZE][CASTLING_POWERSET];
   BitBoard enPassant[BOARD_SIZE][COLOR_SIZE][BOARD_SIZE + 1];
 
-  HashData magics[BOARD_SIZE][MAGICS_SIZE]; // Bishop and rook
-  HashData basics[BOARD_SIZE][COLOR_SIZE][BASICS_SIZE]; // Pawn and king
+  HashData pawnData[BOARD_SIZE][COLOR_SIZE]; // Used for pawn moves
+  HashData kingData[COLOR_SIZE]; // Used for castling
+  HashData bishopData[BOARD_SIZE]; // Used for bishop attacks
+  HashData rookData[BOARD_SIZE]; // Used for rook attacks
 };
 
 static BitBoard getMove(Square s, Type t, Direction d, int steps);
@@ -87,8 +89,8 @@ void initalizeMoveTables(LookupTable l) {
     for (Color c = White; c <= Black; c++) {
       l->pawnAttacks[s][c] = getAttacks(s, Pawn, c, EMPTY_BOARD);
       for (int i = 0; i < PAWN_MOVES_POWERSET; i++) {
-        BitBoard occupancies = getBitsSubset(i, l->basics[s][c][PAWN_INDEX].bits);
-        int index = basicHash(l->basics[s][c][PAWN_INDEX], occupancies);
+        BitBoard occupancies = getBitsSubset(i, l->pawnData[s][c].bits);
+        int index = basicHash(l->pawnData[s][c], occupancies);
         l->pawnMoves[s][c][index] = getPawnMoves(s, c, occupancies);
       }
     }
@@ -99,13 +101,13 @@ void initalizeMoveTables(LookupTable l) {
     l->knightAttacks[s] = getAttacks(s, Knight, DEFAULT_COLOR, EMPTY_BOARD);
     l->kingAttacks[s] = getAttacks(s, King, DEFAULT_COLOR, EMPTY_BOARD);
     for (int i = 0; i < BISHOP_ATTACKS_POWERSET; i++) {
-      BitBoard occupancies = getBitsSubset(i, l->magics[s][BISHOP_INDEX].bits);
-      int index = magicHash(l->magics[s][BISHOP_INDEX], occupancies);
+      BitBoard occupancies = getBitsSubset(i, l->bishopData[s].bits);
+      int index = magicHash(l->bishopData[s], occupancies);
       l->bishopAttacks[s][index] = getAttacks(s, Bishop, DEFAULT_COLOR, occupancies);
     }
     for (int i = 0; i < ROOK_ATTACKS_POWERSET; i++) {
-      BitBoard occupancies = getBitsSubset(i, l->magics[s][ROOK_INDEX].bits);
-      int index = magicHash(l->magics[s][ROOK_INDEX], occupancies);
+      BitBoard occupancies = getBitsSubset(i, l->rookData[s].bits);
+      int index = magicHash(l->rookData[s], occupancies);
       l->rookAttacks[s][index] = getAttacks(s, Rook, DEFAULT_COLOR, occupancies);
     }
   }
@@ -113,8 +115,8 @@ void initalizeMoveTables(LookupTable l) {
   // Castling
   for (Color c = White; c <= Black; c++) {
     for (int i = 0; i < CASTLING_POWERSET; i++) {
-      BitBoard castling = getBitsSubset(i, l->basics[a1][c][KING_INDEX].bits);
-      int index = basicHash(l->basics[a1][c][KING_INDEX], castling);
+      BitBoard castling = getBitsSubset(i, l->kingData[c].bits);
+      int index = basicHash(l->kingData[c], castling);
       l->castling[c][index] = getCastling(c, castling);
     }
   }
@@ -131,19 +133,26 @@ void initalizeMoveTables(LookupTable l) {
 
 void initializeHashData(LookupTable l) {
   bool emptyFile = isFileEmpty(MAGICS_FILEPATH);
-  int fileElementsSize = BOARD_SIZE * MAGICS_SIZE;
 
-  if (!emptyFile) readFromFile(l->magics, sizeof(HashData), fileElementsSize, MAGICS_FILEPATH);
-  for (Square s = a8; s <= h1; s++) {
-    if (emptyFile) l->magics[s][BISHOP_INDEX] = getHashData(s, Bishop, DEFAULT_COLOR);
-    if (emptyFile) l->magics[s][ROOK_INDEX] = getHashData(s, Rook, DEFAULT_COLOR);
+  if (!emptyFile) {
+    readFromFile(l->bishopData, sizeof(HashData), BOARD_SIZE, MAGICS_FILEPATH, 0);
+    readFromFile(l->rookData, sizeof(HashData), BOARD_SIZE, MAGICS_FILEPATH, sizeof(HashData) * BOARD_SIZE);
   }
-  if (emptyFile) writeToFile(l->magics, sizeof(HashData), fileElementsSize, MAGICS_FILEPATH);
-
   for (Square s = a8; s <= h1; s++) {
-    for (Color c = White; c <= Black; c++) {
-      l->basics[s][c][PAWN_INDEX] = getHashData(s, Pawn, c);
-      l->basics[s][c][KING_INDEX] = getHashData(s, King, c);
+    if (emptyFile) {
+      l->bishopData[s] = getHashData(s, Bishop, DEFAULT_COLOR);
+      l->rookData[s] = getHashData(s, Rook, DEFAULT_COLOR);
+    }
+  }
+  if (emptyFile) {
+    writeToFile(l->bishopData, sizeof(HashData), BOARD_SIZE, MAGICS_FILEPATH, 0);
+    writeToFile(l->rookData, sizeof(HashData), BOARD_SIZE, MAGICS_FILEPATH, sizeof(HashData) * BOARD_SIZE);
+  }
+
+  for (Color c = White; c <= Black; c++) {
+    l->kingData[c] = getHashData(a1, King, c);
+    for (Square s = a8; s <= h1; s++) {
+      l->pawnData[s][c] = getHashData(s, Pawn, c);
     }
   }
 }
@@ -158,10 +167,10 @@ BitBoard LookupTableGetPieceAttacks(LookupTable l, Square s, Type t, Color c, Bi
     case Knight: return l->knightAttacks[s];
     case King: return l->kingAttacks[s];
     case Bishop:
-      int index = magicHash(l->magics[s][BISHOP_INDEX], occupancies);
+      int index = magicHash(l->bishopData[s], occupancies);
       return l->bishopAttacks[s][index];
     case Rook:
-      index = magicHash(l->magics[s][ROOK_INDEX], occupancies);
+      index = magicHash(l->rookData[s], occupancies);
       return l->rookAttacks[s][index];
     case Queen:
       return LookupTableGetPieceAttacks(l, s, Bishop, c, occupancies) |
@@ -173,12 +182,12 @@ BitBoard LookupTableGetPieceAttacks(LookupTable l, Square s, Type t, Color c, Bi
 }
 
 BitBoard LookupTableGetPawnMoves(LookupTable l, Square s, Color c, BitBoard occupancies) {
-  int index = basicHash(l->basics[s][c][PAWN_INDEX], occupancies);
+  int index = basicHash(l->pawnData[s][c], occupancies);
   return l->pawnMoves[s][c][index];
 }
 
 BitBoard LookupTableGetCastling(LookupTable l, Color c, BitBoard castling) {
-  int index = basicHash(l->basics[a1][c][KING_INDEX], castling);
+  int index = basicHash(l->kingData[c], castling);
   return l->castling[c][index];
 }
 
@@ -220,7 +229,6 @@ static BitBoard getPawnMoves(Square s, Color c, BitBoard occupancies) {
   }
   return moves;
 }
-
 
 static BitBoard getCastling(Color c, BitBoard castling) {
   BitBoard moves = EMPTY_BOARD;
@@ -268,8 +276,8 @@ static BitBoard getEnPassant(Square s, Color c, Square enPassant) {
     m1 = getMove(s, Pawn, Southeast, 1);
     m2 = getMove(s, Pawn, Southwest, 1);
   }
-  if (m1 & enPassant) moves |= m1;
-  if (m2 & enPassant) moves |= m2;
+  if (m1 & enPassant) moves |= getMove(s, Pawn, East, 1);
+  if (m2 & enPassant) moves |= getMove(s, Pawn, West, 1);
   return moves;
 }
 
@@ -362,12 +370,12 @@ static HashData getHashData(Square s, Type t, Color c) {
   pthread_mutex_destroy(&td.lock);
   free(relevantBitsPowerset);
   free(moves);
-  return td.magic;
+  return td.hashData;
 }
 
 static void *magicNumberSearch(void *arg) {
   ThreadData *td = (ThreadData *)arg;
-  int relevantBitsPowersetSize = GET_POWERSET_SIZE((BOARD_SIZE - td->magic.bitShift));
+  int relevantBitsPowersetSize = GET_POWERSET_SIZE((BOARD_SIZE - td->hashData.bitShift));
 
   BitBoard *usedAttacks = malloc(sizeof(BitBoard) * relevantBitsPowersetSize);
   if (usedAttacks == NULL) {
@@ -390,7 +398,7 @@ static void *magicNumberSearch(void *arg) {
 
     // Test magic index
     for (int j = 0; j < relevantBitsPowersetSize; j++) {
-      HashData h = { td->magic.bits, td->magic.bitShift, magicNumberCandidate };
+      HashData h = { td->hashData.bits, td->hashData.bitShift, magicNumberCandidate };
       int index = magicHash(h, td->relevantBitsPowerset[j]);
       if (usedAttacks[index] == EMPTY_BOARD) {
         usedAttacks[index] = td->moves[j];
@@ -401,7 +409,7 @@ static void *magicNumberSearch(void *arg) {
     if (!collision) {
       pthread_mutex_lock(&td->lock);
       td->stop = true;
-      td->magic.magicNumber = magicNumberCandidate;
+      td->hashData.magicNumber = magicNumberCandidate;
       pthread_mutex_unlock(&td->lock);
     }
   }
