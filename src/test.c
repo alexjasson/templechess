@@ -1,23 +1,17 @@
 #include "BitBoard.h"
 #include "LookupTable.h"
+#include "ChessBoard.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 int main() {
-    //BitBoard b = 0;
-    //BitBoard c = 0;
     LookupTable l = LookupTableNew();
-    BitBoard c = BitBoardSetBit(0, d4);
-    //BitBoard d = 0xFFFFFFFFFFFFFFFF;
-    BitBoard b = LookupTableGetPieceAttacks(l, a2, Knight, White, c);
-    BitBoardPrint(b);
 
-    // b = BitBoardSetBit(b, c6);
-    // b = BitBoardSetBit(b, d5);
-    // b = BitBoardSetBit(b, g2);
-    // c = AttackTableGetPieceAttacks(a, Bishop, White, e4, b);
-    // BitBoardPrint(c);
+    BitBoard c = LookupTableGetLineOfSight(l, b8, h2);
+    BitBoard d = LookupTableGetSquaresBetween(l, b8, h2);
 
+    BitBoardPrint(c);
+    BitBoardPrint(d);
     LookupTableFree(l);
-
     return 0;
 }

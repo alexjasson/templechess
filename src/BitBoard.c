@@ -3,11 +3,15 @@
 
 #include "BitBoard.h"
 
+Bit BitBoardGetBit(BitBoard b, Square s) {
+  return (Bit)(b >> s) & 1;
+}
+
 void BitBoardPrint(BitBoard b) {
   for (int rank = 0; rank < EDGE_SIZE; rank++) {
     for (int file = 0; file < EDGE_SIZE; file++) {
-      Square s = (EDGE_SIZE - 1 - rank) * EDGE_SIZE + file;
-      printf("%ld ", (b >> s) & 1);
+      Square s = rank * EDGE_SIZE + file;
+      printf("%u ", BitBoardGetBit(b, s));
     }
     printf("%d \n", EDGE_SIZE - rank);
   }
@@ -31,6 +35,42 @@ int BitBoardCountBits(BitBoard b) {
   return count;
 }
 
+// Note: a8 is rank 0, a1 is rank 7
+int BitBoardGetRank(Square s) {
+  return s >> 0b11;
+}
+
+// Note: a8 is file 0, h8 is file 7
+int BitBoardGetFile(Square s) {
+  return s & 0b111;
+}
+
+int BitBoardGetDiagonal(Square s) {
+  return BitBoardGetRank(s) + BitBoardGetFile(s);
+}
+
+int BitBoardGetAntiDiagonal(Square s) {
+  return (EDGE_SIZE - 1) + BitBoardGetRank(s) - BitBoardGetFile(s);
+}
+
 Square BitBoardLeastSignificantBit(BitBoard b) {
   return BitBoardCountBits((b & -b) - 1);
+}
+
+// DO WE NEED THESE?
+
+BitBoard BitBoardShiftNorth(BitBoard b, int magnitude) {
+  return b >> EDGE_SIZE * magnitude;
+}
+
+BitBoard BitBoardShiftEast(BitBoard b, int magnitude) {
+  return b << magnitude;
+}
+
+BitBoard BitBoardShiftSouth(BitBoard b, int magnitude) {
+  return b << EDGE_SIZE * magnitude;
+}
+
+BitBoard BitBoardShiftWest(BitBoard b, int magnitude) {
+  return b >> magnitude;
 }
