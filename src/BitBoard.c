@@ -45,10 +45,19 @@ int BitBoardGetFile(Square s) {
   return s & 0b111;
 }
 
+int BitBoardGetDiagonal(Square s) {
+  return BitBoardGetRank(s) + BitBoardGetFile(s);
+}
+
+int BitBoardGetAntiDiagonal(Square s) {
+  return (EDGE_SIZE - 1) + BitBoardGetRank(s) - BitBoardGetFile(s);
+}
 
 Square BitBoardLeastSignificantBit(BitBoard b) {
   return BitBoardCountBits((b & -b) - 1);
 }
+
+// DO WE NEED THESE?
 
 BitBoard BitBoardShiftNorth(BitBoard b, int magnitude) {
   return b >> EDGE_SIZE * magnitude;

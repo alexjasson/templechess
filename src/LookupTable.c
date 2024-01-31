@@ -13,7 +13,7 @@
 #define GET_POWERSET_SIZE(n) (1 << n)
 
 #define NUM_CORES sysconf(_SC_NPROCESSORS_ONLN)
-#define MAGICS_FILEPATH "data/magics.dat"
+#define HASH_FILEPATH "data/hash.dat"
 
 #define DEFAULT_COLOR White
 
@@ -36,15 +36,12 @@ typedef struct {
 } ThreadData;
 
 struct lookupTable {
-
-  // add squares between
   BitBoard pawnMoves[BOARD_SIZE][COLOR_SIZE][PAWN_MOVES_POWERSET];
   BitBoard pawnAttacks[BOARD_SIZE][COLOR_SIZE];
   BitBoard knightAttacks[BOARD_SIZE];
   BitBoard kingAttacks[BOARD_SIZE];
   BitBoard bishopAttacks[BOARD_SIZE][BISHOP_ATTACKS_POWERSET];
   BitBoard rookAttacks[BOARD_SIZE][ROOK_ATTACKS_POWERSET];
-
   BitBoard castling[COLOR_SIZE][CASTLING_POWERSET];
   BitBoard enPassant[BOARD_SIZE][COLOR_SIZE][BOARD_SIZE + 1];
 
@@ -52,6 +49,9 @@ struct lookupTable {
   HashData kingData[COLOR_SIZE]; // Used for castling
   HashData bishopData[BOARD_SIZE]; // Used for bishop attacks
   HashData rookData[BOARD_SIZE]; // Used for rook attacks
+
+  BitBoard squaresBetween[BOARD_SIZE][BOARD_SIZE]; // Squares Between exclusive
+  BitBoard lineOfSight[BOARD_SIZE][BOARD_SIZE]; // All squares of a rank/file/diagonal/antidiagonal
 };
 
 static BitBoard getMove(Square s, Type t, Direction d, int steps);
@@ -67,8 +67,12 @@ static void *magicNumberSearch(void *arg);
 static int magicHash(HashData h, BitBoard occupancies);
 static int basicHash(HashData h, BitBoard occupancies);
 
-static void initalizeMoveTables(LookupTable l);
+static BitBoard getSquaresBetween(LookupTable l, Square s1, Square s2);
+static BitBoard getLineOfSight(LookupTable l, Square s1, Square s2);
+
+static void initializeMoveTables(LookupTable l);
 static void initializeHashData(LookupTable l);
+static void initializeHelperTables(LookupTable l);
 
 LookupTable LookupTableNew(void) {
   LookupTable l = malloc(sizeof(struct lookupTable));
@@ -78,12 +82,13 @@ LookupTable LookupTableNew(void) {
   }
 
   initializeHashData(l);
-  initalizeMoveTables(l);
+  initializeMoveTables(l);
+  initializeHelperTables(l);
 
   return l;
 }
 
-void initalizeMoveTables(LookupTable l) {
+void initializeMoveTables(LookupTable l) {
   // Pawn moves
   for (Square s = a8; s <= h1; s++) {
     for (Color c = White; c <= Black; c++) {
@@ -131,12 +136,13 @@ void initalizeMoveTables(LookupTable l) {
   }
 }
 
+// This function is not safe if writing is disrupted
 void initializeHashData(LookupTable l) {
-  bool emptyFile = isFileEmpty(MAGICS_FILEPATH);
+  bool emptyFile = isFileEmpty(HASH_FILEPATH);
 
   if (!emptyFile) {
-    readFromFile(l->bishopData, sizeof(HashData), BOARD_SIZE, MAGICS_FILEPATH, 0);
-    readFromFile(l->rookData, sizeof(HashData), BOARD_SIZE, MAGICS_FILEPATH, sizeof(HashData) * BOARD_SIZE);
+    readFromFile(l->bishopData, sizeof(HashData), BOARD_SIZE, HASH_FILEPATH, 0);
+    readFromFile(l->rookData, sizeof(HashData), BOARD_SIZE, HASH_FILEPATH, sizeof(HashData) * BOARD_SIZE);
   }
   for (Square s = a8; s <= h1; s++) {
     if (emptyFile) {
@@ -145,14 +151,23 @@ void initializeHashData(LookupTable l) {
     }
   }
   if (emptyFile) {
-    writeToFile(l->bishopData, sizeof(HashData), BOARD_SIZE, MAGICS_FILEPATH, 0);
-    writeToFile(l->rookData, sizeof(HashData), BOARD_SIZE, MAGICS_FILEPATH, sizeof(HashData) * BOARD_SIZE);
+    writeToFile(l->bishopData, sizeof(HashData), BOARD_SIZE, HASH_FILEPATH, 0);
+    writeToFile(l->rookData, sizeof(HashData), BOARD_SIZE, HASH_FILEPATH, sizeof(HashData) * BOARD_SIZE);
   }
 
   for (Color c = White; c <= Black; c++) {
     l->kingData[c] = getHashData(a1, King, c);
     for (Square s = a8; s <= h1; s++) {
       l->pawnData[s][c] = getHashData(s, Pawn, c);
+    }
+  }
+}
+
+void initializeHelperTables(LookupTable l) {
+  for (Square s1 = a8; s1 <= h1; s1++) {
+    for (Square s2 = a8; s2 <= h1; s2++) {
+      l->squaresBetween[s1][s2] = getSquaresBetween(l, s1, s2);
+      l->lineOfSight[s1][s2] = getLineOfSight(l, s1, s2);
     }
   }
 }
@@ -193,6 +208,14 @@ BitBoard LookupTableGetCastling(LookupTable l, Color c, BitBoard castling) {
 
 BitBoard LookupTableGetEnPassant(LookupTable l, Square s, Color c, Square enPassant) {
   return l->enPassant[s][c][enPassant];
+}
+
+BitBoard LookupTableGetSquaresBetween(LookupTable l, Square s1, Square s2) {
+  return l->squaresBetween[s1][s2];
+}
+
+BitBoard LookupTableGetLineOfSight(LookupTable l, Square s1, Square s2) {
+  return l->lineOfSight[s1][s2];
 }
 
 static BitBoard getAttacks(Square s, Type t, Color c, BitBoard occupancies) {
@@ -267,6 +290,7 @@ static BitBoard getRelevantBits(Square s, Type t, Color c) {
 
 // Assume there can only be one en passant move
 static BitBoard getEnPassant(Square s, Color c, Square enPassant) {
+  BitBoard enPassantBitBoard = BitBoardSetBit(EMPTY_BOARD, enPassant);
   BitBoard moves = EMPTY_BOARD;
   BitBoard m1, m2;
   if (c == White) {
@@ -276,8 +300,8 @@ static BitBoard getEnPassant(Square s, Color c, Square enPassant) {
     m1 = getMove(s, Pawn, Southeast, 1);
     m2 = getMove(s, Pawn, Southwest, 1);
   }
-  if (m1 & enPassant) moves |= getMove(s, Pawn, East, 1);
-  if (m2 & enPassant) moves |= getMove(s, Pawn, West, 1);
+  if (m1 & enPassantBitBoard) moves |= getMove(s, Pawn, East, 1);
+  if (m2 & enPassantBitBoard) moves |= getMove(s, Pawn, West, 1);
   return moves;
 }
 
@@ -418,15 +442,31 @@ static void *magicNumberSearch(void *arg) {
   return NULL;
 }
 
-// BitBoard getSquaresBetween(LookupTable l, Square s1, Square s2) {
-//   BitBoard squaresBetween;
-//   for (Square s1 = a8; s1 <= h1; s1++) {
-//     for (Square s2 = a8; s2 <= h1; s2++) {
-//       squaresBetween = BitBoardSetBit(EMPTY_BOARD, s1) | BitBoardSetBit(EMPTY_BOARD, s2);
-//       if (BitBoardGetFile(s1) == BitBoardGetFile(s2) || BitBoardGetRank(s1) == BitBoardGetRank(s2)) {
-//         squaresBetween = LookupTableGetPieceAttacks(l, s1, Rook, DEFAULT_COLOR, squaresBetween) &
-//                          LookupTableGetPieceAttacks(l, s2, Rook, DEFAULT_COLOR, squaresBetween);
-//       }
-//     }
-//   }
-// }
+static BitBoard getSquaresBetween(LookupTable l, Square s1, Square s2) {
+  BitBoard pieces = BitBoardSetBit(EMPTY_BOARD, s1) | BitBoardSetBit(EMPTY_BOARD, s2);
+  BitBoard squaresBetween = EMPTY_BOARD;
+  if (BitBoardGetFile(s1) == BitBoardGetFile(s2) || BitBoardGetRank(s1) == BitBoardGetRank(s2)) {
+    squaresBetween = LookupTableGetPieceAttacks(l, s1, Rook, DEFAULT_COLOR, pieces) &
+                     LookupTableGetPieceAttacks(l, s2, Rook, DEFAULT_COLOR, pieces);
+  } else if (BitBoardGetDiagonal(s1) == BitBoardGetDiagonal(s2) ||
+             BitBoardGetAntiDiagonal(s1) == BitBoardGetAntiDiagonal(s2)) {
+    squaresBetween = LookupTableGetPieceAttacks(l, s1, Bishop, DEFAULT_COLOR, pieces) &
+                     LookupTableGetPieceAttacks(l, s2, Bishop, DEFAULT_COLOR, pieces);
+  }
+  return squaresBetween;
+}
+
+static BitBoard getLineOfSight(LookupTable l, Square s1, Square s2) {
+  BitBoard lineOfSight = EMPTY_BOARD;
+  if (BitBoardGetFile(s1) == BitBoardGetFile(s2) || BitBoardGetRank(s1) == BitBoardGetRank(s2)) {
+    lineOfSight = (LookupTableGetPieceAttacks(l, s1, Rook, DEFAULT_COLOR, EMPTY_BOARD) &
+                   LookupTableGetPieceAttacks(l, s2, Rook, DEFAULT_COLOR, EMPTY_BOARD)) |
+                   BitBoardSetBit(EMPTY_BOARD, s1) | BitBoardSetBit(EMPTY_BOARD, s2);
+  } else if (BitBoardGetDiagonal(s1) == BitBoardGetDiagonal(s2) ||
+             BitBoardGetAntiDiagonal(s1) == BitBoardGetAntiDiagonal(s2)) {
+    lineOfSight = (LookupTableGetPieceAttacks(l, s1, Bishop, DEFAULT_COLOR, EMPTY_BOARD) &
+                   LookupTableGetPieceAttacks(l, s2, Bishop, DEFAULT_COLOR, EMPTY_BOARD)) |
+                   BitBoardSetBit(EMPTY_BOARD, s1) | BitBoardSetBit(EMPTY_BOARD, s2);
+  }
+  return lineOfSight;
+}

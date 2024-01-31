@@ -1,5 +1,5 @@
 #!/bin/bash
 
-FILEPATH="data/magics.dat"
+FILEPATH="data/hash.dat"
 
 > $FILEPATH

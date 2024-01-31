@@ -51,10 +51,13 @@ ChessBoard ChessBoardFromFEN(char *fen, LookupTable l) {
   }
   fen++;
 
+  // Parse turn
   cb.turn = getColorFromASCII(*fen);
 
   fen++;
   fen++;
+
+  // Parse castling
   if (*fen != '-') {
     while (*fen != ' ') {
       switch (*fen) {
@@ -68,6 +71,7 @@ ChessBoard ChessBoardFromFEN(char *fen, LookupTable l) {
   }
   fen++;
 
+  // Parse en passant
   if (*fen != '-') {
     int file = *fen - 'a';
     fen++;
@@ -75,6 +79,7 @@ ChessBoard ChessBoardFromFEN(char *fen, LookupTable l) {
     cb.enPassant = rank * EDGE_SIZE + file;
   }
 
+  // Occupancies
   for (Color c = White; c <= Black; c++) {
     for (Type t = Pawn; t <= Queen; t++) {
       cb.occupancies[c] |= cb.pieces[t][c];

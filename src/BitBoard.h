@@ -30,6 +30,8 @@ int BitBoardCountBits(BitBoard b);
 Square BitBoardLeastSignificantBit(BitBoard b);
 int BitBoardGetRank(Square s);
 int BitBoardGetFile(Square s);
+int BitBoardGetDiagonal(Square s);
+int BitBoardGetAntiDiagonal(Square s);
 
 // Probably not needed
 BitBoard BitBoardShiftNorth(BitBoard b, int magnitude);

@@ -7,8 +7,6 @@
 #define EDGES { 0xFF00000000000000, 0x00000000000000FF, 0x0101010101010101, 0x8080808080808080 }
 #define NUM_EDGES 4
 
-#define MAGICS_SIZE 2
-#define BASICS_SIZE 2
 #define PAWN_MOVES_POWERSET 2
 #define CASTLING_POWERSET 256
 #define BISHOP_ATTACKS_POWERSET 512
@@ -28,11 +26,6 @@
 #define CASTLING_ATTACK_MASK 0x6C0000000000006C
 #define CASTLING_OCCUPANCY_MASK 0x6E0000000000006E
 
-#define PAWN_INDEX 0
-#define KING_INDEX 1
-#define BISHOP_INDEX 0
-#define ROOK_INDEX 1
-
 typedef struct lookupTable *LookupTable;
 
 typedef enum { Pawn, King, Knight, Bishop, Rook, Queen } Type;
@@ -40,10 +33,14 @@ typedef enum { White, Black, Union } Color;
 
 LookupTable LookupTableNew(void);
 void LookupTableFree(LookupTable l);
+
+BitBoard LookupTableGetPieceAttacks(LookupTable l, Square s, Type t, Color c, BitBoard o);
 BitBoard LookupTableGetPawnMoves(LookupTable l, Square s, Color c, BitBoard o);
 BitBoard LookupTableGetCastling(LookupTable l, Color c, BitBoard castling);
 BitBoard LookupTableGetEnPassant(LookupTable l, Square s, Color c, Square EnPassant);
 
-BitBoard LookupTableGetPieceAttacks(LookupTable l, Square s, Type t, Color c, BitBoard o);
+BitBoard LookupTableGetSquaresBetween(LookupTable l, Square s1, Square s2);
+BitBoard LookupTableGetLineOfSight(LookupTable l, Square s1, Square s2);
+
 
 #endif
