@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+#define NORTH_EDGE 0x00000000000000FF
+#define EAST_EDGE 0x8080808080808080
+#define SOUTH_EDGE 0xFF00000000000000
+#define WEST_EDGE 0x0101010101010101
+
 #define EDGE_SIZE 8
 #define BOARD_SIZE 64
 #define EMPTY_BOARD 0
@@ -27,16 +32,17 @@ void BitBoardPrint(BitBoard b);
 BitBoard BitBoardSetBit(BitBoard b, Square s);
 BitBoard BitBoardPopBit(BitBoard b, Square s);
 int BitBoardCountBits(BitBoard b);
-Square BitBoardLeastSignificantBit(BitBoard b);
+Square BitBoardGetLSB(BitBoard b);
+Square BitBoardPopLSB(BitBoard *b);
+
 int BitBoardGetRank(Square s);
 int BitBoardGetFile(Square s);
 int BitBoardGetDiagonal(Square s);
 int BitBoardGetAntiDiagonal(Square s);
 
-// Probably not needed
-BitBoard BitBoardShiftNorth(BitBoard b, int magnitude);
-BitBoard BitBoardShiftEast(BitBoard b, int magnitude);
-BitBoard BitBoardShiftSouth(BitBoard b, int magnitude);
-BitBoard BitBoardShiftWest(BitBoard b, int magnitude);
+BitBoard BitBoardShiftNortheast(BitBoard b);
+BitBoard BitBoardShiftNorthwest(BitBoard b);
+BitBoard BitBoardShiftSoutheast(BitBoard b);
+BitBoard BitBoardShiftSouthwest(BitBoard b);
 
 #endif

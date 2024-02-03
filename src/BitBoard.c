@@ -35,6 +35,16 @@ int BitBoardCountBits(BitBoard b) {
   return count;
 }
 
+Square BitBoardGetLSB(BitBoard b) {
+  return BitBoardCountBits((b & -b) - 1);
+}
+
+Square BitBoardPopLSB(BitBoard *b) {
+  Square s = BitBoardGetLSB(*b);
+  *b &= *b - 1;
+  return s;
+}
+
 // Note: a8 is rank 0, a1 is rank 7
 int BitBoardGetRank(Square s) {
   return s >> 0b11;
@@ -53,24 +63,18 @@ int BitBoardGetAntiDiagonal(Square s) {
   return (EDGE_SIZE - 1) + BitBoardGetRank(s) - BitBoardGetFile(s);
 }
 
-Square BitBoardLeastSignificantBit(BitBoard b) {
-  return BitBoardCountBits((b & -b) - 1);
+BitBoard BitBoardShiftNortheast(BitBoard b) {
+  return (b & ~EAST_EDGE) >> 7;
 }
 
-// DO WE NEED THESE?
-
-BitBoard BitBoardShiftNorth(BitBoard b, int magnitude) {
-  return b >> EDGE_SIZE * magnitude;
+BitBoard BitBoardShiftNorthwest(BitBoard b) {
+  return (b & ~WEST_EDGE) >> 9;
 }
 
-BitBoard BitBoardShiftEast(BitBoard b, int magnitude) {
-  return b << magnitude;
+BitBoard BitBoardShiftSoutheast(BitBoard b) {
+  return (b & ~EAST_EDGE) << 9;
 }
 
-BitBoard BitBoardShiftSouth(BitBoard b, int magnitude) {
-  return b << EDGE_SIZE * magnitude;
-}
-
-BitBoard BitBoardShiftWest(BitBoard b, int magnitude) {
-  return b >> magnitude;
+BitBoard BitBoardShiftSouthwest(BitBoard b) {
+  return (b & ~WEST_EDGE) << 7;
 }

@@ -1,0 +1,14 @@
+attacked, checking and pinned dont need to be in chessboard struct
+
+I think it's better to have pieces as 1d array - YEAH BUT CHANGE LATER 2/2/24
+
+if 1 check
+pawn must capture or block - cant be pinned
+knight must capture or block - cant be pinned
+bishop must capture or block - cant be pinned
+rook must capture or block - cant be pinned
+queen must capture or block - cant be pinned
+
+bitboard of empty pieces? YES!
+
+if 0 check
