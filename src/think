@@ -12,3 +12,5 @@ queen must capture or block - cant be pinned
 bitboard of empty pieces? YES!
 
 if 0 check
+
+have macros OUR(piece) and THEIR(piece) for pieces[12] array

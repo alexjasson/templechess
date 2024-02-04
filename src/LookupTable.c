@@ -285,21 +285,19 @@ static BitBoard getCastling(Color c, BitBoard castling) {
 // Assume knight or queen will not be passed to this function
 static BitBoard getRelevantBits(Square s, Type t, Color c) {
   BitBoard relevantBits = EMPTY_BOARD;
-  BitBoard edges[NUM_EDGES] = EDGES;
 
   if (t == Pawn) {
     Direction d = (c == White) ? North : South;
     relevantBits = getMove(s, Pawn, d, 1);
   } else if (t == King) {
-    relevantBits = edges[c];
+    relevantBits = (c == White) ? SOUTH_EDGE : NORTH_EDGE;
   } else {
     relevantBits = getAttacks(s, t, c, EMPTY_BOARD);
     BitBoard piece = BitBoardSetBit(EMPTY_BOARD, s);
-    for (int i = 0; i < NUM_EDGES; i++) {
-      if (!((piece & edges[i]) == piece)) {
-        relevantBits &= ~edges[i];
-      }
-    }
+    if (piece & ~NORTH_EDGE) relevantBits &= ~NORTH_EDGE;
+    if (piece & ~SOUTH_EDGE) relevantBits &= ~SOUTH_EDGE;
+    if (piece & ~EAST_EDGE) relevantBits &= ~EAST_EDGE;
+    if (piece & ~WEST_EDGE) relevantBits &= ~WEST_EDGE;
   }
 
   return relevantBits;

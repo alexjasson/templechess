@@ -7,7 +7,7 @@
 int main() {
     LookupTable l = LookupTableNew();
 
-    ChessBoard cb = ChessBoardFromFEN("1K2r3/3QP3/1N6/8/2R5/4k3/8/8 w - - 0 1");
+    ChessBoard cb = ChessBoardFromFEN("1K3r2/3QP3/1N6/8/2R5/4k3/8/8 w - - 0 1");
     ChessBoardPrint(cb);
 
     ChessBoard *children = ChessBoardGetChildren(cb, l);
