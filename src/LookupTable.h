@@ -34,5 +34,6 @@ BitBoard LookupTableGetEnPassant(LookupTable l, Square s, Color c, Square EnPass
 
 BitBoard LookupTableGetSquaresBetween(LookupTable l, Square s1, Square s2);
 BitBoard LookupTableGetLineOfSight(LookupTable l, Square s1, Square s2);
+BitBoard LookupTableGetRank(LookupTable l, Square s);
 
 #endif

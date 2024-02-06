@@ -62,6 +62,7 @@ struct lookupTable {
 
   BitBoard squaresBetween[BOARD_SIZE][BOARD_SIZE]; // Squares Between exclusive
   BitBoard lineOfSight[BOARD_SIZE][BOARD_SIZE]; // All squares of a rank/file/diagonal/antidiagonal
+  BitBoard rank[BOARD_SIZE];
 };
 
 static BitBoard getMove(Square s, Type t, Direction d, int steps);
@@ -79,6 +80,7 @@ static int basicHash(HashData h, BitBoard occupancies);
 
 static BitBoard getSquaresBetween(LookupTable l, Square s1, Square s2);
 static BitBoard getLineOfSight(LookupTable l, Square s1, Square s2);
+static BitBoard getRank(Square s);
 
 static void initializeMoveTables(LookupTable l);
 static void initializeHashData(LookupTable l);
@@ -179,6 +181,7 @@ void initializeHelperTables(LookupTable l) {
       l->squaresBetween[s1][s2] = getSquaresBetween(l, s1, s2);
       l->lineOfSight[s1][s2] = getLineOfSight(l, s1, s2);
     }
+    l->rank[s1] = getRank(s1);
   }
 }
 
@@ -223,6 +226,7 @@ BitBoard LookupTableGetCastling(LookupTable l, Color c, BitBoard castling, BitBo
   return l->castling[c][index];
 }
 
+// Could return just a square?
 BitBoard LookupTableGetEnPassant(LookupTable l, Square s, Color c, Square enPassant) {
   return l->enPassant[s][c][enPassant];
 }
@@ -233,6 +237,10 @@ BitBoard LookupTableGetSquaresBetween(LookupTable l, Square s1, Square s2) {
 
 BitBoard LookupTableGetLineOfSight(LookupTable l, Square s1, Square s2) {
   return l->lineOfSight[s1][s2];
+}
+
+BitBoard LookupTableGetRank(LookupTable l, Square s) {
+  return l->rank[s];
 }
 
 static BitBoard getAttacks(Square s, Type t, Color c, BitBoard occupancies) {
@@ -484,4 +492,9 @@ static BitBoard getLineOfSight(LookupTable l, Square s1, Square s2) {
                    BitBoardSetBit(EMPTY_BOARD, s1) | BitBoardSetBit(EMPTY_BOARD, s2);
   }
   return lineOfSight;
+}
+
+// Returns the rank of a square
+static BitBoard getRank(Square s) {
+  return NORTH_EDGE << (EDGE_SIZE * BitBoardGetRank(s));
 }

@@ -14,3 +14,29 @@ bitboard of empty pieces? YES!
 if 0 check
 
 have macros OUR(piece) and THEIR(piece) for pieces[12] array
+
+BUG: If we lookup an empty square we get a nonsense value - can get around this
+by having a while loop for pieces that we know can only have 1 eg king. eg ONLY KING. However,
+this will not occur in a legal chess position, so perhaps just keep note of this
+
+don't use linked lists for pieces bitboards - can try it after implemtation of array bitboards
+
+pinMask pinnd piece to king
+for pinned pawns:
+  - If enpassant:
+    enpassant square must be along diagonal pinMask
+  - If push:
+    the move must be along pinMask
+  - If capture
+    the move must be along pinMask
+
+non pinned pawns:
+move freely
+remove occupancies of pawn and move, check if check laterally
+
+pinned pawns do not need to be checked for the lateral thing since if theyre pinned
+laterally it doesnt apply
+
+to check lateral condition:
+ - remove pawn and attack square from occupancies
+ - if any rook attacks from our king hit one of their sliders
