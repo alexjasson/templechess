@@ -40,3 +40,18 @@ laterally it doesnt apply
 to check lateral condition:
  - remove pawn and attack square from occupancies
  - if any rook attacks from our king hit one of their sliders
+
+ bool promotion - 1st bit
+ captured pawn
+ captured knight
+ captured bishop
+ captured rook
+ captured queen
+ no capture
+
+ normalQuiet
+ normalCapture
+ castle
+ double pawn push
+
+ xor our occupancies

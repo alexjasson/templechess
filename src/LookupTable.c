@@ -496,5 +496,5 @@ static BitBoard getLineOfSight(LookupTable l, Square s1, Square s2) {
 
 // Returns the rank of a square
 static BitBoard getRank(Square s) {
-  return NORTH_EDGE << (EDGE_SIZE * BitBoardGetRank(s));
+  return SOUTH_EDGE >> (EDGE_SIZE * (EDGE_SIZE - BitBoardGetRank(s) - 1));
 }

@@ -24,6 +24,7 @@ typedef struct {
 
 ChessBoard ChessBoardFromFEN(char *fen);
 ChessBoard *ChessBoardGetChildren(ChessBoard cb, LookupTable l);
+void ChessBoardPrintMove(ChessBoard parent, ChessBoard child);
 void ChessBoardPrint(ChessBoard cb);
 
 #endif
