@@ -484,12 +484,12 @@ static BitBoard getLineOfSight(LookupTable l, Square s1, Square s2) {
   if (BitBoardGetFile(s1) == BitBoardGetFile(s2) || BitBoardGetRank(s1) == BitBoardGetRank(s2)) {
     lineOfSight = (LookupTableGetRookAttacks(l, s1, EMPTY_BOARD) &
                    LookupTableGetRookAttacks(l, s2, EMPTY_BOARD)) |
-                   BitBoardSetBit(EMPTY_BOARD, s1) | BitBoardSetBit(EMPTY_BOARD, s2);
+                   BitBoardSetBit(EMPTY_BOARD, s2);
   } else if (BitBoardGetDiagonal(s1) == BitBoardGetDiagonal(s2) ||
              BitBoardGetAntiDiagonal(s1) == BitBoardGetAntiDiagonal(s2)) {
     lineOfSight = (LookupTableGetBishopAttacks(l, s1, EMPTY_BOARD) &
                    LookupTableGetBishopAttacks(l, s2, EMPTY_BOARD)) |
-                   BitBoardSetBit(EMPTY_BOARD, s1) | BitBoardSetBit(EMPTY_BOARD, s2);
+                   BitBoardSetBit(EMPTY_BOARD, s2);
   }
   return lineOfSight;
 }

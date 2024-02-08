@@ -1,6 +1,7 @@
 #ifndef CHESSBOARD_H
 #define CHESSBOARD_H
 
+#include <stdbool.h>
 #include "BitBoard.h"
 #include "LookupTable.h"
 
@@ -23,8 +24,9 @@ typedef struct {
 } ChessBoard;
 
 ChessBoard ChessBoardFromFEN(char *fen);
-ChessBoard *ChessBoardGetChildren(ChessBoard cb, LookupTable l);
-void ChessBoardPrintMove(ChessBoard parent, ChessBoard child);
-void ChessBoardPrint(ChessBoard cb);
+void ChessBoardAddChildren(ChessBoard parent, ChessBoard *children, LookupTable l);
+void ChessBoardPrintMove(ChessBoard parent, ChessBoard child, long nodeCount);
+void ChessBoardPrintBoard(ChessBoard cb);
+bool ChessBoardIsEmpty(ChessBoard cb);
 
 #endif

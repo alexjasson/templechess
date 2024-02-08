@@ -55,3 +55,7 @@ to check lateral condition:
  double pawn push
 
  xor our occupancies
+
+ have separate move functions for castling, enpassant, promotion, double pawn push maybe split captures and quiet?
+
+ BUG: The castling bits dont remove castling when a piece takes a rook

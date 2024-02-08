@@ -10,8 +10,6 @@
 #define GET_TYPE(p) (p >> 1)
 #define GET_COLOR(p) (p & 1)
 
-#define MAX_CHILDREN 256
-
 static Color getColorFromASCII(char asciiColor);
 static Piece getPieceFromASCII(char asciiPiece);
 static char getASCIIFromPiece(Piece p);
@@ -132,6 +130,7 @@ static Piece getPieceFromASCII(char asciiPiece) {
     case 'B': case 'b': t = Bishop; break;
     case 'R': case 'r': t = Rook; break;
     case 'Q': case 'q': t = Queen; break;
+    default: fprintf(stderr, "Invalid piece!\n"); exit(EXIT_FAILURE);
   }
   c = (asciiPiece >= 'A' && asciiPiece <= 'Z') ? White : Black;
   return GET_PIECE(t, c);
@@ -157,244 +156,245 @@ static Color getColorFromASCII(char asciiColor) {
 }
 
 // NEEDS WORK!
-ChessBoard *ChessBoardGetChildren(ChessBoard cb, LookupTable l) {
-  ChessBoard *children = calloc(MAX_CHILDREN, sizeof(ChessBoard));
+void ChessBoardAddChildren(ChessBoard parent, ChessBoard *children, LookupTable l) {
   int numChildren = 0;
-
 
   // BitBoards of attacked squares by enemy, checking pieces by enemy, and our pinned pieces
   BitBoard attacked = EMPTY_BOARD, checking = EMPTY_BOARD, pinned = EMPTY_BOARD;
-  Square ourKing = BitBoardGetLSB(cb.pieces[King][cb.turn]);
-  BitBoard promotionRank = (cb.turn == White) ? NORTH_EDGE : SOUTH_EDGE;
+  Square ourKing = BitBoardGetLSB(parent.pieces[King][parent.turn]);
+  BitBoard promotionRank = (parent.turn == White) ? NORTH_EDGE : SOUTH_EDGE;
 
   // General purpose BitBoards/Squares
   BitBoard b1, b2, b3;
   Square s;
 
-  attacked = getAttackedSquares(cb, l);
+  attacked = getAttackedSquares(parent, l);
 
   // Add legal king moves
   b1 = LookupTableGetKingAttacks(l, ourKing);
-  b2 = b1 & ~(cb.occupancies[cb.turn] | attacked);
-  while (b2) children[numChildren++] = makeMove(cb, King, ourKing, BitBoardPopLSB(&b2));
+  b2 = b1 & ~(parent.occupancies[parent.turn] | attacked);
+  while (b2) children[numChildren++] = makeMove(parent, King, ourKing, BitBoardPopLSB(&b2));
 
   // Pawn and knight checking pieces of enemy
-  checking = LookupTableGetPawnAttacks(l, ourKing, cb.turn) & cb.pieces[Pawn][!cb.turn];
-  checking |= LookupTableGetKnightAttacks(l, ourKing) & cb.pieces[Knight][!cb.turn];
+  checking = LookupTableGetPawnAttacks(l, ourKing, parent.turn) & parent.pieces[Pawn][!parent.turn];
+  checking |= LookupTableGetKnightAttacks(l, ourKing) & parent.pieces[Knight][!parent.turn];
 
   // Potential orthogonal/diagonal checking pieces of enemy
-  BitBoard candidates = (LookupTableGetBishopAttacks(l, ourKing, cb.occupancies[!cb.turn]) &
-                        (cb.pieces[Bishop][!cb.turn] | cb.pieces[Queen][!cb.turn])) |
-                        (LookupTableGetRookAttacks(l, ourKing, cb.occupancies[!cb.turn]) &
-                        (cb.pieces[Rook][!cb.turn] | cb.pieces[Queen][!cb.turn]));
+  BitBoard candidates = (LookupTableGetBishopAttacks(l, ourKing, parent.occupancies[!parent.turn]) &
+                        (parent.pieces[Bishop][!parent.turn] | parent.pieces[Queen][!parent.turn])) |
+                        (LookupTableGetRookAttacks(l, ourKing, parent.occupancies[!parent.turn]) &
+                        (parent.pieces[Rook][!parent.turn] | parent.pieces[Queen][!parent.turn]));
 
   while (candidates) {
     s = BitBoardPopLSB(&candidates);
-    b1 = LookupTableGetSquaresBetween(l, ourKing, s) & cb.occupancies[cb.turn];
+    b1 = LookupTableGetSquaresBetween(l, ourKing, s) & parent.occupancies[parent.turn];
     if (b1 == EMPTY_BOARD) checking |= BitBoardSetBit(EMPTY_BOARD, s);
     else if ((b1 & (b1 - 1)) == EMPTY_BOARD) pinned |= b1;
   }
 
   int numChecking = BitBoardCountBits(checking);
 
-  if (numChecking > 1) return children; // Double check, only king can move
-
+  if (numChecking > 1) {
+    children[numChildren] = newChessBoard();
+    return; // Double check, only king can move
+  }
   if (numChecking > 0) {
     // Single check - Pieces can either capture checking piece, block it or king can move, pinned pieces can't move
     // We don't need to consider taking our pieces because it is not possible for our piece to be on the checkMask
     BitBoard checkMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), ourKing);
 
     // Add legal pawn moves
-    b1 = cb.pieces[Pawn][cb.turn] & ~pinned;
+    b1 = parent.pieces[Pawn][parent.turn] & ~pinned;
     while (b1) {
       s = BitBoardPopLSB(&b1);
-      b2 = LookupTableGetPawnAttacks(l, s, cb.turn) & cb.occupancies[!cb.turn];
-      b2 |= LookupTableGetPawnMoves(l, s, cb.turn, cb.occupancies[Union]) & ~cb.occupancies[Union];
-      b2 |= LookupTableGetEnPassant(l, s, cb.turn, cb.enPassant);
+      b2 = LookupTableGetPawnAttacks(l, s, parent.turn) & parent.occupancies[!parent.turn];
+      b2 |= LookupTableGetPawnMoves(l, s, parent.turn, parent.occupancies[Union]) & ~parent.occupancies[Union];
+      b2 |= LookupTableGetEnPassant(l, s, parent.turn, parent.enPassant);
       b2 &= checkMask;
 
       b3 = b2 & promotionRank; // b3 contains any moves that result in promotion
       b2 &= ~promotionRank; // b2 contains all non-promotion moves
 
-      while (b2) children[numChildren++] = makeMove(cb, Pawn, s, BitBoardPopLSB(&b2));
+      while (b2) children[numChildren++] = makeMove(parent, Pawn, s, BitBoardPopLSB(&b2));
       while (b3) {
         Square move = BitBoardPopLSB(&b3);
-        for (Type t = Knight; t <= Queen; t++) children[numChildren++] = makeMove(cb, t, s, move);
+        for (Type t = Knight; t <= Queen; t++) children[numChildren++] = makeMove(parent, t, s, move);
       }
     }
 
     // Add legal knight moves
-    b1 = cb.pieces[Knight][cb.turn] & ~pinned;
+    b1 = parent.pieces[Knight][parent.turn] & ~pinned;
     while (b1) {
       s = BitBoardPopLSB(&b1);
       b2 = LookupTableGetKnightAttacks(l, s) & checkMask;
-      while (b2) children[numChildren++] = makeMove(cb, Knight, s, BitBoardPopLSB(&b2));
+      while (b2) children[numChildren++] = makeMove(parent, Knight, s, BitBoardPopLSB(&b2));
     }
 
     // Add legal bishop moves
-    b1 = cb.pieces[Bishop][cb.turn] & ~pinned;
+    b1 = parent.pieces[Bishop][parent.turn] & ~pinned;
     while (b1) {
       s = BitBoardPopLSB(&b1);
-      b2 = LookupTableGetBishopAttacks(l, s, cb.occupancies[Union]) & checkMask;
-      while (b2) children[numChildren++] = makeMove(cb, Bishop, s, BitBoardPopLSB(&b2));
+      b2 = LookupTableGetBishopAttacks(l, s, parent.occupancies[Union]) & checkMask;
+      while (b2) children[numChildren++] = makeMove(parent, Bishop, s, BitBoardPopLSB(&b2));
     }
 
     // Add legal rook moves
-    b1 = cb.pieces[Rook][cb.turn] & ~pinned;
+    b1 = parent.pieces[Rook][parent.turn] & ~pinned;
     while (b1) {
       s = BitBoardPopLSB(&b1);
-      b2 = LookupTableGetRookAttacks(l, s, cb.occupancies[Union]) & checkMask;
-      while (b2) children[numChildren++] = makeMove(cb, Rook, s, BitBoardPopLSB(&b2));
+      b2 = LookupTableGetRookAttacks(l, s, parent.occupancies[Union]) & checkMask;
+      while (b2) children[numChildren++] = makeMove(parent, Rook, s, BitBoardPopLSB(&b2));
     }
 
     // Add legal queen moves
-    b1 = cb.pieces[Queen][cb.turn] & ~pinned;
+    b1 = parent.pieces[Queen][parent.turn] & ~pinned;
     while (b1) {
       s = BitBoardPopLSB(&b1);
-      b2 = LookupTableGetQueenAttacks(l, s, cb.occupancies[Union]) & checkMask;
-      while (b2) children[numChildren++] = makeMove(cb, Queen, s, BitBoardPopLSB(&b2));
+      b2 = LookupTableGetQueenAttacks(l, s, parent.occupancies[Union]) & checkMask;
+      while (b2) children[numChildren++] = makeMove(parent, Queen, s, BitBoardPopLSB(&b2));
     }
 
-    return children;
+    children[numChildren] = newChessBoard();
+    return;
   }
 
   // No check, pinned pieces can only move along pin line, other pieces can move freely
   // If a knight is pinned, it cannot move
   // Must consider special case of enpassant exposing the king to check laterally, not
   // for pinned enpassant though
-  // Note: A friendly piece can't be on a pin mask - that's not true what about the king lol?
-
-  // Here we declare bitboard of our pawns since it will be used multiple times
-  BitBoard ourPawns = cb.pieces[Pawn][cb.turn];
+  // Note: A friendly piece can't be on a pin mask so we dont need to check pinned pieces
+  // capturing any of our pieces
+  BitBoard ourPawns = parent.pieces[Pawn][parent.turn];
 
   // Add en passant
-  if (cb.enPassant == None) goto skip; // temporary hack
-  b1 = ourPawns & LookupTableGetPawnAttacks(l, cb.enPassant, !cb.turn);
+  if (parent.enPassant == None) goto skip; // temporary hack
+  b1 = ourPawns & LookupTableGetPawnAttacks(l, parent.enPassant, !parent.turn);
   if(b1) {
-    BitBoard pinMask = LookupTableGetLineOfSight(l, ourKing, cb.enPassant);
+    BitBoard pinMask = LookupTableGetLineOfSight(l, ourKing, parent.enPassant);
     b2 = b1 & ~pinned; // Non pinned en passant pawns
     b3 = b1 & pinned & pinMask; // Pinned en passant pawns
 
     while (b3) {
       Square s2 = BitBoardPopLSB(&b3);
-      BitBoard move = LookupTableGetEnPassant(l, s2, cb.turn, cb.enPassant);
-      children[numChildren++] = makeMove(cb, Pawn, s2, BitBoardGetLSB(move));
+      BitBoard move = LookupTableGetEnPassant(l, s2, parent.turn, parent.enPassant);
+      children[numChildren++] = makeMove(parent, Pawn, s2, BitBoardGetLSB(move));
     }
     while (b2) {
       Square s2 = BitBoardPopLSB(&b2);
-      BitBoard move = LookupTableGetEnPassant(l, s2, cb.turn, cb.enPassant);
-      if (LookupTableGetRookAttacks(l, ourKing, cb.occupancies[Union] & ~(move | b2)) &
-          LookupTableGetRank(l, ourKing) & (cb.pieces[Rook][!cb.turn] | cb.pieces[Queen][!cb.turn])) break;
-      children[numChildren++] = makeMove(cb, Pawn, s2, BitBoardGetLSB(move));
+      BitBoard move = LookupTableGetEnPassant(l, s2, parent.turn, parent.enPassant);
+      if (LookupTableGetRookAttacks(l, ourKing, parent.occupancies[Union] & ~(move | b2)) &
+          LookupTableGetRank(l, ourKing) & (parent.pieces[Rook][!parent.turn] | parent.pieces[Queen][!parent.turn])) break;
+      children[numChildren++] = makeMove(parent, Pawn, s2, BitBoardGetLSB(move));
     }
 
   }
   skip:
 
   // Add castling
-  b1 = LookupTableGetCastling(l, cb.turn, cb.castling, cb.occupancies[Union], attacked);
-  while (b1) children[numChildren++] = makeMove(cb, King, ourKing, BitBoardPopLSB(&b1));
+  b1 = LookupTableGetCastling(l, parent.turn, parent.castling, parent.occupancies[Union], attacked);
+  while (b1) children[numChildren++] = makeMove(parent, King, ourKing, BitBoardPopLSB(&b1));
 
 
   // Add pinned pawn moves
   b1 = ourPawns & pinned;
   while (b1) {
     s = BitBoardPopLSB(&b1);
-    BitBoard pinMask = LookupTableGetLineOfSight(l, s, ourKing);
-    b2 = LookupTableGetPawnAttacks(l, s, cb.turn) & cb.occupancies[!cb.turn];
+    BitBoard pinMask = LookupTableGetLineOfSight(l, ourKing, s);
+    b2 = LookupTableGetPawnAttacks(l, s, parent.turn) & parent.occupancies[!parent.turn];
     b3 = b2 & promotionRank & pinMask; // b3 contains any moves that result in promotion
-    b2 |= LookupTableGetPawnMoves(l, s, cb.turn, cb.occupancies[Union]) & ~cb.occupancies[Union];
+    b2 |= LookupTableGetPawnMoves(l, s, parent.turn, parent.occupancies[Union]) & ~parent.occupancies[!parent.turn];
     b2 &= ~promotionRank & pinMask; // b2 contains all non-promotion moves
 
-    while (b2) children[numChildren++] = makeMove(cb, Pawn, s, BitBoardPopLSB(&b2));
+    while (b2) children[numChildren++] = makeMove(parent, Pawn, s, BitBoardPopLSB(&b2));
     while (b3) {
       Square move = BitBoardPopLSB(&b3);
-      for (Type t = Knight; t <= Queen; t++) children[numChildren++] = makeMove(cb, t, s, move);
+      for (Type t = Knight; t <= Queen; t++) children[numChildren++] = makeMove(parent, t, s, move);
     }
   }
 
   // Add pinned bishop moves
-  b1 = cb.pieces[Bishop][cb.turn] & pinned;
+  b1 = parent.pieces[Bishop][parent.turn] & pinned;
   while (b1) {
     s = BitBoardPopLSB(&b1);
-    BitBoard pinMask = LookupTableGetLineOfSight(l, s, ourKing);
-    b2 = LookupTableGetBishopAttacks(l, s, cb.occupancies[Union]) & ~cb.occupancies[cb.turn];
+    BitBoard pinMask = LookupTableGetLineOfSight(l, ourKing, s);
+    b2 = LookupTableGetBishopAttacks(l, s, parent.occupancies[Union]);
     b2 &= pinMask;
 
-    while (b2) children[numChildren++] = makeMove(cb, Bishop, s, BitBoardPopLSB(&b2));
+    while (b2) children[numChildren++] = makeMove(parent, Bishop, s, BitBoardPopLSB(&b2));
   }
 
   // Add pinned rook moves
-  b1 = cb.pieces[Rook][cb.turn] & pinned;
+  b1 = parent.pieces[Rook][parent.turn] & pinned;
   while (b1) {
     s = BitBoardPopLSB(&b1);
-    BitBoard pinMask = LookupTableGetLineOfSight(l, s, ourKing);
-    b2 = LookupTableGetRookAttacks(l, s, cb.occupancies[Union]) & ~cb.occupancies[cb.turn];
+    BitBoard pinMask = LookupTableGetLineOfSight(l, ourKing, s);
+    b2 = LookupTableGetRookAttacks(l, s, parent.occupancies[Union]);
     b2 &= pinMask;
 
-    while (b2) children[numChildren++] = makeMove(cb, Rook, s, BitBoardPopLSB(&b2));
+    while (b2) children[numChildren++] = makeMove(parent, Rook, s, BitBoardPopLSB(&b2));
   }
 
   // Add pinned queen moves
-  b1 = cb.pieces[Queen][cb.turn] & pinned;
+  b1 = parent.pieces[Queen][parent.turn] & pinned;
   while (b1) {
     s = BitBoardPopLSB(&b1);
-    BitBoard pinMask = LookupTableGetLineOfSight(l, s, ourKing);
-    b2 = LookupTableGetQueenAttacks(l, s, cb.occupancies[Union]) & ~cb.occupancies[cb.turn];
+    BitBoard pinMask = LookupTableGetLineOfSight(l, ourKing, s);
+    b2 = LookupTableGetQueenAttacks(l, s, parent.occupancies[Union]);
     b2 &= pinMask;
 
-    while (b2) children[numChildren++] = makeMove(cb, Queen, s, BitBoardPopLSB(&b2));
+    while (b2) children[numChildren++] = makeMove(parent, Queen, s, BitBoardPopLSB(&b2));
   }
 
   // Add pawn moves
   b1 = ourPawns & ~pinned;
   while (b1) {
     s = BitBoardPopLSB(&b1);
-    b2 = LookupTableGetPawnAttacks(l, s, cb.turn) & cb.occupancies[!cb.turn];
-    b2 |= LookupTableGetPawnMoves(l, s, cb.turn, cb.occupancies[Union]) & ~cb.occupancies[Union];
+    b2 = LookupTableGetPawnAttacks(l, s, parent.turn) & parent.occupancies[!parent.turn];
+    b2 |= LookupTableGetPawnMoves(l, s, parent.turn, parent.occupancies[Union]) & ~parent.occupancies[Union];
     b3 = b2 & promotionRank; // b3 contains any moves that result in promotion
     b2 &= ~promotionRank; // b2 contains all non-promotion moves
 
-    while (b2) children[numChildren++] = makeMove(cb, Pawn, s, BitBoardPopLSB(&b2));
+    while (b2) children[numChildren++] = makeMove(parent, Pawn, s, BitBoardPopLSB(&b2));
     while (b3) {
       Square move = BitBoardPopLSB(&b3);
-      for (Type t = Knight; t <= Queen; t++) children[numChildren++] = makeMove(cb, t, s, move);
+      for (Type t = Knight; t <= Queen; t++) children[numChildren++] = makeMove(parent, t, s, move);
     }
   }
 
   // Add knight moves
-  b1 = cb.pieces[Knight][cb.turn] & ~pinned;
+  b1 = parent.pieces[Knight][parent.turn] & ~pinned;
   while (b1) {
     s = BitBoardPopLSB(&b1);
-    b2 = LookupTableGetKnightAttacks(l, s) & ~cb.occupancies[cb.turn];
-    while (b2) children[numChildren++] = makeMove(cb, Knight, s, BitBoardPopLSB(&b2));
+    b2 = LookupTableGetKnightAttacks(l, s) & ~parent.occupancies[parent.turn];
+    while (b2) children[numChildren++] = makeMove(parent, Knight, s, BitBoardPopLSB(&b2));
   }
 
   // Add bishop moves
-  b1 = cb.pieces[Bishop][cb.turn] & ~pinned;
+  b1 = parent.pieces[Bishop][parent.turn] & ~pinned;
   while (b1) {
     s = BitBoardPopLSB(&b1);
-    b2 = LookupTableGetBishopAttacks(l, s, cb.occupancies[Union]) & ~cb.occupancies[cb.turn];
-    while (b2) children[numChildren++] = makeMove(cb, Bishop, s, BitBoardPopLSB(&b2));
+    b2 = LookupTableGetBishopAttacks(l, s, parent.occupancies[Union]) & ~parent.occupancies[parent.turn];
+    while (b2) children[numChildren++] = makeMove(parent, Bishop, s, BitBoardPopLSB(&b2));
   }
 
   // Add rook moves
-  b1 = cb.pieces[Rook][cb.turn] & ~pinned;
+  b1 = parent.pieces[Rook][parent.turn] & ~pinned;
   while (b1) {
     s = BitBoardPopLSB(&b1);
-    b2 = LookupTableGetRookAttacks(l, s, cb.occupancies[Union]) & ~cb.occupancies[cb.turn];
-    while (b2) children[numChildren++] = makeMove(cb, Rook, s, BitBoardPopLSB(&b2));
+    b2 = LookupTableGetRookAttacks(l, s, parent.occupancies[Union]) & ~parent.occupancies[parent.turn];
+    while (b2) children[numChildren++] = makeMove(parent, Rook, s, BitBoardPopLSB(&b2));
   }
 
   // Add queen moves
-  b1 = cb.pieces[Queen][cb.turn] & ~pinned;
+  b1 = parent.pieces[Queen][parent.turn] & ~pinned;
   while (b1) {
     s = BitBoardPopLSB(&b1);
-    b2 = LookupTableGetQueenAttacks(l, s, cb.occupancies[Union]) & ~cb.occupancies[cb.turn];
-    while (b2) children[numChildren++] = makeMove(cb, Queen, s, BitBoardPopLSB(&b2));
+    b2 = LookupTableGetQueenAttacks(l, s, parent.occupancies[Union]) & ~parent.occupancies[parent.turn];
+    while (b2) children[numChildren++] = makeMove(parent, Queen, s, BitBoardPopLSB(&b2));
   }
 
-  return children;
+  children[numChildren] = newChessBoard();
+  return;
 }
 
 // Note that the type of piece is meant to represent the piece that is on the
@@ -421,6 +421,7 @@ static ChessBoard makeMove(ChessBoard cb, Type t, Square from, Square to) {
 
   // Update castling bits
   cb.castling ^= cb.castling & BitBoardSetBit(EMPTY_BOARD, from);
+  cb.castling ^= cb.castling & BitBoardSetBit(EMPTY_BOARD, to);
 
   // Handle enpassant move
   if (t == Pawn && offset == 1) {
@@ -489,9 +490,15 @@ static BitBoard getAttackedSquares(ChessBoard cb, LookupTable l) {
   return attackedSquares;
 }
 
-// Given a parent and child chessboard, print the move that was played
-void ChessBoardPrintMove(ChessBoard parent, ChessBoard child) {
+// Given a parent and child chessboard, print the move that was played along with 
+// the number of nodes searched for this move
+void ChessBoardPrintMove(ChessBoard parent, ChessBoard child, long nodeCount) {
   Square from = BitBoardGetLSB((parent.occupancies[parent.turn] ^ child.occupancies[!child.turn]) & parent.occupancies[parent.turn]);
   Square to = BitBoardGetLSB((parent.occupancies[parent.turn] ^ child.occupancies[!child.turn]) & child.occupancies[!child.turn]);
-  printf("%c%d%c%d", 'a' + BitBoardGetFile(from), EDGE_SIZE - BitBoardGetRank(from), 'a' + BitBoardGetFile(to), EDGE_SIZE - BitBoardGetRank(to));
+  printf("%c%d%c%d: %ld\n", 'a' + BitBoardGetFile(from), EDGE_SIZE - BitBoardGetRank(from), 'a' +
+                                  BitBoardGetFile(to), EDGE_SIZE - BitBoardGetRank(to), nodeCount);
+}
+
+bool ChessBoardIsEmpty(ChessBoard cb) {
+  return !cb.occupancies[cb.turn];
 }
