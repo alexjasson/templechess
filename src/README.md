@@ -1,6 +1,6 @@
 TODO:
 
-- Change Copy/Make algorithm to Make/Unmake, add Move list and Move object
+- Change Copy/Make algorithm to Make/Unmake, add Move list (linked list) and Move object
 - Change handling of pawn move generation - need to know whether a move is double push
 - Improve utility.c and LookupTable.c
 - Improve ChatGPT generated code in perft.c
