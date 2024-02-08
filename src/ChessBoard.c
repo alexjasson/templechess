@@ -267,28 +267,28 @@ void ChessBoardAddChildren(ChessBoard parent, ChessBoard *children, LookupTable 
   BitBoard ourPawns = parent.pieces[Pawn][parent.turn];
 
   // Add en passant
-  if (parent.enPassant == None) goto skip; // temporary hack
-  b1 = ourPawns & LookupTableGetPawnAttacks(l, parent.enPassant, !parent.turn);
-  if(b1) {
-    BitBoard pinMask = LookupTableGetLineOfSight(l, ourKing, parent.enPassant);
-    b2 = b1 & ~pinned; // Non pinned en passant pawns
-    b3 = b1 & pinned & pinMask; // Pinned en passant pawns
+  if (parent.enPassant != None) {
+    b1 = ourPawns & LookupTableGetPawnAttacks(l, parent.enPassant, !parent.turn);
+    if (b1) {
+      BitBoard pinMask = LookupTableGetLineOfSight(l, ourKing, parent.enPassant);
+      b2 = b1 & ~pinned; // Non pinned en passant pawns
+      b3 = b1 & pinned & pinMask; // Pinned en passant pawns
 
-    while (b3) {
-      Square s2 = BitBoardPopLSB(&b3);
-      BitBoard move = LookupTableGetEnPassant(l, s2, parent.turn, parent.enPassant);
-      children[numChildren++] = makeMove(parent, Pawn, s2, BitBoardGetLSB(move));
+      while (b3) {
+        Square s2 = BitBoardPopLSB(&b3);
+        BitBoard move = LookupTableGetEnPassant(l, s2, parent.turn, parent.enPassant);
+        children[numChildren++] = makeMove(parent, Pawn, s2, BitBoardGetLSB(move));
+      }
+      while (b2) {
+        Square s2 = BitBoardPopLSB(&b2);
+        BitBoard move = LookupTableGetEnPassant(l, s2, parent.turn, parent.enPassant);
+        if (LookupTableGetRookAttacks(l, ourKing, parent.occupancies[Union] & ~(move | b2)) &
+            LookupTableGetRank(l, ourKing) & (parent.pieces[Rook][!parent.turn] | parent.pieces[Queen][!parent.turn])) break;
+        children[numChildren++] = makeMove(parent, Pawn, s2, BitBoardGetLSB(move));
+      }
     }
-    while (b2) {
-      Square s2 = BitBoardPopLSB(&b2);
-      BitBoard move = LookupTableGetEnPassant(l, s2, parent.turn, parent.enPassant);
-      if (LookupTableGetRookAttacks(l, ourKing, parent.occupancies[Union] & ~(move | b2)) &
-          LookupTableGetRank(l, ourKing) & (parent.pieces[Rook][!parent.turn] | parent.pieces[Queen][!parent.turn])) break;
-      children[numChildren++] = makeMove(parent, Pawn, s2, BitBoardGetLSB(move));
-    }
-
   }
-  skip:
+
 
   // Add castling
   b1 = LookupTableGetCastling(l, parent.turn, parent.castling, parent.occupancies[Union], attacked);
