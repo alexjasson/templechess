@@ -400,7 +400,7 @@ void ChessBoardAddChildren(ChessBoard parent, ChessBoard *children, LookupTable 
 // Note that the type of piece is meant to represent the piece that is on the
 // square that was moved to, not the piece that was moved. It is meant to be used
 // in the case of pawn promotion.
-static ChessBoard makeMove(ChessBoard cb, Type t, Square from, Square to) {
+static inline ChessBoard makeMove(ChessBoard cb, Type t, Square from, Square to) {
   int offset = abs((int)(from - to));
   Piece captured = cb.squares[to]; // Note: piece may be empty square
   Piece moving = cb.squares[from];
