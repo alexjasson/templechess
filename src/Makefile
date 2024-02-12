@@ -1,13 +1,16 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -Werror -Ofast
-TARGET = perft
+CFLAGS0 = -Wall -Wextra -Werror -Ofast
+CLAGS1 = -Ofast
 
 .PHONY: all
-all: $(TARGET)
+all: perft test
 
-$(TARGET): perft.c BitBoard.c LookupTable.c ChessBoard.c utility.c
-	$(CC) $(CFLAGS) -o $(TARGET) perft.c BitBoard.c LookupTable.c ChessBoard.c utility.c -lm
+perft: perft.c BitBoard.c LookupTable.c ChessBoard.c utility.c
+	$(CC) $(CFLAGS) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c utility.c -lm
+
+test: test.c BitBoard.c LookupTable.c ChessBoard.c utility.c
+	$(CC) $(CFLAGS) -o test test.c BitBoard.c LookupTable.c ChessBoard.c utility.c -lm
 
 .PHONY: clean
 clean:
-	rm -f *.o $(TARGET)
+	rm -f *.o perft test

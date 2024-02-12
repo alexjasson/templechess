@@ -20,10 +20,9 @@
 #define BISHOP_ATTACKS_POWERSET 512
 #define ROOK_ATTACKS_POWERSET 4096
 
-#define WHITE_KINGSIDE 0xF000000000000000
-#define WHITE_QUEENSIDE 0x1F00000000000000
-#define BLACK_KINGSIDE 0x00000000000000F0
-#define BLACK_QUEENSIDE 0x000000000000001F
+#define CASTLING_RIGHTS_MASK 0x9100000000000091
+#define CASTLING_ATTACK_MASK 0x6C0000000000006C
+#define CASTLING_OCCUPANCY_MASK 0x6E0000000000006E
 
 #define DEFAULT_COLOR White
 
@@ -281,11 +280,11 @@ static BitBoard getPawnMoves(Square s, Color c, BitBoard occupancies) {
 static BitBoard getCastling(Color c, BitBoard castling) {
   BitBoard moves = EMPTY_BOARD;
   if (c == White) {
-    if ((castling & WHITE_KINGSIDE) == WHITE_KINGSIDE_CASTLING) moves |= BitBoardSetBit(EMPTY_BOARD, g1);
-    if ((castling & WHITE_QUEENSIDE) == WHITE_QUEENSIDE_CASTLING) moves |= BitBoardSetBit(EMPTY_BOARD, c1);
+    if ((castling & KINGSIDE & SOUTH_EDGE) == (CASTLING & KINGSIDE & SOUTH_EDGE)) moves |= BitBoardSetBit(EMPTY_BOARD, g1);
+    if ((castling & QUEENSIDE & SOUTH_EDGE) == (CASTLING & QUEENSIDE & SOUTH_EDGE)) moves |= BitBoardSetBit(EMPTY_BOARD, c1);
   } else {
-    if ((castling & BLACK_KINGSIDE) == BLACK_KINGSIDE_CASTLING) moves |= BitBoardSetBit(EMPTY_BOARD, g8);
-    if ((castling & BLACK_QUEENSIDE) == BLACK_QUEENSIDE_CASTLING) moves |= BitBoardSetBit(EMPTY_BOARD, c8);
+    if ((castling & KINGSIDE & NORTH_EDGE) == (CASTLING & KINGSIDE & NORTH_EDGE)) moves |= BitBoardSetBit(EMPTY_BOARD, g8);
+    if ((castling & QUEENSIDE & NORTH_EDGE) == (CASTLING & QUEENSIDE & NORTH_EDGE)) moves |= BitBoardSetBit(EMPTY_BOARD, c8);
   }
   return moves;
 }
