@@ -64,10 +64,10 @@ ChessBoard ChessBoardFromFEN(char *fen) {
   if (*fen != '-') {
     while (*fen != ' ') {
       switch (*fen) {
-        case 'K': cb.castling |= CASTLING & KINGSIDE & SOUTH_EDGE; break;
-        case 'Q': cb.castling |= CASTLING & QUEENSIDE & SOUTH_EDGE; break;
-        case 'k': cb.castling |= CASTLING & KINGSIDE & NORTH_EDGE; break;
-        case 'q': cb.castling |= CASTLING & QUEENSIDE & NORTH_EDGE; break;
+        case 'K': cb.castling |= WHITE_KINGSIDE_CASTLING; break;
+        case 'Q': cb.castling |= WHITE_QUEENSIDE_CASTLING; break;
+        case 'k': cb.castling |= BLACK_KINGSIDE_CASTLING; break;
+        case 'q': cb.castling |= BLACK_QUEENSIDE_CASTLING; break;
       }
       fen++;
     }
