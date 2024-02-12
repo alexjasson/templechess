@@ -1,9 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <limits.h>
-#include <pthread.h>
-#include <unistd.h>
 
 #include "BitBoard.h"
 #include "LookupTable.h"
@@ -12,7 +9,6 @@
 #define IS_DIAGONAL(d) (d % 2 == 1)
 #define GET_POWERSET_SIZE(n) (1 << n)
 
-#define NUM_CORES sysconf(_SC_NPROCESSORS_ONLN)
 #define HASH_FILEPATH "data/hash.dat"
 
 #define PAWN_MOVES_POWERSET 2
@@ -35,14 +31,6 @@ typedef struct {
   int bitShift;
   uint64_t magicNumber;
 } HashData;
-
-typedef struct {
-  volatile bool stop;
-  pthread_mutex_t lock;
-  BitBoard *relevantBitsPowerset;
-  BitBoard *moves;
-  HashData hashData;
-} ThreadData;
 
 struct lookupTable {
   BitBoard pawnMoves[BOARD_SIZE][COLOR_SIZE][PAWN_MOVES_POWERSET];
@@ -73,7 +61,6 @@ static BitBoard getEnPassant(Square s, Color c, Square enPassant);
 static BitBoard getRelevantBits(Square s, Type t, Color c);
 static BitBoard getBitsSubset(int index, BitBoard bits);
 static HashData getHashData(Square s, Type t, Color c);
-static void *magicNumberSearch(void *arg);
 static int magicHash(HashData h, BitBoard occupancies);
 static int basicHash(HashData h, BitBoard occupancies);
 
@@ -147,21 +134,15 @@ void initializeMoveTables(LookupTable l) {
   }
 }
 
-// This function is not safe if writing is disrupted
 void initializeHashData(LookupTable l) {
-  bool emptyFile = isFileEmpty(HASH_FILEPATH);
-
-  if (!emptyFile) {
+  if (!isFileEmpty(HASH_FILEPATH)) {
     readFromFile(l->bishopData, sizeof(HashData), BOARD_SIZE, HASH_FILEPATH, 0);
     readFromFile(l->rookData, sizeof(HashData), BOARD_SIZE, HASH_FILEPATH, sizeof(HashData) * BOARD_SIZE);
-  }
-  for (Square s = a8; s <= h1; s++) {
-    if (emptyFile) {
+  } else {
+    for (Square s = a8; s <= h1; s++) {
       l->bishopData[s] = getHashData(s, Bishop, DEFAULT_COLOR);
       l->rookData[s] = getHashData(s, Rook, DEFAULT_COLOR);
     }
-  }
-  if (emptyFile) {
     writeToFile(l->bishopData, sizeof(HashData), BOARD_SIZE, HASH_FILEPATH, 0);
     writeToFile(l->rookData, sizeof(HashData), BOARD_SIZE, HASH_FILEPATH, sizeof(HashData) * BOARD_SIZE);
   }
@@ -389,79 +370,41 @@ static HashData getHashData(Square s, Type t, Color c) {
   int relevantBitsPowersetSize = GET_POWERSET_SIZE((BOARD_SIZE - h.bitShift));
 
   BitBoard *relevantBitsPowerset = malloc(sizeof(BitBoard) * relevantBitsPowersetSize);
-  BitBoard *moves = malloc(sizeof(BitBoard) * relevantBitsPowersetSize);
-  if (relevantBitsPowerset == NULL || moves == NULL) {
+  BitBoard *attacks = malloc(sizeof(BitBoard) * relevantBitsPowersetSize);
+  BitBoard *usedAttacks = malloc(sizeof(BitBoard) * relevantBitsPowersetSize);
+  if (relevantBitsPowerset == NULL || attacks == NULL || usedAttacks == NULL) {
     fprintf(stderr, "Insufficient memory!\n");
     exit(EXIT_FAILURE);
   }
+
   for (int i = 0; i < relevantBitsPowersetSize; i++) {
     relevantBitsPowerset[i] = getBitsSubset(i, h.bits);
-    moves[i] = getAttacks(s, t, c, relevantBitsPowerset[i]);
+    attacks[i] = getAttacks(s, t, c, relevantBitsPowerset[i]);
   }
 
-  ThreadData td = { false, PTHREAD_MUTEX_INITIALIZER, relevantBitsPowerset, moves, h };
-  int numCores = NUM_CORES;
-
-  // create threads
-  pthread_t threads[numCores];
-  for (int i = 0; i < numCores ; i++) {
-    pthread_create(&threads[i], NULL, magicNumberSearch, &td);
-  }
-
-  // join threads
-  for (int i = 0; i < numCores ; i++) {
-    pthread_join(threads[i], NULL);
-  }
-
-  pthread_mutex_destroy(&td.lock);
-  free(relevantBitsPowerset);
-  free(moves);
-  return td.hashData;
-}
-
-static void *magicNumberSearch(void *arg) {
-  ThreadData *td = (ThreadData *)arg;
-  int relevantBitsPowersetSize = GET_POWERSET_SIZE((BOARD_SIZE - td->hashData.bitShift));
-
-  BitBoard *usedAttacks = malloc(sizeof(BitBoard) * relevantBitsPowersetSize);
-  if (usedAttacks == NULL) {
-    fprintf(stderr, "Insufficient memory!\n");
-    exit(EXIT_FAILURE);
-  }
-
-  while(true) {
-    pthread_mutex_lock(&td->lock);
-    if (td->stop) {
-      pthread_mutex_unlock(&td->lock);
-      break;
-    }
-    pthread_mutex_unlock(&td->lock);
-
-    uint64_t magicNumberCandidate = getRandomNumber(&td->lock) & getRandomNumber(&td->lock) & getRandomNumber(&td->lock);
+  while (true) {
+    uint64_t magicNumberCandidate = getRandomNumber() & getRandomNumber() & getRandomNumber();
 
     for (int j = 0; j < relevantBitsPowersetSize; j++) usedAttacks[j] = EMPTY_BOARD;
     int collision = false;
 
     // Test magic index
     for (int j = 0; j < relevantBitsPowersetSize; j++) {
-      HashData h = { td->hashData.bits, td->hashData.bitShift, magicNumberCandidate };
-      int index = magicHash(h, td->relevantBitsPowerset[j]);
+      h.magicNumber = magicNumberCandidate;
+      int index = magicHash(h, relevantBitsPowerset[j]);
       if (usedAttacks[index] == EMPTY_BOARD) {
-        usedAttacks[index] = td->moves[j];
-      } else if (usedAttacks[index] != td->moves[j]) {
+        usedAttacks[index] = attacks[j];
+      } else if (usedAttacks[index] != attacks[j]) {
         collision = true;
       }
     }
-    if (!collision) {
-      pthread_mutex_lock(&td->lock);
-      td->stop = true;
-      td->hashData.magicNumber = magicNumberCandidate;
-      pthread_mutex_unlock(&td->lock);
-    }
+    if (!collision) break;
   }
 
+  free(relevantBitsPowerset);
+  free(attacks);
   free(usedAttacks);
-  return NULL;
+  return h;
 }
 
 static BitBoard getSquaresBetween(LookupTable l, Square s1, Square s2) {

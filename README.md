@@ -8,7 +8,6 @@ TODO:
 - Have Move uint16_t and MoveType enum (same implementation as cpw except 0 is empty move and only
                                         castling instead of both queenside/kingside castling encoding)
 - No "empty piece/empty square" because we will know if it's a capture from MoveType
-- Improve utility.c and LookupTable.c
 - Improve ChatGPT generated code in perft.c
 - Fix bug with "./perft 2 '8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -'" (g2g4)
 

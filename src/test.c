@@ -5,6 +5,5 @@
 #include <stdlib.h>
 
 int main(void) {
-  BitBoardPrint(CASTLING & KINGSIDE);
   return 0;
 }
