@@ -155,7 +155,6 @@ static Color getColorFromASCII(char asciiColor) {
   return (asciiColor == 'w') ? White : Black;
 }
 
-// NEEDS WORK!
 void ChessBoardAddChildren(ChessBoard parent, ChessBoard *children, LookupTable l) {
   int numChildren = 0;
 
@@ -194,10 +193,8 @@ void ChessBoardAddChildren(ChessBoard parent, ChessBoard *children, LookupTable 
 
   int numChecking = BitBoardCountBits(checking);
 
-  if (numChecking > 1) {
-    children[numChildren] = newChessBoard();
-    return; // Double check, only king can move
-  }
+  if (numChecking > 1) return; // Double check, only king can move
+
   if (numChecking > 0) {
     // Single check - Pieces can either capture checking piece, block it or king can move, pinned pieces can't move
     // We don't need to consider taking our pieces because it is not possible for our piece to be on the checkMask
@@ -208,7 +205,7 @@ void ChessBoardAddChildren(ChessBoard parent, ChessBoard *children, LookupTable 
     while (b1) {
       s = BitBoardPopLSB(&b1);
       b2 = LookupTableGetPawnAttacks(l, s, parent.turn) & parent.occupancies[!parent.turn];
-      b2 |= LookupTableGetPawnMoves(l, s, parent.turn, parent.occupancies[Union]) & ~parent.occupancies[Union];
+      b2 |= LookupTableGetPawnPushes(l, s, parent.turn, parent.occupancies[Union]) & ~parent.occupancies[Union];
       b2 |= LookupTableGetEnPassant(l, s, parent.turn, parent.enPassant);
       b2 &= checkMask;
 
@@ -254,7 +251,6 @@ void ChessBoardAddChildren(ChessBoard parent, ChessBoard *children, LookupTable 
       while (b2) children[numChildren++] = makeMove(parent, Queen, s, BitBoardPopLSB(&b2));
     }
 
-    children[numChildren] = newChessBoard();
     return;
   }
 
@@ -302,7 +298,7 @@ void ChessBoardAddChildren(ChessBoard parent, ChessBoard *children, LookupTable 
     BitBoard pinMask = LookupTableGetLineOfSight(l, ourKing, s);
     b2 = LookupTableGetPawnAttacks(l, s, parent.turn) & parent.occupancies[!parent.turn];
     b3 = b2 & promotionRank & pinMask; // b3 contains any moves that result in promotion
-    b2 |= LookupTableGetPawnMoves(l, s, parent.turn, parent.occupancies[Union]) & ~parent.occupancies[!parent.turn];
+    b2 |= LookupTableGetPawnPushes(l, s, parent.turn, parent.occupancies[Union]) & ~parent.occupancies[!parent.turn];
     b2 &= ~promotionRank & pinMask; // b2 contains all non-promotion moves
 
     while (b2) children[numChildren++] = makeMove(parent, Pawn, s, BitBoardPopLSB(&b2));
@@ -350,7 +346,7 @@ void ChessBoardAddChildren(ChessBoard parent, ChessBoard *children, LookupTable 
   while (b1) {
     s = BitBoardPopLSB(&b1);
     b2 = LookupTableGetPawnAttacks(l, s, parent.turn) & parent.occupancies[!parent.turn];
-    b2 |= LookupTableGetPawnMoves(l, s, parent.turn, parent.occupancies[Union]) & ~parent.occupancies[Union];
+    b2 |= LookupTableGetPawnPushes(l, s, parent.turn, parent.occupancies[Union]) & ~parent.occupancies[Union];
     b3 = b2 & promotionRank; // b3 contains any moves that result in promotion
     b2 &= ~promotionRank; // b2 contains all non-promotion moves
 
@@ -393,7 +389,6 @@ void ChessBoardAddChildren(ChessBoard parent, ChessBoard *children, LookupTable 
     while (b2) children[numChildren++] = makeMove(parent, Queen, s, BitBoardPopLSB(&b2));
   }
 
-  children[numChildren] = newChessBoard();
   return;
 }
 
@@ -490,8 +485,8 @@ static BitBoard getAttackedSquares(ChessBoard cb, LookupTable l) {
   return attackedSquares;
 }
 
-// Given a parent and child chessboard, print the move that was played along with 
-// the number of nodes searched for this move
+// Given a parent and child chessboard, print the move that was played along with
+// a given node count
 void ChessBoardPrintMove(ChessBoard parent, ChessBoard child, long nodeCount) {
   Square from = BitBoardGetLSB((parent.occupancies[parent.turn] ^ child.occupancies[!child.turn]) & parent.occupancies[parent.turn]);
   Square to = BitBoardGetLSB((parent.occupancies[parent.turn] ^ child.occupancies[!child.turn]) & child.occupancies[!child.turn]);

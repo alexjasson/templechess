@@ -23,7 +23,7 @@ BitBoard LookupTableGetBishopAttacks(LookupTable l, Square s, BitBoard o);
 BitBoard LookupTableGetRookAttacks(LookupTable l, Square s, BitBoard o);
 BitBoard LookupTableGetQueenAttacks(LookupTable l, Square s, BitBoard o);
 
-BitBoard LookupTableGetPawnMoves(LookupTable l, Square s, Color c, BitBoard o);
+BitBoard LookupTableGetPawnPushes(LookupTable l, Square s, Color c, BitBoard o);
 BitBoard LookupTableGetCastling(LookupTable l, Color c, BitBoard castling, BitBoard occupancies, BitBoard attacked);
 BitBoard LookupTableGetEnPassant(LookupTable l, Square s, Color c, Square EnPassant);
 

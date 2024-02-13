@@ -8,22 +8,21 @@
 #define MAX_CHILDREN 256
 
 void treeSearch(ChessBoard cb, LookupTable l, int depth, int currentDepth, long *nodeCount) {
-    ChessBoard children[MAX_CHILDREN];
-    ChessBoardAddChildren(cb, children, l);
-    long localCount = 0;
+    if (currentDepth == depth) return;
 
+    ChessBoard children[MAX_CHILDREN];
+    memset(children, 0, sizeof(children));
+
+    ChessBoardAddChildren(cb, children, l);
     for (int i = 0; !ChessBoardIsEmpty(children[i]); i++) {
-        if (currentDepth + 1 == depth) localCount++;
-        else if (currentDepth + 1 < depth) treeSearch(children[i], l, depth, currentDepth + 1, &localCount);
+        long localCount = (currentDepth + 1 == depth - 1) ? 1 : 0;
+        treeSearch(children[i], l, depth, currentDepth + 1, &localCount);
 
         if (currentDepth == 0) {
             ChessBoardPrintMove(cb, children[i], localCount);
-            *nodeCount += localCount;
-            localCount = 0;
         }
+        *nodeCount += localCount;
     }
-
-    if (currentDepth != 0) *nodeCount += localCount;
 }
 
 int main(int argc, char *argv[]) {
@@ -33,12 +32,11 @@ int main(int argc, char *argv[]) {
     }
 
     int depth = atoi(argv[1]);
-    char* fen = argv[2];
-
     if (depth < 0) {
         printf("Invalid depth!\n");
         exit(EXIT_FAILURE);
     }
+    char* fen = argv[2];
 
     LookupTable l = LookupTableNew();
     ChessBoard cb = ChessBoardFromFEN(fen);
@@ -51,6 +49,7 @@ int main(int argc, char *argv[]) {
     LookupTableFree(l);
     return 0;
 }
+
 
 
 

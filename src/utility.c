@@ -57,7 +57,7 @@ bool isFileEmpty(char *filename) {
 }
 
 // 64-bit PRNG - thread safe
-uint64_t getRandomNumber(pthread_mutex_t *lock) {
+uint64_t getRandomNumber() {
   uint64_t u1, u2, u3, u4;
 
   u1 = (uint64_t)(xorshift()) & 0xFFFF;

@@ -195,7 +195,7 @@ BitBoard LookupTableGetQueenAttacks(LookupTable l, Square s, BitBoard occupancie
   return LookupTableGetBishopAttacks(l, s, occupancies) | LookupTableGetRookAttacks(l, s, occupancies);
 }
 
-BitBoard LookupTableGetPawnMoves(LookupTable l, Square s, Color c, BitBoard occupancies) {
+BitBoard LookupTableGetPawnPushes(LookupTable l, Square s, Color c, BitBoard occupancies) {
   int index = basicHash(l->pawnData[s][c], occupancies);
   return l->pawnMoves[s][c][index];
 }
