@@ -8,11 +8,11 @@ TODO:
 
 example move encoding
 
-0
-1 double push
-2 enpassant
-3
-4
+0  
+1 double push  
+2 enpassant  
+3  
+4  
 5 castling  
 6 knight promotion capture  
 7 knight promotion quiet  
