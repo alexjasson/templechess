@@ -18,9 +18,7 @@ void treeSearch(ChessBoard cb, LookupTable l, int depth, int currentDepth, long 
         long localCount = (currentDepth + 1 == depth - 1) ? 1 : 0;
         treeSearch(children[i], l, depth, currentDepth + 1, &localCount);
 
-        if (currentDepth == 0) {
-            ChessBoardPrintMove(cb, children[i], localCount);
-        }
+        if (currentDepth == 0) ChessBoardPrintMove(cb, children[i], localCount);
         *nodeCount += localCount;
     }
 }

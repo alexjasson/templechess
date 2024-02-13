@@ -13,14 +13,14 @@ example move encoding
 2 enpassant
 3
 4
-5 castling
-6 knight promotion capture
-7 knight promotion quiet
-8 bishop promotion capture
-9 bishop promotion quiet
-10 rook promotion capture
-11 rook promotion quiet
-12 queen promotion capture
-13 queen promotion quiet
-14 normal capture
-15 normal quiet
+5 castling  
+6 knight promotion capture  
+7 knight promotion quiet  
+8 bishop promotion capture  
+9 bishop promotion quiet  
+10 rook promotion capture  
+11 rook promotion quiet  
+12 queen promotion capture  
+13 queen promotion quiet  
+14 normal capture  
+15 normal quiet  
