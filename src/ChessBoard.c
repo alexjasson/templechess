@@ -26,7 +26,7 @@ static char getASCIIFromPiece(Piece p);
 
 void noOp(Square from, Square to, long nodes);
 
-static BitBoard pawnAttacks(BitBoard p, Color c);
+static BitBoard pawnAttacksSet(BitBoard p, Color c);
 static Piece makeMove(ChessBoard *cb, Square from, Square to);
 static void unmakeMove(ChessBoard *cb, Square from, Square to, Piece captured);
 static BitMap getAttackedSquares(LookupTable l, ChessBoard *cb);
@@ -35,7 +35,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*fn)(Square, Square,
 static void printMove(Square from, Square to, long nodes);
 // static ChessBoard makeMove(ChessBoard cb, Type t, Square from, Square to);
 // static BitBoard getAttackedSquares(ChessBoard cb, LookupTable l);
-// static BitBoard pawnAttacks(BitBoard p, Color c);
+// static BitBoard pawnAttacksSet(BitBoard p, Color c);
 
 // Assumes FEN and depth is valid
 ChessBoard ChessBoardNew(char *fen, int depth) {
@@ -210,7 +210,7 @@ void noOp(Square from, Square to, long nodes) {
 // Return the checking pieces and simultaneously update the pinned pieces bitboard
 BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned) {
   Square ourKing = BitBoardGetLSB(OUR(King));
-  BitBoard checking = (pawnAttacks(OUR(King), cb->turn) & THEIR(Pawn)) |
+  BitBoard checking = (pawnAttacksSet(OUR(King), cb->turn) & THEIR(Pawn)) |
                       (LookupTableKnightAttacks(l, ourKing) & THEIR(Knight));
   BitBoard candidates = (LookupTableBishopAttacks(l, ourKing, them) & (THEIR(Bishop) | THEIR(Queen))) |
                         (LookupTableRookAttacks(l, ourKing, them) & (THEIR(Rook) | THEIR(Queen)));
@@ -233,7 +233,7 @@ static BitMap getAttackedSquares(LookupTable l, ChessBoard *cb) {
   BitBoard b;
   BitBoard occupancies = ALL & ~OUR(King);
 
-  attacked.board = pawnAttacks(THEIR(Pawn), !cb->turn);
+  attacked.board = pawnAttacksSet(THEIR(Pawn), !cb->turn);
   attacked.board |= LookupTableKingAttacks(l, BitBoardGetLSB(THEIR(King)));
 
   b = THEIR(Knight);
@@ -248,7 +248,7 @@ static BitMap getAttackedSquares(LookupTable l, ChessBoard *cb) {
   return attacked;
 }
 
-static BitBoard pawnAttacks(BitBoard p, Color c) {
+static BitBoard pawnAttacksSet(BitBoard p, Color c) {
   return (c == White) ? BitBoardShiftNorthwest(p) | BitBoardShiftNortheast(p) : BitBoardShiftSouthwest(p) | BitBoardShiftSoutheast(p);
 }
 
@@ -555,7 +555,7 @@ static BitBoard pawnAttacks(BitBoard p, Color c) {
 
 //   // Pawn attacks
 //   b1 = cb.pieces[Pawn][!cb.turn]; // Enemy pawns
-//   attackedSquares = pawnAttacks(b1, !cb.turn);
+//   attackedSquares = pawnAttacksSet(b1, !cb.turn);
 
 //   // King attacks
 //   b1 = cb.pieces[King][!cb.turn]; // Enemy king
