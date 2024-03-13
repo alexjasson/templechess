@@ -31,7 +31,8 @@ TODO:
 - A function for setting two bits on a bitboard might be useful.
 - Use this algorithm when traversing castling:
   If (castling.rank >= QUEENSIDE_CASTLING || castling.rank == KINGSIDE_CASTLING) {
-    // We can castle
+    // We have castling rights
+    // We now OR castling.rank with the attack/occupancy bits
     If (castling.rank == BOTHSIDE_CASTLING) {
       makeQueensideCastling...
       makeKingsideCastling...
@@ -41,4 +42,3 @@ TODO:
       makeQueensideCastling...
     }
   }
-  And remember castling.rank needs to be ORed with relevant occupancy/attack bits
