@@ -27,16 +27,11 @@ BitBoard BitBoardPopBit(BitBoard b, Square s) {
 }
 
 int BitBoardCountBits(BitBoard b) {
-  int count = 0;
-  while (b) {
-    count++;
-    b &= b - 1;
-  }
-  return count;
+    return __builtin_popcountll(b);
 }
 
 Square BitBoardGetLSB(BitBoard b) {
-  return BitBoardCountBits((b & -b) - 1);
+    return __builtin_ctzll(b);
 }
 
 Square BitBoardPopLSB(BitBoard *b) {

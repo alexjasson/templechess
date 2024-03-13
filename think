@@ -1,0 +1,16 @@
+We don't need to know if a move is a capture or not. Since
+we update our board rep the same anyway.
+
+e.g
+BitBoard pieces[13] (including empty piece)
+Piece squares[64]
+BitBoard enpassant;
+...
+
+PieceType {Empty, Pawn, Knight, etc}
+Color {Empty, White, Black}
+MoveType {Empty, DoublePush, EnPassant, etc}
+Fast macros to determine PieceType/Color of a Piece are easy here.
+Square {Empty, a8, etc}
+
+Make a boolean lookup table for queenside/kingside castling

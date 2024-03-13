@@ -1,32 +1,30 @@
 #ifndef CHESSBOARD_H
 #define CHESSBOARD_H
 
-#include <stdbool.h>
-#include "BitBoard.h"
-#include "LookupTable.h"
+#define MAX_DEPTH 16
+#define PIECE_SIZE 12
 
-#define EMPTY_SQUARE -1
+typedef uint8_t BitRank; // index 0 is back rank of black, 7 is back rank of white
+typedef uint8_t Piece;
 
-typedef int8_t Piece;
+typedef union {
+  BitBoard board;
+  BitRank rank[EDGE_SIZE];
+} BitMap;
 
 typedef struct {
-  // The squares of pieces and the pieces of squares
-  BitBoard pieces[TYPE_SIZE][COLOR_SIZE];
+  BitBoard pieces[PIECE_SIZE + 1];
   Piece squares[BOARD_SIZE];
-  BitBoard occupancies[COLOR_SIZE + 1]; // White, Black, Union
-  // Metadata
-  Color turn;
-  BitBoard castling;
-  Square enPassant;
-  int halfMoveClock;
-  int moveNumber;
 
+  Color turn;
+  int depth; // Start from desired depth and decrement until 0
+  BitBoard enPassant[MAX_DEPTH];
+  BitMap castling[MAX_DEPTH];
 } ChessBoard;
 
-ChessBoard ChessBoardFromFEN(char *fen);
-void ChessBoardAddChildren(ChessBoard parent, ChessBoard *children, LookupTable l);
-void ChessBoardPrintMove(ChessBoard parent, ChessBoard child, long nodeCount);
-void ChessBoardPrintBoard(ChessBoard cb);
-bool ChessBoardIsEmpty(ChessBoard cb);
+ChessBoard ChessBoardNew(char *fen, int depth); // ChessBoard is stack allocated
+void ChessBoardPrint(ChessBoard cb);
+void ChessBoardTreeSearch(LookupTable l, ChessBoard cb);
+// void ChessBoardAddChildren(ChessBoard parent, ChessBoard *children, LookupTable l);
 
 #endif
