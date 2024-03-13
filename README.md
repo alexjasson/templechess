@@ -6,7 +6,8 @@ TODO:
   the lookup table will be the occupancies with the enpassant square
   encoded on the back rank. Remember that for any given square a pawn
   only has a maximum of 4 possible moves. En passant will be encoded
-  as a move to the side.
+  as a move to the side. For the pawn, all bits are relevant. For example,
+  if we're a pawn on the b file, we want to know if we can move (attack) on file a.
 - Change BitBoard enPassant to BitRank enPassant in ChessBoard ADT
 - Change BitBoard ADT file to BitMap ADT, use BitMap in place of BitBoard
 - Have a pawnMove function that handles all pawn moves, can pass it a
@@ -26,3 +27,4 @@ TODO:
   adding king moves, then knight moves then orthogonal sliding moves and diagonal sliding
   moves. Remember to use this general approach for legal move generation as well because
   it has no down side.
+- A function for setting two bits on a bitboard might be useful.
