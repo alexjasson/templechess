@@ -7,7 +7,6 @@
 #include "LookupTable.h"
 
 #define IS_DIAGONAL(d) (d % 2 == 1)
-#define GET_POWERSET_SIZE(n) (1 << n)
 
 #define BISHOP_ATTACKS_POWERSET 512
 #define ROOK_ATTACKS_POWERSET 4096
@@ -34,14 +33,13 @@ static BitBoard getMove(Square s, Type t, Direction d, int steps);
 static BitBoard getAttacks(Square s, Type t, BitBoard occupancies);
 static BitBoard getRelevantBits(Square s, Type t);
 static BitBoard getBitsSubset(int index, BitBoard bits);
+static int hash(BitBoard occupancies, BitBoard relevantBits);
 
 static BitBoard getSquaresBetween(LookupTable l, Square s1, Square s2);
 static BitBoard getLineOfSight(LookupTable l, Square s1, Square s2);
 static BitBoard getRank(Square s);
 
-static void initializeMoveTables(LookupTable l);
-static void initializeHashData(LookupTable l);
-static void initializeHelperTables(LookupTable l);
+static void initializeLookupTable(LookupTable l);
 
 LookupTable LookupTableNew(void) {
   LookupTable l = malloc(sizeof(struct lookupTable));
@@ -50,46 +48,38 @@ LookupTable LookupTableNew(void) {
     exit(EXIT_FAILURE);
   }
 
-  initializeHashData(l);
-  initializeMoveTables(l);
-  initializeHelperTables(l);
+  initializeLookupTable(l);
 
   return l;
 }
 
-void initializeMoveTables(LookupTable l) {
-  // Minor/major piece moves
-  for (Square s = a8; s <= h1; s++) {
-    l->knightAttacks[s] = getAttacks(s, Knight, EMPTY_BOARD);
-    l->kingAttacks[s] = getAttacks(s, King, EMPTY_BOARD);
+void initializeLookupTable(LookupTable l) {
+  for (Square s1 = a8; s1 <= h1; s1++) {
+    l->knightAttacks[s1] = getAttacks(s1, Knight, EMPTY_BOARD);
+    l->kingAttacks[s1] = getAttacks(s1, King, EMPTY_BOARD);
+    l->bishopBits[s1] = getRelevantBits(s1, Bishop);
+    l->rookBits[s1] = getRelevantBits(s1, Rook);
     for (int i = 0; i < BISHOP_ATTACKS_POWERSET; i++) {
-      BitBoard occupancies = getBitsSubset(i, l->bishopBits[s]);
-      int index = _pext_u64(occupancies, l->bishopBits[s]);
-      l->bishopAttacks[s][index] = getAttacks(s, Bishop, occupancies);
+      BitBoard occupancies = getBitsSubset(i, l->bishopBits[s1]);
+      int index = hash(occupancies, l->bishopBits[s1]);
+      l->bishopAttacks[s1][index] = getAttacks(s1, Bishop, occupancies);
     }
     for (int i = 0; i < ROOK_ATTACKS_POWERSET; i++) {
-      BitBoard occupancies = getBitsSubset(i, l->rookBits[s]);
-      int index = _pext_u64(occupancies, l->rookBits[s]);
-      l->rookAttacks[s][index] = getAttacks(s, Rook, occupancies);
+      BitBoard occupancies = getBitsSubset(i, l->rookBits[s1]);
+      int index = hash(occupancies, l->rookBits[s1]);
+      l->rookAttacks[s1][index] = getAttacks(s1, Rook, occupancies);
     }
-  }
-}
-
-void initializeHashData(LookupTable l) {
-  for (Square s = a8; s <= h1; s++) {
-    l->bishopBits[s] = getRelevantBits(s, Bishop);
-    l->rookBits[s] = getRelevantBits(s, Rook);
-  }
-}
-
-void initializeHelperTables(LookupTable l) {
-  for (Square s1 = a8; s1 <= h1; s1++) {
     for (Square s2 = a8; s2 <= h1; s2++) {
       l->squaresBetween[s1][s2] = getSquaresBetween(l, s1, s2);
       l->lineOfSight[s1][s2] = getLineOfSight(l, s1, s2);
     }
     l->rank[s1] = getRank(s1);
   }
+}
+
+// We use the pext instruction as a perfect hash function
+int hash(BitBoard occupancies, BitBoard relevantBits) {
+  return _pext_u64(occupancies, relevantBits);
 }
 
 void LookupTableFree(LookupTable l) {
@@ -105,12 +95,12 @@ BitBoard LookupTableKingAttacks(LookupTable l, Square s) {
 }
 
 BitBoard LookupTableBishopAttacks(LookupTable l, Square s, BitBoard occupancies) {
-  int index = _pext_u64(occupancies, l->bishopBits[s]);
+  int index = hash(occupancies, l->bishopBits[s]);
   return l->bishopAttacks[s][index];
 }
 
 BitBoard LookupTableRookAttacks(LookupTable l, Square s, BitBoard occupancies) {
-  int index = _pext_u64(occupancies, l->rookBits[s]);
+  int index = hash(occupancies, l->rookBits[s]);
   return l->rookAttacks[s][index];
 }
 
