@@ -13,7 +13,7 @@ typedef union {
 } BitMap;
 
 typedef struct {
-  BitBoard pieces[PIECE_SIZE + 1];
+  BitMap pieces[PIECE_SIZE + 1];
   Piece squares[BOARD_SIZE];
 
   Color turn;

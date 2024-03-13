@@ -15,7 +15,6 @@ typedef enum {
   North, Northeast, East, Southeast, South, Southwest, West, Northwest
 } Direction;
 
-
 struct lookupTable {
   BitBoard knightAttacks[BOARD_SIZE];
   BitBoard kingAttacks[BOARD_SIZE];

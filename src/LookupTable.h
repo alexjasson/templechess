@@ -1,8 +1,6 @@
 #ifndef LOOKUP_TABLE_H
 #define LOOKUP_TABLE_H
 
-#define TYPE_SIZE 6
-
 typedef struct lookupTable *LookupTable;
 
 typedef enum { Pawn, King, Knight, Bishop, Rook, Queen } Type;
