@@ -248,7 +248,6 @@ static BitMap getAttackedSquares(LookupTable l, ChessBoard *cb) {
   return attacked;
 }
 
-// Faster to calculate pawn attacks set OTF than looking up all individual pawn attacks
 static BitBoard pawnAttacks(BitBoard p, Color c) {
   return (c == White) ? BitBoardShiftNorthwest(p) | BitBoardShiftNortheast(p) : BitBoardShiftSouthwest(p) | BitBoardShiftSoutheast(p);
 }
