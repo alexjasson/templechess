@@ -18,8 +18,8 @@ int main() {
     ChessBoardTreeSearch(l, cb);
 
     BitBoard b = BitBoardSetBit(0, d4);
-    b = BitBoardSetBit(b, d2);
-    BitBoard c = LookupTableBishopAttacks(l, a1, b);
+    b = BitBoardSetBit(b, d7);
+    BitBoard c = LookupTableRookAttacks(l, d5, b);
     BitBoardPrint(c);
 
     LookupTableFree(l);

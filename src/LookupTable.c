@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <immintrin.h>
 
 #include "BitBoard.h"
@@ -126,9 +125,8 @@ static BitBoard getAttacks(Square s, Type t, BitBoard occupancies) {
       else if (t <= Knight && steps > 1) break;
 
       BitBoard attack = getMove(s, t, d, steps);
-      bool capture = attack & occupancies;
       attacks |= attack;
-      if (capture) break;
+      if (attack & occupancies) break;
     }
   }
   return attacks;
