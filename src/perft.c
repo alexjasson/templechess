@@ -14,8 +14,14 @@ void printBinary(unsigned int n) {
 
 int main() {
     LookupTable l = LookupTableNew();
-    ChessBoard cb = ChessBoardNew("4k3/8/8/8/8/8/8/4K3 w - - 0 1", 11);
+    ChessBoard cb = ChessBoardNew("4k3/8/8/8/8/8/8/4K3 w - - 0 1", 10);
     ChessBoardTreeSearch(l, cb);
+
+    BitBoard b = BitBoardSetBit(0, d5);
+    b = BitBoardSetBit(b, d2);
+    BitBoard c = LookupTableRookAttacks(l, d4, b);
+    BitBoardPrint(c);
+
     LookupTableFree(l);
 }
 
