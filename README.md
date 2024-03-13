@@ -28,3 +28,16 @@ TODO:
   moves. Remember to use this general approach for legal move generation as well because
   it has no down side.
 - A function for setting two bits on a bitboard might be useful.
+- Use this algorithm when traversing castling:
+  If (castling.rank >= QUEENSIDE_CASTLING || castling.rank == KINGSIDE_CASTLING) {
+    // We can castle
+    If (castling.rank == BOTHSIDE_CASTLING) {
+      makeQueensideCastling...
+      makeKingsideCastling...
+    } else if (castling.rank & KINGSIDE == KINGSIDE_CASTLING) {
+      makeKingsideCastling...
+    } else {
+      makeQueensideCastling...
+    }
+  }
+  And remember castling.rank needs to be ORed with relevant occupancy/attack bits
