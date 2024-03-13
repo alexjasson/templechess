@@ -21,7 +21,8 @@ TODO:
 - Make makeMove function faster by passing the piece that is moving to the function.
   the piece will be given by the squares array while we are determining the attacks.
   Aside from makeMove and pawnMove, the only other move functions should be kingsideCastling
-  and queensideCastling.
+  and queensideCastling. kingsideCastling can be easily done with simple bit shifts of the
+  BitRanks and addition/subtraction of the squares.
 - Change the function getAttackedSquares so that you just loop over all the pieces that
   are not pawns and then use the general attack lookup function rather than individually
   adding king moves, then knight moves then orthogonal sliding moves and diagonal sliding
