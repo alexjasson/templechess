@@ -24,18 +24,19 @@ static Color getColorFromASCII(char asciiColor);
 static Piece getPieceFromASCII(char asciiPiece);
 static char getASCIIFromPiece(Piece p);
 
-void noOp(Square from, Square to, long nodes);
 
 static BitBoard pawnAttacksSet(BitBoard p, Color c);
 static Piece makeMove(ChessBoard *cb, Square from, Square to);
 static void unmakeMove(ChessBoard *cb, Square from, Square to, Piece captured);
 static BitMap getAttackedSquares(LookupTable l, ChessBoard *cb);
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
-static long treeSearch(LookupTable l, ChessBoard *cb, void (*fn)(Square, Square, long));
+static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)());
 static void printMove(Square from, Square to, long nodes);
 // static ChessBoard makeMove(ChessBoard cb, Type t, Square from, Square to);
 // static BitBoard getAttackedSquares(ChessBoard cb, LookupTable l);
 // static BitBoard pawnAttacksSet(BitBoard p, Color c);
+
+static void noOp(){}; // A function that does nothing
 
 // Assumes FEN and depth is valid
 ChessBoard ChessBoardNew(char *fen, int depth) {
@@ -124,7 +125,7 @@ static Color getColorFromASCII(char asciiColor) {
   return (asciiColor == 'w') ? White : Black;
 }
 
-static long treeSearch(LookupTable l, ChessBoard *cb, void (*fn)(Square, Square, long)) {
+static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   if (cb->depth == 0) return 1;
   long leafNodes = 0, subTree;
 
@@ -152,7 +153,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*fn)(Square, Square,
     p = makeMove(cb, ourKing, s);
     subTree = treeSearch(l, cb, noOp);
     leafNodes += subTree;
-    fn(ourKing, s, subTree);
+    traverseFn(ourKing, s, subTree);
     unmakeMove(cb, ourKing, s, p);
   }
 
@@ -197,14 +198,6 @@ void unmakeMove(ChessBoard *cb, Square from, Square to, Piece captured) {
 
 void printMove(Square from, Square to, long nodes) {
   printf("%c%d%c%d: %ld\n", 'a' + (from % EDGE_SIZE), EDGE_SIZE - (from / EDGE_SIZE), 'a' + (to % EDGE_SIZE), EDGE_SIZE - (to / EDGE_SIZE), nodes);
-}
-
-
-// A function that does nothing
-void noOp(Square from, Square to, long nodes) {
-  (void)from;
-  (void)to;
-  (void)nodes;
 }
 
 // Return the checking pieces and simultaneously update the pinned pieces bitboard
