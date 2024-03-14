@@ -46,5 +46,10 @@ TODO:
   and the 8 bits on the back rank (for enPassant). However the 8 bits on the backrank need
   only be a power set where each set has cardinality 1 or empty. So we have 3^2 * 9 = 72
   maximum possible 'occupancy' sets for any given pawn. We will need some function to generate
-  subsets of maximum cardinality 1, since currently we only generate all subsets.
+  subsets of maximum cardinality 1, since currently we only generate all subsets. That means the
+  pawns lookup table will take up 72 * 64 * 2 * 8 = ~74KB. To reduce this we could not consider
+  diagonal pawn attacks and handle this in the move generation function instead. This would mean
+  the 'pawn moves powerset' would be 2^1 * 9 = 18 and the lookup table ~18KB. This would result in
+  more L1 cache hits for little cost. Note that with this implement diagonal pawn attacks will be
+  assumed to only be true and pruned during move generation.
 - Note that PEXT bitboards are slower if the CPU does not support the PEXT instruction.

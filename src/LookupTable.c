@@ -7,7 +7,6 @@
 
 #define IS_DIAGONAL(d) (d % 2 == 1)
 
-#define PAWN_MOVES_POWERSET 72
 #define BISHOP_ATTACKS_POWERSET 512
 #define ROOK_ATTACKS_POWERSET 4096
 
