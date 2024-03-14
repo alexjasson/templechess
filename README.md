@@ -48,4 +48,5 @@ TODO:
   maximum possible 'occupancy' sets for any given pawn. We will need some function to generate
   subsets of maximum cardinality 1, since currently we only generate all subsets. That means the
   pawns lookup table will take up 72 * 64 * 2 * 8 = ~74KB.
-- Note that PEXT bitboards are slower if the CPU does not support the PEXT instruction.
+- Note that PEXT bitboards are slower if the CPU does not support the PEXT instruction. Should
+  print a warning when compiling if the users CPU doesn't support the PEXT instruction.
