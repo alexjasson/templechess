@@ -42,3 +42,9 @@ TODO:
       makeQueensideCastling...
     }
   }
+- The relevant bits of a white pawn on the 4th rank would be the 3 bits in front of it
+  and the 8 bits on the back rank (for enPassant). However the 8 bits on the backrank need
+  only be a power set where each set has cardinality 1 or empty. So we have 3^2 * 9 = 72
+  maximum possible 'occupancy' sets for any given pawn. We will need some function to generate
+  subsets of maximum cardinality 1, since currently we only generate all subsets.
+- Note that PEXT bitboards are slower if the CPU does not support the PEXT instruction.
