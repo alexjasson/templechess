@@ -50,5 +50,5 @@ TODO:
   pawns lookup table will take up 72 * 64 * 2 * 8 = ~74KB.
 - Note that PEXT bitboards are slower if the CPU does not support the PEXT instruction. Should
   print a warning when compiling if the users CPU doesn't support the PEXT instruction.
-- Consider passing a more generic function to treeSearch. Could make the argument of the 
+- Consider passing a more generic function to treeSearch. Could make the argument of the
   traverseFn a void pointer instead.
