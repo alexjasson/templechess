@@ -52,6 +52,4 @@ TODO:
   the 'pawn moves powerset' would be 2^1 * 9 = 18 and the lookup table ~18KB. This would result in
   more L1 cache hits for little cost. Note that with this implement diagonal pawn attacks will be
   assumed to only be true and pruned during move generation.
-- Perhaps to reduce the size of tables even further we could make them jagged arrays as opposed to
-  rectangular arrays.
 - Note that PEXT bitboards are slower if the CPU does not support the PEXT instruction.
