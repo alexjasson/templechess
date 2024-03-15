@@ -52,3 +52,7 @@ TODO:
   print a warning when compiling if the users CPU doesn't support the PEXT instruction.
 - Consider passing a more generic function to treeSearch. Could make the argument of the
   traverseFn a void pointer instead.
+
+- UPDATE: It is very likely that calculating pawn moves OTF is simply faster in most positions
+  than having a look up table for pawns. Especially considering this lookup table will eat up
+  L1 cache. Hence, pawn moves should be implemented OTF.
