@@ -8,14 +8,21 @@ TODO:
   only has a maximum of 4 possible moves. En passant will be encoded
   as a move to the side. For the pawn, all bits are relevant. For example,
   if we're a pawn on the b file, we want to know if we can move (attack) on file a.
-
-- Change BitBoard enPassant to BitRank enPassant in ChessBoard ADT
-- Change BitBoard ADT file to BitMap ADT, use BitMap in place of BitBoard
 - Have a pawnMove function that handles all pawn moves, can pass it a
   piece type to handle promotion. Enpassant will be handled recursively.
   Double pushes will be detected by square differences. During move traversal
   promotions will be handled by splitting 'to' bits into separate bitboards for
   promotion rank and ~promotion rank.
+- The relevant bits of a white pawn on the 4th rank would be the 3 bits in front of it
+  and the 8 bits on the back rank (for enPassant). However the 8 bits on the backrank need
+  only be a power set where each set has cardinality 1 or empty. So we have 3^2 * 9 = 72
+  maximum possible 'occupancy' sets for any given pawn. We will need some function to generate
+  subsets of maximum cardinality 1, since currently we only generate all subsets. That means the
+  pawns lookup table will take up 72 * 64 * 2 * 8 = ~74KB.
+  ^DEPRECIATED^
+
+- Change BitBoard enPassant to BitRank enPassant in ChessBoard ADT
+- Change BitBoard ADT file to BitMap ADT, use BitMap in place of BitBoard
 - A general move lookup function given any piece. Can use function pointers to
   index to the relevant function using a piece as the index. This should be the only
   function that is shown to the user of ADT for piece attacks/moves.
@@ -43,12 +50,6 @@ TODO:
       makeQueensideCastling...
     }
   }
-- The relevant bits of a white pawn on the 4th rank would be the 3 bits in front of it
-  and the 8 bits on the back rank (for enPassant). However the 8 bits on the backrank need
-  only be a power set where each set has cardinality 1 or empty. So we have 3^2 * 9 = 72
-  maximum possible 'occupancy' sets for any given pawn. We will need some function to generate
-  subsets of maximum cardinality 1, since currently we only generate all subsets. That means the
-  pawns lookup table will take up 72 * 64 * 2 * 8 = ~74KB.
 - Note that PEXT bitboards are slower if the CPU does not support the PEXT instruction. Should
   print a warning when compiling if the users CPU doesn't support the PEXT instruction.
 - Consider passing a more generic function to treeSearch. Could make the argument of the
