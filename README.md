@@ -8,6 +8,7 @@ TODO:
   only has a maximum of 4 possible moves. En passant will be encoded
   as a move to the side. For the pawn, all bits are relevant. For example,
   if we're a pawn on the b file, we want to know if we can move (attack) on file a.
+
 - Change BitBoard enPassant to BitRank enPassant in ChessBoard ADT
 - Change BitBoard ADT file to BitMap ADT, use BitMap in place of BitBoard
 - Have a pawnMove function that handles all pawn moves, can pass it a
