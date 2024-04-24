@@ -169,7 +169,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
     b1 = OUR(Knight) & ~pinned;
     while (b1) {
       s1 = BitBoardPopLSB(&b1);
-      b2 = LookupTableKnightAttacks(l, s1) & checkMask;
+      b2 = LookupTableKnightAttacks(l, s1) & checkMask & ~THEIR(King);
       while (b2) {
         s2 = BitBoardPopLSB(&b2);
         p = makeMove(cb, s1, s2);
@@ -184,7 +184,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
     b1 = (OUR(Bishop) | OUR(Queen)) & ~pinned;
     while (b1) {
       s1 = BitBoardPopLSB(&b1);
-      b2 = LookupTableBishopAttacks(l, s1, occupancies.board) & checkMask;
+      b2 = LookupTableBishopAttacks(l, s1, occupancies.board) & checkMask  & ~THEIR(King);
       while (b2) {
         s2 = BitBoardPopLSB(&b2);
         p = makeMove(cb, s1, s2);
@@ -199,7 +199,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
     b1 = (OUR(Rook) | OUR(Queen)) & ~pinned;
     while (b1) {
       s1 = BitBoardPopLSB(&b1);
-      b2 = LookupTableRookAttacks(l, s1, occupancies.board) & checkMask;
+      b2 = LookupTableRookAttacks(l, s1, occupancies.board) & checkMask  & ~THEIR(King);
       while (b2) {
         s2 = BitBoardPopLSB(&b2);
         p = makeMove(cb, s1, s2);
@@ -219,7 +219,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   b1 = OUR(Knight) & ~pinned;
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
-    b2 = LookupTableKnightAttacks(l, s1) & ~us;
+    b2 = LookupTableKnightAttacks(l, s1) & ~us & ~THEIR(King);
     while (b2) {
       s2 = BitBoardPopLSB(&b2);
       p = makeMove(cb, s1, s2);
@@ -234,7 +234,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   b1 = (OUR(Bishop) | OUR(Queen)) & ~pinned;
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
-    b2 = LookupTableBishopAttacks(l, s1, occupancies.board) & ~us;
+    b2 = LookupTableBishopAttacks(l, s1, occupancies.board) & ~us  & ~THEIR(King);
     while (b2) {
       s2 = BitBoardPopLSB(&b2);
       p = makeMove(cb, s1, s2);
@@ -250,7 +250,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
     // Remove attacks that are not on the pin line
-    b2 = LookupTableBishopAttacks(l, s1, occupancies.board) & LookupTableGetLineOfSight(l, ourKing, s1);
+    b2 = LookupTableBishopAttacks(l, s1, occupancies.board) & LookupTableGetLineOfSight(l, ourKing, s1) & ~THEIR(King);
     while (b2) {
       s2 = BitBoardPopLSB(&b2);
       p = makeMove(cb, s1, s2);
@@ -265,7 +265,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   b1 = (OUR(Rook) | OUR(Queen)) & ~pinned;
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
-    b2 = LookupTableRookAttacks(l, s1, occupancies.board) & ~us;
+    b2 = LookupTableRookAttacks(l, s1, occupancies.board) & ~us & ~THEIR(King);
     while (b2) {
       s2 = BitBoardPopLSB(&b2);
       p = makeMove(cb, s1, s2);
@@ -281,7 +281,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
     // Remove attacks that are not on the pin line
-    b2 = LookupTableRookAttacks(l, s1, occupancies.board) & LookupTableGetLineOfSight(l, ourKing, s1);
+    b2 = LookupTableRookAttacks(l, s1, occupancies.board) & LookupTableGetLineOfSight(l, ourKing, s1) & ~THEIR(King);
     while (b2) {
       s2 = BitBoardPopLSB(&b2);
       p = makeMove(cb, s1, s2);
