@@ -161,54 +161,59 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
 
   if (numChecking > 1) return leafNodes; // Double check, only king can move
 
-  checkMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), ourKing);
+  if (numChecking > 0) { // Single check
 
-  // Traverse knight moves
-  b1 = OUR(Knight) & ~pinned;
-  while (b1) {
-    s1 = BitBoardPopLSB(&b1);
-    b2 = LookupTableKnightAttacks(l, s1) & checkMask;
-    while (b2) {
-      s2 = BitBoardPopLSB(&b2);
-      p = makeMove(cb, s1, s2);
-      subTree = treeSearch(l, cb, noOp);
-      leafNodes += subTree;
-      traverseFn(s1, s2, subTree);
-      unmakeMove(cb, s1, s2, p);
+    checkMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), ourKing);
+
+    // Traverse knight moves
+    b1 = OUR(Knight) & ~pinned;
+    while (b1) {
+      s1 = BitBoardPopLSB(&b1);
+      b2 = LookupTableKnightAttacks(l, s1) & checkMask;
+      while (b2) {
+        s2 = BitBoardPopLSB(&b2);
+        p = makeMove(cb, s1, s2);
+        subTree = treeSearch(l, cb, noOp);
+        leafNodes += subTree;
+        traverseFn(s1, s2, subTree);
+        unmakeMove(cb, s1, s2, p);
+      }
     }
+
+    // Traverse diagonal moves
+    b1 = (OUR(Bishop) | OUR(Queen)) & ~pinned;
+    while (b1) {
+      s1 = BitBoardPopLSB(&b1);
+      b2 = LookupTableBishopAttacks(l, s1, occupancies.board) & checkMask;
+      while (b2) {
+        s2 = BitBoardPopLSB(&b2);
+        p = makeMove(cb, s1, s2);
+        subTree = treeSearch(l, cb, noOp);
+        leafNodes += subTree;
+        traverseFn(s1, s2, subTree);
+        unmakeMove(cb, s1, s2, p);
+      }
+    }
+
+    // Traverse orthogonal moves
+    b1 = (OUR(Rook) | OUR(Queen)) & ~pinned;
+    while (b1) {
+      s1 = BitBoardPopLSB(&b1);
+      b2 = LookupTableRookAttacks(l, s1, occupancies.board) & checkMask;
+      while (b2) {
+        s2 = BitBoardPopLSB(&b2);
+        p = makeMove(cb, s1, s2);
+        subTree = treeSearch(l, cb, noOp);
+        leafNodes += subTree;
+        traverseFn(s1, s2, subTree);
+        unmakeMove(cb, s1, s2, p);
+      }
+    }
+
+    return leafNodes;
   }
 
-  // Traverse diagonal moves
-  b1 = (OUR(Bishop) | OUR(Queen)) & ~pinned;
-  while (b1) {
-    s1 = BitBoardPopLSB(&b1);
-    b2 = LookupTableBishopAttacks(l, s1, occupancies.board) & checkMask;
-    while (b2) {
-      s2 = BitBoardPopLSB(&b2);
-      p = makeMove(cb, s1, s2);
-      subTree = treeSearch(l, cb, noOp);
-      leafNodes += subTree;
-      traverseFn(s1, s2, subTree);
-      unmakeMove(cb, s1, s2, p);
-    }
-  }
-
-  // Traverse orthogonal moves
-  b1 = (OUR(Rook) | OUR(Queen)) & ~pinned;
-  while (b1) {
-    s1 = BitBoardPopLSB(&b1);
-    b2 = LookupTableRookAttacks(l, s1, occupancies.board) & checkMask;
-    while (b2) {
-      s2 = BitBoardPopLSB(&b2);
-      p = makeMove(cb, s1, s2);
-      subTree = treeSearch(l, cb, noOp);
-      leafNodes += subTree;
-      traverseFn(s1, s2, subTree);
-      unmakeMove(cb, s1, s2, p);
-    }
-  }
-
-  if (numChecking > 0) return leafNodes; // Single check
+  // No check
 
   // Traverse non pinned knight moves
   b1 = OUR(Knight) & ~pinned;
@@ -260,9 +265,9 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   b1 = (OUR(Rook) | OUR(Queen)) & ~pinned;
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
-    b1 = LookupTableRookAttacks(l, s1, occupancies.board) & ~us;
-    while (b1) {
-      s2 = BitBoardPopLSB(&b1);
+    b2 = LookupTableRookAttacks(l, s1, occupancies.board) & ~us;
+    while (b2) {
+      s2 = BitBoardPopLSB(&b2);
       p = makeMove(cb, s1, s2);
       subTree = treeSearch(l, cb, noOp);
       leafNodes += subTree;
@@ -276,9 +281,9 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
     // Remove attacks that are not on the pin line
-    b1 = LookupTableRookAttacks(l, s1, occupancies.board) & LookupTableGetLineOfSight(l, ourKing, s1);
-    while (b1) {
-      s2 = BitBoardPopLSB(&b1);
+    b2 = LookupTableRookAttacks(l, s1, occupancies.board) & LookupTableGetLineOfSight(l, ourKing, s1);
+    while (b2) {
+      s2 = BitBoardPopLSB(&b2);
       p = makeMove(cb, s1, s2);
       subTree = treeSearch(l, cb, noOp);
       leafNodes += subTree;
