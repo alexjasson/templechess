@@ -60,4 +60,4 @@ TODO:
   L1 cache. Hence, pawn moves should be implemented OTF.
 
 - To simplify we may be able remove the queen bitboard from pieces array in chessboard struct.
-  Then a queen would just be added to both the rook/bishop bitboards
+  Then the queen would just be added to both the rook/bishop bitboards
