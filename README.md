@@ -58,3 +58,6 @@ TODO:
 - UPDATE: It is very likely that calculating pawn moves OTF is simply faster in most positions
   than having a look up table for pawns. Especially considering this lookup table will eat up
   L1 cache. Hence, pawn moves should be implemented OTF.
+
+- To simplify we may be able remove the queen bitboard from pieces array in chessboard struct.
+  Then a queen would just be added to both the rook/bishop bitboards

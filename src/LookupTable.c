@@ -67,11 +67,14 @@ void initializeLookupTable(LookupTable l) {
       int index = hash(occupancies, l->rookBits[s1]);
       l->rookAttacks[s1][index] = getAttacks(s1, Rook, occupancies);
     }
+    l->rank[s1] = getRank(s1);
+  }
+
+  for (Square s1 = a8; s1 <= h1; s1++) {
     for (Square s2 = a8; s2 <= h1; s2++) {
       l->squaresBetween[s1][s2] = getSquaresBetween(l, s1, s2);
       l->lineOfSight[s1][s2] = getLineOfSight(l, s1, s2);
     }
-    l->rank[s1] = getRank(s1);
   }
 }
 
