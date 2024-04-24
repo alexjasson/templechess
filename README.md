@@ -61,3 +61,5 @@ TODO:
 
 - To simplify we may be able remove the queen bitboard from pieces array in chessboard struct.
   Then the queen would just be added to both the rook/bishop bitboards
+
+- Remove king bitboard and add king square instead?
