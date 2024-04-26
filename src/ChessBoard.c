@@ -306,34 +306,36 @@ void ChessBoardTreeSearch(LookupTable l, ChessBoard cb) {
   printf("\nNodes: %ld\n", nodes);
 }
 
-Piece makeMove(ChessBoard *cb, Square from, Square to) {
-  BitBoard move = BitBoardSetBit(BitBoardSetBit(EMPTY_BOARD, to), from);
+static Piece makeMove(ChessBoard *cb, Square from, Square to) {
+  BitBoard b1 = BitBoardSetBit(EMPTY_BOARD, from);
+  BitBoard b2 = BitBoardSetBit(EMPTY_BOARD, to);
   Piece captured = cb->squares[to];
   Piece moving = cb->squares[from];
 
   cb->squares[to] = moving;
   cb->squares[from] = EMPTY_PIECE;
-  cb->pieces[moving].board ^= move;
-  cb->pieces[captured].board = BitBoardPopBit(cb->pieces[captured].board, to);
-  cb->pieces[EMPTY_PIECE].board = BitBoardSetBit(cb->pieces[EMPTY_PIECE].board, from);
+  cb->pieces[moving].board ^= (b1 | b2);
+  cb->pieces[captured].board &= ~b2;
+  cb->pieces[EMPTY_PIECE].board |= b1;
 
   cb->turn = !cb->turn;
   cb->depth--;
   cb->enPassant[cb->depth] = EMPTY_BOARD;
-  cb->castling[cb->depth].board = cb->castling[cb->depth + 1].board ^ move;
+  cb->castling[cb->depth].board = cb->castling[cb->depth + 1].board ^ (b1 | b2);
 
   return captured;
 }
 
-void unmakeMove(ChessBoard *cb, Square from, Square to, Piece captured) {
-  BitBoard move = BitBoardSetBit(BitBoardSetBit(EMPTY_BOARD, to), from);
+static void unmakeMove(ChessBoard *cb, Square from, Square to, Piece captured) {
+  BitBoard b1 = BitBoardSetBit(EMPTY_BOARD, from);
+  BitBoard b2 = BitBoardSetBit(EMPTY_BOARD, to);
   Piece moving = cb->squares[to];
 
   cb->squares[from] = moving;
   cb->squares[to] = captured;
-  cb->pieces[moving].board ^= move;
-  cb->pieces[captured].board = BitBoardSetBit(cb->pieces[captured].board, to);
-  cb->pieces[EMPTY_PIECE].board = BitBoardPopBit(cb->pieces[EMPTY_PIECE].board, from);
+  cb->pieces[moving].board ^= (b1 | b2);
+  cb->pieces[captured].board |= b2;
+  cb->pieces[EMPTY_PIECE].board &= ~b1;
 
   cb->turn = !cb->turn;
   cb->depth++;
