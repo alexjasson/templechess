@@ -9,7 +9,7 @@
 
 int main() {
     LookupTable l = LookupTableNew();
-    ChessBoard cb = ChessBoardNew(BOARD, 6);
+    ChessBoard cb = ChessBoardNew(BOARD, 7);
     ChessBoardTreeSearch(l, cb);
 
     LookupTableFree(l);

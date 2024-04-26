@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS0 = -Wall -Wextra -Werror -Ofast -march=native -flto -funroll-loops
-CFLAGS1 = -Wall -Wextra -Werror -Ofast -march=native -flto -fprofile-generate
-CFLAGS2 = -Wall -Wextra -Werror -Ofast -march=native -flto -fprofile-use
+CFLAGS1 = -Wall -Wextra -Werror -Ofast -march=native -flto -funroll-loops -fprofile-generate
+CFLAGS2 = -Wall -Wextra -Werror -Ofast -march=native -flto -funroll-loops -fprofile-use
 
 .PHONY: all clean fast
 
