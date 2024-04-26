@@ -63,3 +63,5 @@ TODO:
   Then the queen would just be added to both the rook/bishop bitboards
 
 - Remove king bitboard and add king square instead?
+
+- FIX THE BUG!!!!!!!!!! URGENT!

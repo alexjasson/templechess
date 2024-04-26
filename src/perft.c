@@ -5,22 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-void printBinary(unsigned int n) {
-    if (n > 1) {
-        printBinary(n / 2);
-    }
-    printf("%d", n % 2);
-}
+#define BOARD "k7/8/1K6/8/2N5/5q2/8/8 b - - 0 1"
 
 int main() {
     LookupTable l = LookupTableNew();
-    ChessBoard cb = ChessBoardNew("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1", 8);
+    ChessBoard cb = ChessBoardNew(BOARD, 3);
     ChessBoardTreeSearch(l, cb);
-
-    // BitBoard b = BitBoardSetBit(0, d4);
-    // b = BitBoardSetBit(b, d7);
-    // BitBoard c = LookupTableRookAttacks(l, d5, b);
-    // BitBoardPrint(c);
 
     LookupTableFree(l);
 }
