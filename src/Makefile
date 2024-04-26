@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS0 = -Wall -Wextra -Werror -Ofast -march=native -flto
+CFLAGS0 = -Wall -Wextra -Werror -Ofast -march=native -flto -funroll-loops
 CFLAGS1 = -Wall -Wextra -Werror -Ofast -march=native -flto -fprofile-generate
 CFLAGS2 = -Wall -Wextra -Werror -Ofast -march=native -flto -fprofile-use
 
