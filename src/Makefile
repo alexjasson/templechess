@@ -7,8 +7,8 @@ CFLAGS2 = -Wall -Wextra -Werror -Ofast -march=native -flto -fprofile-use
 
 all: perft
 
-perft: perft.c BitBoard.c LookupTable.c ChessBoard.c
-	$(CC) $(CFLAGS0) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c -lm
+perft: perft.c BitBoard.c LookupTable.c ChessBoard.c utility.c
+	$(CC) $(CFLAGS0) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c utility.c -lm
 
 # Generate and use profile data
 fast:
