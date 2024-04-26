@@ -12,9 +12,9 @@ perft: perft.c BitBoard.c LookupTable.c ChessBoard.c utility.c
 
 # Generate and use profile data
 fast:
-	@$(CC) $(CFLAGS1) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c -lm
+	@$(CC) $(CFLAGS1) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c utility.c -lm
 	@./perft >/dev/null 2>&1
-	$(CC) $(CFLAGS2) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c -lm
+	$(CC) $(CFLAGS2) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c utility.c -lm
 	@rm -f *.gcda *.gcno
 
 clean:

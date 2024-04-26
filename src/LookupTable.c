@@ -33,17 +33,10 @@ typedef struct {
 } HashData;
 
 struct lookupTable {
-  BitBoard pawnMoves[BOARD_SIZE][COLOR_SIZE][PAWN_MOVES_POWERSET];
-  BitBoard pawnAttacks[BOARD_SIZE][COLOR_SIZE];
   BitBoard knightAttacks[BOARD_SIZE];
   BitBoard kingAttacks[BOARD_SIZE];
   BitBoard bishopAttacks[BOARD_SIZE][BISHOP_ATTACKS_POWERSET];
   BitBoard rookAttacks[BOARD_SIZE][ROOK_ATTACKS_POWERSET];
-  BitBoard castling[COLOR_SIZE][CASTLING_POWERSET];
-  BitBoard enPassant[BOARD_SIZE][COLOR_SIZE][BOARD_SIZE + 1];
-
-  HashData pawnData[BOARD_SIZE][COLOR_SIZE]; // Used for pawn moves
-  HashData kingData[COLOR_SIZE]; // Used for castling
   HashData bishopData[BOARD_SIZE]; // Used for bishop attacks
   HashData rookData[BOARD_SIZE]; // Used for rook attacks
 
@@ -54,15 +47,11 @@ struct lookupTable {
 
 static BitBoard getMove(Square s, Type t, Direction d, int steps);
 static BitBoard getAttacks(Square s, Type t, Color c, BitBoard occupancies);
-static BitBoard getPawnMoves(Square s, Color c, BitBoard occupancies);
-static BitBoard getCastling(Color c, BitBoard castling);
-static BitBoard getEnPassant(Square s, Color c, Square enPassant);
 
 static BitBoard getRelevantBits(Square s, Type t, Color c);
 static BitBoard getBitsSubset(int index, BitBoard bits);
 static HashData getHashData(Square s, Type t, Color c);
 static int magicHash(HashData h, BitBoard occupancies);
-static int basicHash(HashData h, BitBoard occupancies);
 
 static BitBoard getSquaresBetween(LookupTable l, Square s1, Square s2);
 static BitBoard getLineOfSight(LookupTable l, Square s1, Square s2);
@@ -87,18 +76,6 @@ LookupTable LookupTableNew(void) {
 }
 
 void initializeMoveTables(LookupTable l) {
-  // Pawn moves
-  for (Square s = a8; s <= h1; s++) {
-    for (Color c = White; c <= Black; c++) {
-      l->pawnAttacks[s][c] = getAttacks(s, Pawn, c, EMPTY_BOARD);
-      for (int i = 0; i < PAWN_MOVES_POWERSET; i++) {
-        BitBoard occupancies = getBitsSubset(i, l->pawnData[s][c].bits);
-        int index = basicHash(l->pawnData[s][c], occupancies);
-        l->pawnMoves[s][c][index] = getPawnMoves(s, c, occupancies);
-      }
-    }
-  }
-
   // Minor/major piece moves
   for (Square s = a8; s <= h1; s++) {
     l->knightAttacks[s] = getAttacks(s, Knight, DEFAULT_COLOR, EMPTY_BOARD);
@@ -112,24 +89,6 @@ void initializeMoveTables(LookupTable l) {
       BitBoard occupancies = getBitsSubset(i, l->rookData[s].bits);
       int index = magicHash(l->rookData[s], occupancies);
       l->rookAttacks[s][index] = getAttacks(s, Rook, DEFAULT_COLOR, occupancies);
-    }
-  }
-
-  // Castling
-  for (Color c = White; c <= Black; c++) {
-    for (int i = 0; i < CASTLING_POWERSET; i++) {
-      BitBoard castling = getBitsSubset(i, l->kingData[c].bits);
-      int index = basicHash(l->kingData[c], castling);
-      l->castling[c][index] = getCastling(c, castling);
-    }
-  }
-
-  // EnPassant
-  for (Square s = a8; s <= h1; s++) {
-    for (Color c = White; c <= Black; c++) {
-      for (Square enPassant = a8; enPassant <= None; enPassant++) {
-        l->enPassant[s][c][enPassant] = getEnPassant(s, c, enPassant);
-      }
     }
   }
 }
@@ -146,13 +105,6 @@ void initializeHashData(LookupTable l) {
     writeToFile(l->bishopData, sizeof(HashData), BOARD_SIZE, HASH_FILEPATH, 0);
     writeToFile(l->rookData, sizeof(HashData), BOARD_SIZE, HASH_FILEPATH, sizeof(HashData) * BOARD_SIZE);
   }
-
-  for (Color c = White; c <= Black; c++) {
-    l->kingData[c] = getHashData(a1, King, c);
-    for (Square s = a8; s <= h1; s++) {
-      l->pawnData[s][c] = getHashData(s, Pawn, c);
-    }
-  }
 }
 
 void initializeHelperTables(LookupTable l) {
@@ -167,10 +119,6 @@ void initializeHelperTables(LookupTable l) {
 
 void LookupTableFree(LookupTable l) {
   free(l);
-}
-
-BitBoard LookupTableGetPawnAttacks(LookupTable l, Square s, Color c) {
-  return l->pawnAttacks[s][c];
 }
 
 BitBoard LookupTableKnightAttacks(LookupTable l, Square s) {
@@ -189,26 +137,6 @@ BitBoard LookupTableBishopAttacks(LookupTable l, Square s, BitBoard occupancies)
 BitBoard LookupTableRookAttacks(LookupTable l, Square s, BitBoard occupancies) {
   int index = magicHash(l->rookData[s], occupancies);
   return l->rookAttacks[s][index];
-}
-
-BitBoard LookupTableGetQueenAttacks(LookupTable l, Square s, BitBoard occupancies) {
-  return LookupTableBishopAttacks(l, s, occupancies) | LookupTableRookAttacks(l, s, occupancies);
-}
-
-BitBoard LookupTableGetPawnPushes(LookupTable l, Square s, Color c, BitBoard occupancies) {
-  int index = basicHash(l->pawnData[s][c], occupancies);
-  return l->pawnMoves[s][c][index];
-}
-
-BitBoard LookupTableGetCastling(LookupTable l, Color c, BitBoard castling, BitBoard occupancies, BitBoard attacked) {
-  BitBoard key = castling | (occupancies & CASTLING_OCCUPANCY_MASK) | (attacked & CASTLING_ATTACK_MASK);
-  int index = basicHash(l->kingData[c], key);
-  return l->castling[c][index];
-}
-
-// Could return just a square?
-BitBoard LookupTableGetEnPassant(LookupTable l, Square s, Color c, Square enPassant) {
-  return l->enPassant[s][c][enPassant];
 }
 
 BitBoard LookupTableGetSquaresBetween(LookupTable l, Square s1, Square s2) {
@@ -244,32 +172,6 @@ static BitBoard getAttacks(Square s, Type t, Color c, BitBoard occupancies) {
   return attacks;
 }
 
-static BitBoard getPawnMoves(Square s, Color c, BitBoard occupancies) {
-  BitBoard moves = EMPTY_BOARD;
-  bool initialRank = (c == White) ? BitBoardGetRank(s) == 6 : BitBoardGetRank(s) == 1;
-  for (int steps = 1; steps <= 2; steps++) {
-    Direction d = (c == White) ? North : South;
-    BitBoard move = getMove(s, Pawn, d, steps);
-    bool capture = move & occupancies;
-    if (capture) break;
-    if (steps == 2 && !initialRank) break;
-    moves |= move;
-  }
-  return moves;
-}
-
-static BitBoard getCastling(Color c, BitBoard castling) {
-  BitBoard moves = EMPTY_BOARD;
-  if (c == White) {
-    if ((castling & KINGSIDE & SOUTH_EDGE) == (CASTLING & KINGSIDE & SOUTH_EDGE)) moves |= BitBoardSetBit(EMPTY_BOARD, g1);
-    if ((castling & QUEENSIDE & SOUTH_EDGE) == (CASTLING & QUEENSIDE & SOUTH_EDGE)) moves |= BitBoardSetBit(EMPTY_BOARD, c1);
-  } else {
-    if ((castling & KINGSIDE & NORTH_EDGE) == (CASTLING & KINGSIDE & NORTH_EDGE)) moves |= BitBoardSetBit(EMPTY_BOARD, g8);
-    if ((castling & QUEENSIDE & NORTH_EDGE) == (CASTLING & QUEENSIDE & NORTH_EDGE)) moves |= BitBoardSetBit(EMPTY_BOARD, c8);
-  }
-  return moves;
-}
-
 // Assume knight or queen will not be passed to this function
 static BitBoard getRelevantBits(Square s, Type t, Color c) {
   BitBoard relevantBits = EMPTY_BOARD;
@@ -289,23 +191,6 @@ static BitBoard getRelevantBits(Square s, Type t, Color c) {
   }
 
   return relevantBits;
-}
-
-// Assume there can only be one en passant move for any pawn
-static BitBoard getEnPassant(Square s, Color c, Square enPassant) {
-  BitBoard enPassantBitBoard = BitBoardSetBit(EMPTY_BOARD, enPassant);
-  BitBoard moves = EMPTY_BOARD;
-  BitBoard m1, m2;
-  if (c == White) {
-    m1 = getMove(s, Pawn, Northeast, 1);
-    m2 = getMove(s, Pawn, Northwest, 1);
-  } else {
-    m1 = getMove(s, Pawn, Southeast, 1);
-    m2 = getMove(s, Pawn, Southwest, 1);
-  }
-  if (m1 & enPassantBitBoard) moves |= getMove(s, Pawn, East, 1);
-  if (m2 & enPassantBitBoard) moves |= getMove(s, Pawn, West, 1);
-  return moves;
 }
 
 // Return a bitboard that represents a square that a piece is attacking
@@ -345,10 +230,6 @@ static BitBoard getBitsSubset(int index, BitBoard bits) {
 
 static int magicHash(HashData h, BitBoard occupancies) {
   return (int)(((h.bits & occupancies) * h.magicNumber) >> (h.bitShift));
-}
-
-static int basicHash(HashData h, BitBoard occupancies) {
-  return (int)((h.bits & occupancies) >> (h.bitShift));
 }
 
 static HashData getHashData(Square s, Type t, Color c) {
