@@ -21,8 +21,8 @@
 #define KINGSIDE_CASTLING 0b00001001
 #define QUEENSIDE_CASTLING 0b10001000
 
-ChessBoard boardstack[MAX_DEPTH];
-int stackIndex = 0;
+// ChessBoard boardstack[MAX_DEPTH];
+// int stackIndex = 0;
 
 static Color getColorFromASCII(char asciiColor);
 static Piece getPieceFromASCII(char asciiPiece);
@@ -132,20 +132,6 @@ static Color getColorFromASCII(char asciiColor) {
 }
 
 static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
-  // DEBUGGING
-  if (OUR(King) == EMPTY_BOARD) {
-    // print boardstack
-    printf("\n--------- BOARD STACK ------------\n");
-    for (int i = 0; i <= stackIndex; i++) {
-      ChessBoardPrint(boardstack[i]);
-      for (int j = 0; j <= PIECE_SIZE; j++) {
-        BitBoardPrint(boardstack[i].pieces[j].board);
-        printf("\n");
-      }
-    }
-  }
-  assert(OUR(King) != EMPTY_BOARD);
-
   if (cb->depth == 0) return 1;
   long leafNodes = 0, subTree;
 
@@ -189,7 +175,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
     b1 = OUR(Knight) & ~pinned;
     while (b1) {
       s1 = BitBoardPopLSB(&b1);
-      b2 = LookupTableKnightAttacks(l, s1) & checkMask; //& ~THEIR(King);
+      b2 = LookupTableKnightAttacks(l, s1) & checkMask;
       while (b2) {
         s2 = BitBoardPopLSB(&b2);
         p = makeMove(cb, s1, s2);
@@ -204,7 +190,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
     b1 = (OUR(Bishop) | OUR(Queen)) & ~pinned;
     while (b1) {
       s1 = BitBoardPopLSB(&b1);
-      b2 = LookupTableBishopAttacks(l, s1, occupancies.board) & checkMask; //  & ~THEIR(King);
+      b2 = LookupTableBishopAttacks(l, s1, occupancies.board) & checkMask;
       while (b2) {
         s2 = BitBoardPopLSB(&b2);
         p = makeMove(cb, s1, s2);
@@ -219,7 +205,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
     b1 = (OUR(Rook) | OUR(Queen)) & ~pinned;
     while (b1) {
       s1 = BitBoardPopLSB(&b1);
-      b2 = LookupTableRookAttacks(l, s1, occupancies.board) & checkMask; //  & ~THEIR(King);
+      b2 = LookupTableRookAttacks(l, s1, occupancies.board) & checkMask;
       while (b2) {
         s2 = BitBoardPopLSB(&b2);
         p = makeMove(cb, s1, s2);
@@ -239,7 +225,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   b1 = OUR(Knight) & ~pinned;
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
-    b2 = LookupTableKnightAttacks(l, s1) & ~us; // & ~THEIR(King);
+    b2 = LookupTableKnightAttacks(l, s1) & ~us;
     while (b2) {
       s2 = BitBoardPopLSB(&b2);
       p = makeMove(cb, s1, s2);
@@ -254,7 +240,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   b1 = (OUR(Bishop) | OUR(Queen)) & ~pinned;
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
-    b2 = LookupTableBishopAttacks(l, s1, occupancies.board) & ~us; //  & ~THEIR(King);
+    b2 = LookupTableBishopAttacks(l, s1, occupancies.board) & ~us;
     while (b2) {
       s2 = BitBoardPopLSB(&b2);
       p = makeMove(cb, s1, s2);
@@ -270,7 +256,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
     // Remove attacks that are not on the pin line
-    b2 = LookupTableBishopAttacks(l, s1, occupancies.board) & LookupTableGetLineOfSight(l, ourKing, s1); // & ~THEIR(King);
+    b2 = LookupTableBishopAttacks(l, s1, occupancies.board) & LookupTableGetLineOfSight(l, ourKing, s1);
     while (b2) {
       s2 = BitBoardPopLSB(&b2);
       p = makeMove(cb, s1, s2);
@@ -285,7 +271,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   b1 = (OUR(Rook) | OUR(Queen)) & ~pinned;
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
-    b2 = LookupTableRookAttacks(l, s1, occupancies.board) & ~us; //& ~THEIR(King);
+    b2 = LookupTableRookAttacks(l, s1, occupancies.board) & ~us;
     while (b2) {
       s2 = BitBoardPopLSB(&b2);
       p = makeMove(cb, s1, s2);
@@ -301,7 +287,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
     // Remove attacks that are not on the pin line
-    b2 = LookupTableRookAttacks(l, s1, occupancies.board) & LookupTableGetLineOfSight(l, ourKing, s1); // & ~THEIR(King);
+    b2 = LookupTableRookAttacks(l, s1, occupancies.board) & LookupTableGetLineOfSight(l, ourKing, s1);
     while (b2) {
       s2 = BitBoardPopLSB(&b2);
       p = makeMove(cb, s1, s2);
@@ -328,15 +314,13 @@ Piece makeMove(ChessBoard *cb, Square from, Square to) {
   cb->squares[to] = moving;
   cb->squares[from] = EMPTY_PIECE;
   cb->pieces[moving].board ^= move;
-  cb->pieces[captured].board &= ~move;
+  cb->pieces[captured].board = BitBoardPopBit(cb->pieces[captured].board, to);
+  cb->pieces[EMPTY_PIECE].board = BitBoardSetBit(cb->pieces[EMPTY_PIECE].board, from);
 
   cb->turn = !cb->turn;
   cb->depth--;
   cb->enPassant[cb->depth] = EMPTY_BOARD;
   cb->castling[cb->depth].board = cb->castling[cb->depth + 1].board ^ move;
-
-  stackIndex++;
-  boardstack[stackIndex] = *cb;
 
   return captured;
 }
@@ -349,12 +333,10 @@ void unmakeMove(ChessBoard *cb, Square from, Square to, Piece captured) {
   cb->squares[to] = captured;
   cb->pieces[moving].board ^= move;
   cb->pieces[captured].board = BitBoardSetBit(cb->pieces[captured].board, to);
+  cb->pieces[EMPTY_PIECE].board = BitBoardPopBit(cb->pieces[EMPTY_PIECE].board, from);
 
   cb->turn = !cb->turn;
   cb->depth++;
-
-  stackIndex--;
-  boardstack[stackIndex] = *cb;
 }
 
 void printMove(Square from, Square to, long nodes) {
