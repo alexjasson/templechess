@@ -118,6 +118,19 @@ BitBoard LookupTableRookAttacks(LookupTable l, Square s, BitBoard occupancies) {
   return l->rookAttacks[s][index];
 }
 
+BitBoard LookupTableAttacks(LookupTable l, Square s, Type t, BitBoard occupancies) {
+  switch (t) {
+    case Knight: return l->knightAttacks[s];
+    case King: return l->kingAttacks[s];
+    case Bishop: return l->bishopAttacks[s][magicHash(l->bishopMagics[s], occupancies)];
+    case Rook: return l->rookAttacks[s][magicHash(l->rookMagics[s], occupancies)];
+    case Queen: return l->bishopAttacks[s][magicHash(l->bishopMagics[s], occupancies)] |
+                       l->rookAttacks[s][magicHash(l->rookMagics[s], occupancies)];
+    default: printf("Piece: %d\n", t); // "Invalid piece type\n
+              fprintf(stderr, "Invalid piece type\n"); exit(EXIT_FAILURE);
+  }
+}
+
 BitBoard LookupTableGetSquaresBetween(LookupTable l, Square s1, Square s2) {
   return l->squaresBetween[s1][s2];
 }
