@@ -8,10 +8,10 @@
 #include "LookupTable.h"
 #include "ChessBoard.h"
 
-#define EMPTY_PIECE 12
-#define GET_PIECE(t, c) ((t << 1) | c)
-#define GET_TYPE(p) (p >> 1)
-#define GET_COLOR(p) (p & 1)
+#define EMPTY_PIECE 0
+#define GET_PIECE(t, c) (((t << 1) | c) + 1)
+#define GET_TYPE(p) ((p - 1) >> 1)
+#define GET_COLOR(p) ((p - 1) & 1)
 
 #define OUR(t) (cb->pieces[GET_PIECE(t, cb->turn)].board) // Bitboard representing our pieces of type t
 #define THEIR(t) (cb->pieces[GET_PIECE(t, !cb->turn)].board) // Bitboard representing their pieces of type t
