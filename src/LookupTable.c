@@ -100,24 +100,6 @@ void LookupTableFree(LookupTable l) {
   free(l);
 }
 
-BitBoard LookupTableKnightAttacks(LookupTable l, Square s) {
-  return l->knightAttacks[s];
-}
-
-BitBoard LookupTableKingAttacks(LookupTable l, Square s) {
-  return l->kingAttacks[s];
-}
-
-BitBoard LookupTableBishopAttacks(LookupTable l, Square s, BitBoard occupancies) {
-  int index = magicHash(l->bishopMagics[s], occupancies);
-  return l->bishopAttacks[s][index];
-}
-
-BitBoard LookupTableRookAttacks(LookupTable l, Square s, BitBoard occupancies) {
-  int index = magicHash(l->rookMagics[s], occupancies);
-  return l->rookAttacks[s][index];
-}
-
 BitBoard LookupTableAttacks(LookupTable l, Square s, Type t, BitBoard occupancies) {
   switch (t) {
     case Knight: return l->knightAttacks[s];
@@ -287,12 +269,12 @@ static BitBoard getSquaresBetween(LookupTable l, Square s1, Square s2) {
   BitBoard pieces = BitBoardSetBit(EMPTY_BOARD, s1) | BitBoardSetBit(EMPTY_BOARD, s2);
   BitBoard squaresBetween = EMPTY_BOARD;
   if (BitBoardGetFile(s1) == BitBoardGetFile(s2) || BitBoardGetRank(s1) == BitBoardGetRank(s2)) {
-    squaresBetween = LookupTableRookAttacks(l, s1, pieces) &
-                     LookupTableRookAttacks(l, s2, pieces);
+    squaresBetween = LookupTableAttacks(l, s1, Rook, pieces) &
+                     LookupTableAttacks(l, s2, Rook, pieces);
   } else if (BitBoardGetDiagonal(s1) == BitBoardGetDiagonal(s2) ||
              BitBoardGetAntiDiagonal(s1) == BitBoardGetAntiDiagonal(s2)) {
-    squaresBetween = LookupTableBishopAttacks(l, s1, pieces) &
-                     LookupTableBishopAttacks(l, s2, pieces);
+    squaresBetween = LookupTableAttacks(l, s1, Bishop, pieces) &
+                     LookupTableAttacks(l, s2, Bishop, pieces);
   }
   return squaresBetween;
 }
@@ -300,13 +282,13 @@ static BitBoard getSquaresBetween(LookupTable l, Square s1, Square s2) {
 static BitBoard getLineOfSight(LookupTable l, Square s1, Square s2) {
   BitBoard lineOfSight = EMPTY_BOARD;
   if (BitBoardGetFile(s1) == BitBoardGetFile(s2) || BitBoardGetRank(s1) == BitBoardGetRank(s2)) {
-    lineOfSight = (LookupTableRookAttacks(l, s1, EMPTY_BOARD) &
-                   LookupTableRookAttacks(l, s2, EMPTY_BOARD)) |
+    lineOfSight = (LookupTableAttacks(l, s1, Rook, EMPTY_BOARD) &
+                   LookupTableAttacks(l, s2, Rook, EMPTY_BOARD)) |
                    BitBoardSetBit(EMPTY_BOARD, s2);
   } else if (BitBoardGetDiagonal(s1) == BitBoardGetDiagonal(s2) ||
              BitBoardGetAntiDiagonal(s1) == BitBoardGetAntiDiagonal(s2)) {
-    lineOfSight = (LookupTableBishopAttacks(l, s1, EMPTY_BOARD) &
-                   LookupTableBishopAttacks(l, s2, EMPTY_BOARD)) |
+    lineOfSight = (LookupTableAttacks(l, s1, Bishop, EMPTY_BOARD) &
+                   LookupTableAttacks(l, s2, Bishop, EMPTY_BOARD)) |
                    BitBoardSetBit(EMPTY_BOARD, s2);
   }
   return lineOfSight;

@@ -60,9 +60,5 @@ TODO:
   than having a look up table for pawns. Especially considering this lookup table will eat up
   L1 cache. Hence, pawn moves should be implemented OTF.
 
-- To simplify we may be able remove the queen bitboard from pieces array in chessboard struct.
-  Then the queen would just be added to both the rook/bishop bitboards
-
-- Remove king bitboard and add king square instead?
-
-- Consider just having a pieces bitboard and having pawn moves in the lookup table?
+- Give BitMap it's own file
+- Replace pieces BitMap with BitBoard
