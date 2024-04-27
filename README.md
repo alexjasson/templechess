@@ -20,6 +20,7 @@ TODO:
   subsets of maximum cardinality 1, since currently we only generate all subsets. That means the
   pawns lookup table will take up 72 * 64 * 2 * 8 = ~74KB.
   ^DEPRECIATED^
+  16 * 64 * 2 * 8 = 16KB
 
 - Change BitBoard enPassant to BitRank enPassant in ChessBoard ADT
 - Change BitBoard ADT file to BitMap ADT, use BitMap in place of BitBoard
@@ -64,4 +65,4 @@ TODO:
 
 - Remove king bitboard and add king square instead?
 
-- FIX THE BUG!!!!!!!!!! URGENT!
+- Consider just having a pieces bitboard and having pawn moves in the lookup table?
