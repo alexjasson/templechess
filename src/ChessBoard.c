@@ -122,7 +122,7 @@ static Piece getPieceFromASCII(char asciiPiece) {
 // Assumes that piece is valid
 static char getASCIIFromPiece(Piece p) {
   if (p == EMPTY_PIECE) return '-';
-  static const char *pieces = "PKNBRQ";
+  char *pieces = "PKNBRQ";
   char asciiPiece = pieces[GET_TYPE(p)];
   return GET_COLOR(p) == Black ? tolower(asciiPiece) : asciiPiece;
 }
@@ -297,16 +297,8 @@ static BitMap getAttackedSquares(LookupTable l, ChessBoard *cb) {
   BitBoard occupancies = ALL & ~OUR(King);
 
   attacked.board = pawnAttacksSet(THEIR(Pawn), !cb->turn);
-  attacked.board |= LookupTableKingAttacks(l, BitBoardGetLSB(THEIR(King)));
-
-  b = THEIR(Knight);
-  while (b) attacked.board |= LookupTableKnightAttacks(l, BitBoardPopLSB(&b));
-
-  b = THEIR(Bishop) | THEIR(Queen);
-  while (b) attacked.board |= LookupTableBishopAttacks(l, BitBoardPopLSB(&b), occupancies);
-
-  b = THEIR(Rook) | THEIR(Queen);
-  while (b) attacked.board |= LookupTableRookAttacks(l, BitBoardPopLSB(&b), occupancies);
+  b = THEIR(King) | THEIR(Knight) | THEIR(Bishop) | THEIR(Rook) | THEIR(Queen);
+  while (b) attacked.board |= LookupTableAttacks(l, BitBoardPopLSB(&b), GET_TYPE(cb->squares[BitBoardGetLSB(b)]), occupancies);
 
   return attacked;
 }
