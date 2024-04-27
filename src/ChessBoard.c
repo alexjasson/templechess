@@ -21,8 +21,8 @@
 #define KINGSIDE_CASTLING 0b00001001
 #define QUEENSIDE_CASTLING 0b10001000
 
-// ChessBoard boardstack[MAX_DEPTH];
-// int stackIndex = 0;
+// Given a square, returns a bitboard representing the rank of that square
+#define GET_RANK(s) (SOUTH_EDGE >> (EDGE_SIZE * (EDGE_SIZE - BitBoardGetRank(s) - 1)))
 
 static Color getColorFromASCII(char asciiColor);
 static Piece getPieceFromASCII(char asciiPiece);
