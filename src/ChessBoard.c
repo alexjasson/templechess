@@ -29,7 +29,7 @@ static Piece getPieceFromASCII(char asciiPiece);
 static char getASCIIFromPiece(Piece p);
 
 static BitBoard pawnAttacksSet(BitBoard p, Color c);
-static Piece makeMove(ChessBoard *cb, Square from, Square to);
+static Piece makeMove(ChessBoard *cb, Square from, Square to, Piece moving);
 static void unmakeMove(ChessBoard *cb, Square from, Square to, Piece captured);
 static BitMap getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
@@ -201,7 +201,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   // General purpose BitBoards/Squares/pieces
   BitBoard b1, b2;
   Square s1, s2;
-  Piece p;
+  Piece p1, p2;
 
   // Data needed for move generation
   Square ourKing = BitBoardGetLSB(OUR(King));
@@ -221,11 +221,11 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   b1 = LookupTableAttacks(l, ourKing, King, occupancies.board) & ~us & ~attacked.board;
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
-    p = makeMove(cb, ourKing, s1);
+    p1 = makeMove(cb, ourKing, s1, GET_PIECE(King, cb->turn));
     subTree = treeSearch(l, cb, noOp);
     leafNodes += subTree;
     traverseFn(ourKing, s1, subTree);
-    unmakeMove(cb, ourKing, s1, p);
+    unmakeMove(cb, ourKing, s1, p1);
   }
 
   if (numChecking > 1) return leafNodes; // Double check, only king can move
@@ -238,14 +238,15 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
     b1 = us & ~(OUR(Pawn) | OUR(King)) & ~pinned;
     while (b1) {
       s1 = BitBoardPopLSB(&b1);
-      b2 = LookupTableAttacks(l, s1, GET_TYPE(cb->squares[s1]), occupancies.board) & checkMask;
+      p1 = cb->squares[s1];
+      b2 = LookupTableAttacks(l, s1, GET_TYPE(p1), occupancies.board) & checkMask;
       while (b2) {
         s2 = BitBoardPopLSB(&b2);
-        p = makeMove(cb, s1, s2);
+        p2 = makeMove(cb, s1, s2, p1);
         subTree = treeSearch(l, cb, noOp);
         leafNodes += subTree;
         traverseFn(s1, s2, subTree);
-        unmakeMove(cb, s1, s2, p);
+        unmakeMove(cb, s1, s2, p2);
       }
     }
 
@@ -258,14 +259,15 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   b1 = us & ~(OUR(Pawn) | OUR(King)) & ~pinned;
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
-    b2 = LookupTableAttacks(l, s1, GET_TYPE(cb->squares[s1]), occupancies.board) & ~us;
+    p1 = cb->squares[s1];
+    b2 = LookupTableAttacks(l, s1, GET_TYPE(p1), occupancies.board) & ~us;
     while (b2) {
       s2 = BitBoardPopLSB(&b2);
-      p = makeMove(cb, s1, s2);
+      p2 = makeMove(cb, s1, s2, p1);
       subTree = treeSearch(l, cb, noOp);
       leafNodes += subTree;
       traverseFn(s1, s2, subTree);
-      unmakeMove(cb, s1, s2, p);
+      unmakeMove(cb, s1, s2, p2);
     }
   }
 
@@ -273,16 +275,17 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   b1 = (OUR(Bishop) | OUR(Rook)| OUR(Queen)) & pinned;
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
+    p1 = cb->squares[s1];
     // Remove moves that are not on the pin line
-    b2 = LookupTableAttacks(l, s1, GET_TYPE(cb->squares[s1]), occupancies.board)
+    b2 = LookupTableAttacks(l, s1, GET_TYPE(p1), occupancies.board)
        & LookupTableGetLineOfSight(l, ourKing, s1);
     while (b2) {
       s2 = BitBoardPopLSB(&b2);
-      p = makeMove(cb, s1, s2);
+      p2 = makeMove(cb, s1, s2, p1);
       subTree = treeSearch(l, cb, noOp);
       leafNodes += subTree;
       traverseFn(s1, s2, subTree);
-      unmakeMove(cb, s1, s2, p);
+      unmakeMove(cb, s1, s2, p2);
     }
   }
 
@@ -294,11 +297,10 @@ void ChessBoardTreeSearch(LookupTable l, ChessBoard cb) {
   printf("\nNodes: %ld\n", nodes);
 }
 
-inline static Piece makeMove(ChessBoard *cb, Square from, Square to) {
+inline static Piece makeMove(ChessBoard *cb, Square from, Square to, Piece moving) {
   BitBoard b1 = BitBoardSetBit(EMPTY_BOARD, from);
   BitBoard b2 = BitBoardSetBit(EMPTY_BOARD, to);
   Piece captured = cb->squares[to];
-  Piece moving = cb->squares[from];
 
   cb->squares[to] = moving;
   cb->squares[from] = EMPTY_PIECE;
