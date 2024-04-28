@@ -132,7 +132,7 @@ static Color getColorFromASCII(char asciiColor) {
 static long countMoves(LookupTable l, ChessBoard *cb) {
   long moves = 0;
 
-  // General purpose BitBoards/Squares/pieces
+  // General purpose BitBoards/Squares
   BitBoard b1, b2;
   Square s;
 
