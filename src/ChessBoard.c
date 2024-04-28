@@ -227,7 +227,7 @@ void ChessBoardTreeSearch(LookupTable l, ChessBoard cb) {
   printf("\nNodes: %ld\n", nodes);
 }
 
-static Piece makeMove(ChessBoard *cb, Square from, Square to) {
+inline static Piece makeMove(ChessBoard *cb, Square from, Square to) {
   BitBoard b1 = BitBoardSetBit(EMPTY_BOARD, from);
   BitBoard b2 = BitBoardSetBit(EMPTY_BOARD, to);
   Piece captured = cb->squares[to];
@@ -247,7 +247,7 @@ static Piece makeMove(ChessBoard *cb, Square from, Square to) {
   return captured;
 }
 
-static void unmakeMove(ChessBoard *cb, Square from, Square to, Piece captured) {
+inline static void unmakeMove(ChessBoard *cb, Square from, Square to, Piece captured) {
   BitBoard b1 = BitBoardSetBit(EMPTY_BOARD, from);
   BitBoard b2 = BitBoardSetBit(EMPTY_BOARD, to);
   Piece moving = cb->squares[to];
