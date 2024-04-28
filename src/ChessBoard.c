@@ -206,7 +206,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
   b1 = (OUR(Bishop) | OUR(Rook)| OUR(Queen)) & pinned;
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
-    // Remove attacks that are not on the pin line
+    // Remove moves that are not on the pin line
     b2 = LookupTableAttacks(l, s1, GET_TYPE(cb->squares[s1]), occupancies.board)
        & LookupTableGetLineOfSight(l, ourKing, s1);
     while (b2) {

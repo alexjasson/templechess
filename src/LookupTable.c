@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <time.h>
-#include <pthread.h>
 
 #include "BitBoard.h"
 #include "LookupTable.h"
