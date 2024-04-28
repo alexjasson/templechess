@@ -138,7 +138,7 @@ static long countMoves(LookupTable l, ChessBoard *cb) {
 
   // Data needed for move generation
   Square ourKing = BitBoardGetLSB(OUR(King));
-  BitBoard us, them, pinned, checking, checkMask;
+  BitBoard us, them, pinned, checking;
   BitMap occupancies, attacked;
   int numChecking;
   us = them = pinned = checking = EMPTY_BOARD;
@@ -158,7 +158,7 @@ static long countMoves(LookupTable l, ChessBoard *cb) {
 
   if (numChecking > 0) { // Single check
 
-    checkMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), ourKing);
+    BitBoard checkMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), ourKing);
 
     // Count non pinned piece moves
     b1 = us & ~(OUR(Pawn) | OUR(King)) & ~pinned;
@@ -205,7 +205,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
 
   // Data needed for move generation
   Square ourKing = BitBoardGetLSB(OUR(King));
-  BitBoard us, them, pinned, checking, checkMask;
+  BitBoard us, them, pinned, checking;
   BitMap occupancies, attacked;
   int numChecking;
   us = them = pinned = checking = EMPTY_BOARD;
@@ -232,7 +232,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
 
   if (numChecking > 0) { // Single check
 
-    checkMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), ourKing);
+    BitBoard checkMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), ourKing);
 
     // Traverse non pinned piece moves
     b1 = us & ~(OUR(Pawn) | OUR(King)) & ~pinned;
