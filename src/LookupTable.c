@@ -109,7 +109,7 @@ BitBoard LookupTableAttacks(LookupTable l, Square s, Type t, BitBoard occupancie
     case Queen: return l->bishopAttacks[s][magicHash(l->bishopMagics[s], occupancies)] |
                        l->rookAttacks[s][magicHash(l->rookMagics[s], occupancies)];
     default: printf("Piece: %d\n", t); // "Invalid piece type\n
-              fprintf(stderr, "Invalid piece type\n"); exit(EXIT_FAILURE);
+             fprintf(stderr, "Invalid piece type\n"); exit(EXIT_FAILURE);
   }
 }
 

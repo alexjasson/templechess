@@ -13,9 +13,9 @@
 #define GET_TYPE(p) ((p - 1) >> 1)
 #define GET_COLOR(p) ((p - 1) & 1)
 
-#define OUR(t) (cb->pieces[GET_PIECE(t, cb->turn)].board) // Bitboard representing our pieces of type t
-#define THEIR(t) (cb->pieces[GET_PIECE(t, !cb->turn)].board) // Bitboard representing their pieces of type t
-#define ALL (~cb->pieces[EMPTY_PIECE].board) // Bitboard of all the pieces
+#define OUR(t) (cb->pieces[GET_PIECE(t, cb->turn)]) // Bitboard representing our pieces of type t
+#define THEIR(t) (cb->pieces[GET_PIECE(t, !cb->turn)]) // Bitboard representing their pieces of type t
+#define ALL (~cb->pieces[EMPTY_PIECE]) // Bitboard of all the pieces
 
 #define BOTHSIDE_CASTLING 0b10001001
 #define KINGSIDE_CASTLING 0b00001001
@@ -49,13 +49,13 @@ ChessBoard ChessBoardNew(char *fen, int depth) {
 
     if (*fen >= '1' && *fen <= '8') {
       for (int numSquares = *fen - '0'; numSquares > 0; numSquares--) {
-        cb.pieces[EMPTY_PIECE].board |= BitBoardSetBit(EMPTY_BOARD, s);
+        cb.pieces[EMPTY_PIECE] |= BitBoardSetBit(EMPTY_BOARD, s);
         cb.squares[s] = EMPTY_PIECE;
         s++;
       }
     } else {
       Piece p = getPieceFromASCII(*fen);
-      cb.pieces[p].board |= BitBoardSetBit(EMPTY_BOARD, s);
+      cb.pieces[p] |= BitBoardSetBit(EMPTY_BOARD, s);
       cb.squares[s] = p;
       s++;
     }
@@ -235,9 +235,9 @@ static Piece makeMove(ChessBoard *cb, Square from, Square to) {
 
   cb->squares[to] = moving;
   cb->squares[from] = EMPTY_PIECE;
-  cb->pieces[moving].board ^= (b1 | b2);
-  cb->pieces[captured].board &= ~b2;
-  cb->pieces[EMPTY_PIECE].board |= b1;
+  cb->pieces[moving] ^= (b1 | b2);
+  cb->pieces[captured] &= ~b2;
+  cb->pieces[EMPTY_PIECE] |= b1;
 
   cb->turn = !cb->turn;
   cb->depth--;
@@ -254,9 +254,9 @@ static void unmakeMove(ChessBoard *cb, Square from, Square to, Piece captured) {
 
   cb->squares[from] = moving;
   cb->squares[to] = captured;
-  cb->pieces[moving].board ^= (b1 | b2);
-  cb->pieces[captured].board |= b2;
-  cb->pieces[EMPTY_PIECE].board &= ~b1;
+  cb->pieces[moving] ^= (b1 | b2);
+  cb->pieces[captured] |= b2;
+  cb->pieces[EMPTY_PIECE] &= ~b1;
 
   cb->turn = !cb->turn;
   cb->depth++;

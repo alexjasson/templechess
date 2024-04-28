@@ -1,19 +1,15 @@
 #ifndef CHESSBOARD_H
 #define CHESSBOARD_H
 
+#include "BitMap.h"
+
 #define MAX_DEPTH 16
 #define PIECE_SIZE 12
 
-typedef uint8_t BitRank; // index 0 is back rank of black, 7 is back rank of white
 typedef uint8_t Piece;
 
-typedef union {
-  BitBoard board;
-  BitRank rank[EDGE_SIZE];
-} BitMap;
-
 typedef struct {
-  BitMap pieces[PIECE_SIZE + 1];
+  BitBoard pieces[PIECE_SIZE + 1];
   Piece squares[BOARD_SIZE];
 
   Color turn;
