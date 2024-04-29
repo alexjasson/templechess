@@ -58,3 +58,6 @@ To traverse left pawn moves:
   board rep.
 
 - Consider using a goto for numChecking in treeSearch to reduce nested if statements
+
+- You'll most likely have to have a switch which determines which move is being played
+  in the traverseFn and pass the 'MoveType' to it
