@@ -52,3 +52,7 @@ To traverse left pawn moves:
 - Pass this to the traverseFn
 - Continue loop
 
+- If we're counting moves in the tree search function, we don't need to traverse each
+  pawn move like above, we can ust get a bitboard of all the pawn moves (left, right, single push, double)
+  and then count the moves on it. Since we're not actually playing these moves on our
+  board rep.
