@@ -42,8 +42,6 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, BitBoard moves, Square 
 static long printMoves(LookupTable l, ChessBoard *cb, BitBoard moves, Square from);
 static long countMoves(LookupTable l, ChessBoard *cb, BitBoard moves, Square from);
 
-//static void nop(){}; // A function that does nothing
-
 // Assumes FEN and depth is valid
 ChessBoard ChessBoardNew(char *fen, int depth) {
   ChessBoard cb;
@@ -136,7 +134,7 @@ static Color getColorFromASCII(char asciiColor) {
 static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // Base cases
   if (cb->depth == 0) return 1;
-  // If we are at the node before the leaf nodes, start counting the moves
+  // If we are at the node before the leaf nodes and still traversing, start counting moves
   if (cb->depth == 1 && traverseFn == traverseMoves) return treeSearch(l, cb, countMoves);
   long nodes = 0;
 
@@ -233,13 +231,11 @@ long printMoves(LookupTable l, ChessBoard *cb, BitBoard moves, Square from) {
 }
 
 long countMoves(LookupTable l, ChessBoard *cb, BitBoard moves, Square from) {
-  (void)l;
-  (void)cb;
-  (void)from;
+  (void) l;
+  (void) cb;
+  (void) from;
   return BitBoardCountBits(moves);
 }
-
-
 
 void ChessBoardTreeSearch(LookupTable l, ChessBoard cb) {
   long nodes = treeSearch(l, &cb, printMoves);
