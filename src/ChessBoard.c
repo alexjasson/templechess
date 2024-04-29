@@ -33,11 +33,11 @@ static Piece makeMove(ChessBoard *cb, Square from, Square to, Piece moving);
 static void unmakeMove(ChessBoard *cb, Square from, Square to, Piece captured);
 static BitMap getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
-static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)());
-static long countMoves(LookupTable l, ChessBoard *cb);
+static long treeSearch(LookupTable l, ChessBoard *cb, void (*nodeFn)(LookupTable, ChessBoard *, BitBoard, Square, long *));
+//static long countMoves(LookupTable l, ChessBoard *cb);
 static void printMove(Square from, Square to, long nodes);
 
-static void noOp(){}; // A function that does nothing
+//static void noOp(){}; // A function that does nothing
 
 // Assumes FEN and depth is valid
 ChessBoard ChessBoardNew(char *fen, int depth) {
@@ -128,80 +128,80 @@ static Color getColorFromASCII(char asciiColor) {
   return (asciiColor == 'w') ? White : Black;
 }
 
-// Count the number of moves in a chess position
-static long countMoves(LookupTable l, ChessBoard *cb) {
-  long moves = 0;
+// // Count the number of moves in a chess position
+// static long countMoves(LookupTable l, ChessBoard *cb) {
+//   long moves = 0;
 
-  // General purpose BitBoards/Squares
-  BitBoard b1, b2;
-  Square s;
+//   // General purpose BitBoards/Squares
+//   BitBoard b1, b2;
+//   Square s;
 
-  // Data needed for move generation
-  Square ourKing = BitBoardGetLSB(OUR(King));
-  BitBoard us, them, pinned, checking;
-  BitMap occupancies, attacked;
-  int numChecking;
-  us = them = pinned = checking = EMPTY_BOARD;
+//   // Data needed for move generation
+//   Square ourKing = BitBoardGetLSB(OUR(King));
+//   BitBoard us, them, pinned, checking;
+//   BitMap occupancies, attacked;
+//   int numChecking;
+//   us = them = pinned = checking = EMPTY_BOARD;
 
-  for (Type t = Pawn; t <= Queen; t++) us |= OUR(t);
-  occupancies.board = ALL;
-  them = occupancies.board & ~us;
-  attacked = getAttackedSquares(l, cb, them);
-  checking = getCheckingPieces(l, cb, them, &pinned);
-  numChecking = BitBoardCountBits(checking);
+//   for (Type t = Pawn; t <= Queen; t++) us |= OUR(t);
+//   occupancies.board = ALL;
+//   them = occupancies.board & ~us;
+//   attacked = getAttackedSquares(l, cb, them);
+//   checking = getCheckingPieces(l, cb, them, &pinned);
+//   numChecking = BitBoardCountBits(checking);
 
-  // Count king moves
-  b1 = LookupTableAttacks(l, ourKing, King, occupancies.board) & ~us & ~attacked.board;
-  moves += BitBoardCountBits(b1);
+//   // Count king moves
+//   b1 = LookupTableAttacks(l, ourKing, King, occupancies.board) & ~us & ~attacked.board;
+//   moves += BitBoardCountBits(b1);
 
-  if (numChecking > 1) return moves; // Double check, only king can move
+//   if (numChecking > 1) return moves; // Double check, only king can move
 
-  if (numChecking > 0) { // Single check
+//   if (numChecking > 0) { // Single check
 
-    BitBoard checkMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), ourKing);
+//     BitBoard checkMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), ourKing);
 
-    // Count non pinned piece moves
-    b1 = us & ~(OUR(Pawn) | OUR(King)) & ~pinned;
-    while (b1) {
-      s = BitBoardPopLSB(&b1);
-      b2 = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), occupancies.board) & checkMask;
-      moves += BitBoardCountBits(b2);
-    }
+//     // Count non pinned piece moves
+//     b1 = us & ~(OUR(Pawn) | OUR(King)) & ~pinned;
+//     while (b1) {
+//       s = BitBoardPopLSB(&b1);
+//       b2 = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), occupancies.board) & checkMask;
+//       moves += BitBoardCountBits(b2);
+//     }
 
-    return moves;
-  }
+//     return moves;
+//   }
 
-  // No check
+//   // No check
 
-  // Count non pinned piece moves
-  b1 = us & ~(OUR(Pawn) | OUR(King)) & ~pinned;
-  while (b1) {
-    s = BitBoardPopLSB(&b1);
-    b2 = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), occupancies.board) & ~us;
-    moves += BitBoardCountBits(b2);
-  }
+//   // Count non pinned piece moves
+//   b1 = us & ~(OUR(Pawn) | OUR(King)) & ~pinned;
+//   while (b1) {
+//     s = BitBoardPopLSB(&b1);
+//     b2 = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), occupancies.board) & ~us;
+//     moves += BitBoardCountBits(b2);
+//   }
 
-  // Count pinned piece moves
-  b1 = (OUR(Bishop) | OUR(Rook)| OUR(Queen)) & pinned;
-  while (b1) {
-    s = BitBoardPopLSB(&b1);
-    // Remove moves that are not on the pin line
-    b2 = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), occupancies.board)
-       & LookupTableGetLineOfSight(l, ourKing, s);
-    moves += BitBoardCountBits(b2);
-  }
+//   // Count pinned piece moves
+//   b1 = (OUR(Bishop) | OUR(Rook)| OUR(Queen)) & pinned;
+//   while (b1) {
+//     s = BitBoardPopLSB(&b1);
+//     // Remove moves that are not on the pin line
+//     b2 = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), occupancies.board)
+//        & LookupTableGetLineOfSight(l, ourKing, s);
+//     moves += BitBoardCountBits(b2);
+//   }
 
-  return moves;
-}
+//   return moves;
+// }
 
-static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
-  if (cb->depth == 1) return countMoves(l, cb);
-  long leafNodes = 0, subTree;
+static long treeSearch(LookupTable l, ChessBoard *cb, void (*nodeFn)(LookupTable, ChessBoard *, BitBoard, Square, long *)) {
+  if (cb->depth == 0) return 1;
+  long leafNodes = 0;
 
   // General purpose BitBoards/Squares/pieces
   BitBoard b1, b2;
-  Square s1, s2;
-  Piece p1, p2;
+  Square s1;
+  Piece p1;
 
   // Data needed for move generation
   Square ourKing = BitBoardGetLSB(OUR(King));
@@ -219,14 +219,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
 
   // Traverse king moves
   b1 = LookupTableAttacks(l, ourKing, King, occupancies.board) & ~us & ~attacked.board;
-  while (b1) {
-    s1 = BitBoardPopLSB(&b1);
-    p1 = makeMove(cb, ourKing, s1, GET_PIECE(King, cb->turn));
-    subTree = treeSearch(l, cb, noOp);
-    leafNodes += subTree;
-    traverseFn(ourKing, s1, subTree);
-    unmakeMove(cb, ourKing, s1, p1);
-  }
+  nodeFn(l, cb, b1, ourKing, &leafNodes);
 
   if (numChecking > 1) return leafNodes; // Double check, only king can move
 
@@ -240,14 +233,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
       s1 = BitBoardPopLSB(&b1);
       p1 = cb->squares[s1];
       b2 = LookupTableAttacks(l, s1, GET_TYPE(p1), occupancies.board) & checkMask;
-      while (b2) {
-        s2 = BitBoardPopLSB(&b2);
-        p2 = makeMove(cb, s1, s2, p1);
-        subTree = treeSearch(l, cb, noOp);
-        leafNodes += subTree;
-        traverseFn(s1, s2, subTree);
-        unmakeMove(cb, s1, s2, p2);
-      }
+      nodeFn(l, cb, b2, s1, &leafNodes);
     }
 
     return leafNodes;
@@ -261,39 +247,50 @@ static long treeSearch(LookupTable l, ChessBoard *cb, void (*traverseFn)()) {
     s1 = BitBoardPopLSB(&b1);
     p1 = cb->squares[s1];
     b2 = LookupTableAttacks(l, s1, GET_TYPE(p1), occupancies.board) & ~us;
-    while (b2) {
-      s2 = BitBoardPopLSB(&b2);
-      p2 = makeMove(cb, s1, s2, p1);
-      subTree = treeSearch(l, cb, noOp);
-      leafNodes += subTree;
-      traverseFn(s1, s2, subTree);
-      unmakeMove(cb, s1, s2, p2);
-    }
+    nodeFn(l, cb, b2, s1, &leafNodes);
   }
 
   // Traverse pinned piece moves
   b1 = (OUR(Bishop) | OUR(Rook)| OUR(Queen)) & pinned;
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
-    p1 = cb->squares[s1];
     // Remove moves that are not on the pin line
-    b2 = LookupTableAttacks(l, s1, GET_TYPE(p1), occupancies.board)
+    b2 = LookupTableAttacks(l, s1, GET_TYPE(cb->squares[s1]), occupancies.board)
        & LookupTableGetLineOfSight(l, ourKing, s1);
-    while (b2) {
-      s2 = BitBoardPopLSB(&b2);
-      p2 = makeMove(cb, s1, s2, p1);
-      subTree = treeSearch(l, cb, noOp);
-      leafNodes += subTree;
-      traverseFn(s1, s2, subTree);
-      unmakeMove(cb, s1, s2, p2);
-    }
+    nodeFn(l, cb, b2, s1, &leafNodes);
   }
 
   return leafNodes;
 }
 
+void traverseMoves(LookupTable l, ChessBoard *cb, BitBoard moves, Square from, long *leafNodes) {
+  Piece moving = cb->squares[from], captured;
+  Square to;
+  while (moves) {
+    to = BitBoardPopLSB(&moves);
+    captured = makeMove(cb, from, to, moving);
+    *leafNodes += treeSearch(l, cb, traverseMoves); // continue traversing
+    unmakeMove(cb, from, to, captured);
+  }
+}
+
+void printMoves(LookupTable l, ChessBoard *cb, BitBoard moves, Square from, long *leafNodes) {
+  Piece moving = cb->squares[from], captured;
+  Square to;
+  while (moves) {
+    to = BitBoardPopLSB(&moves);
+    captured = makeMove(cb, from, to, moving);
+    long subTree = treeSearch(l, cb, traverseMoves); // continue traversing
+    *leafNodes += subTree;
+    printMove(from, to, subTree);
+    unmakeMove(cb, from, to, captured);
+  }
+}
+
+
+
 void ChessBoardTreeSearch(LookupTable l, ChessBoard cb) {
-  long nodes = treeSearch(l, &cb, printMove);
+  long nodes = treeSearch(l, &cb, printMoves);
   printf("\nNodes: %ld\n", nodes);
 }
 
