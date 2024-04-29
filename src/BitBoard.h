@@ -31,8 +31,6 @@ void BitBoardPrint(BitBoard b);
 BitBoard BitBoardSetBit(BitBoard b, Square s);
 BitBoard BitBoardPopBit(BitBoard b, Square s);
 int BitBoardCountBits(BitBoard b);
-
-// These functions will return a 'none' square if the bitboard is empty
 Square BitBoardGetLSB(BitBoard b);
 Square BitBoardPopLSB(BitBoard *b);
 
