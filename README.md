@@ -56,3 +56,5 @@ To traverse left pawn moves:
   pawn move like above, we can ust get a bitboard of all the pawn moves (left, right, single push, double push)
   and then count the moves on it. Since we're not actually playing these moves on our
   board rep.
+
+- Consider using a goto for numChecking in treeSearch to reduce nested if statements
