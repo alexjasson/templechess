@@ -42,5 +42,13 @@ TODO:
   than having a look up table for pawns. Especially considering this lookup table will eat up
   L1 cache. Hence, pawn moves should be implemented OTF.
 
-- To traverse pawn attacks, play all left pawn attacks on pawn bitboard, then the moves are just
-  the left pawn attacks of the opponent with the squares reversed
+To traverse left pawn moves:
+- play all left pawn attacks on pawn bitboard
+- Pop the moves in a while loop to get the to square
+- Use BitBoardSetBit on the square to get a bitboard with the to square
+- Shift the to bitboard left from the opponents perspective to get the from bitboard
+- Use BitBoardGetLSB on the from bitboard to get the from square
+- You now have a bitboard with a to bit and a from square
+- Pass this to the traverseFn
+- Continue loop
+
