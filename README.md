@@ -61,3 +61,7 @@ To traverse left pawn moves:
 
 - You'll most likely have to have a switch which determines which move is being played
   in the traverseFn and pass the 'MoveType' to it
+
+- You may need to pass the bitboard of the pieces to be moved and the moveType to the
+  traverseFn instead of the from square and the bitboard of moves (meaning you would move
+  the second while loop into the traverseFn)
