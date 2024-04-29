@@ -203,7 +203,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // General purpose BitBoards/Squares/pieces
   BitBoard b1, b2;
   Square s1;
-  Piece p1;
 
   // Data needed for move generation
   Square ourKing = BitBoardGetLSB(OUR(King));
@@ -233,8 +232,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     b1 = us & ~(OUR(Pawn) | OUR(King)) & ~pinned;
     while (b1) {
       s1 = BitBoardPopLSB(&b1);
-      p1 = cb->squares[s1];
-      b2 = LookupTableAttacks(l, s1, GET_TYPE(p1), occupancies.board) & checkMask;
+      b2 = LookupTableAttacks(l, s1, GET_TYPE(cb->squares[s1]), occupancies.board) & checkMask;
       leafNodes += traverseFn(l, cb, b2, s1);
     }
 
@@ -247,8 +245,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   b1 = us & ~(OUR(Pawn) | OUR(King)) & ~pinned;
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
-    p1 = cb->squares[s1];
-    b2 = LookupTableAttacks(l, s1, GET_TYPE(p1), occupancies.board) & ~us;
+    b2 = LookupTableAttacks(l, s1, GET_TYPE(cb->squares[s1]), occupancies.board) & ~us;
     leafNodes += traverseFn(l, cb, b2, s1);
   }
 
