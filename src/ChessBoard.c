@@ -137,6 +137,12 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // Base cases
   if (cb->depth == 0) return 1;
   if (cb->depth == 1 && traverseFn != countMoves && traverseFn != printMoves) {
+    /* If we are at the node before the leaf nodes, we can just count the moves
+     * of the current board rather than actually playing these moves on the board.
+     * However if the traverseFn is printMoves we need to actually play the moves
+     * to print them, hence why we need the base case above. This occurs when the
+     * root chessboard has a depth of 1.
+     */
     return treeSearch(l, cb, countMoves);
   }
   long leafNodes = 0;
