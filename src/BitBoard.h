@@ -42,9 +42,9 @@ int BitBoardGetFile(Square s);
 int BitBoardGetDiagonal(Square s);
 int BitBoardGetAntiDiagonal(Square s);
 
-BitBoard BitBoardShiftNortheast(BitBoard b);
-BitBoard BitBoardShiftNorthwest(BitBoard b);
-BitBoard BitBoardShiftSoutheast(BitBoard b);
-BitBoard BitBoardShiftSouthwest(BitBoard b);
+BitBoard BitBoardShiftNE(BitBoard b);
+BitBoard BitBoardShiftNW(BitBoard b);
+BitBoard BitBoardShiftSE(BitBoard b);
+BitBoard BitBoardShiftSW(BitBoard b);
 
 #endif

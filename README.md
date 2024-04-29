@@ -59,6 +59,3 @@ TODO:
 - UPDATE: It is very likely that calculating pawn moves OTF is simply faster in most positions
   than having a look up table for pawns. Especially considering this lookup table will eat up
   L1 cache. Hence, pawn moves should be implemented OTF.
-
-  - add a count function to reduce duplicated code in countMoves
-  - add a traverse function to reduce duplicated code in treeSearch

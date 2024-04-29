@@ -21,16 +21,16 @@
 #define KINGSIDE_CASTLING 0b00001001
 #define QUEENSIDE_CASTLING 0b10001000
 
-typedef long (*TraverseFn)(LookupTable, ChessBoard *, BitBoard, Square);
-
 // Given a square, returns a bitboard representing the rank of that square
 #define GET_RANK(s) (SOUTH_EDGE >> (EDGE_SIZE * (EDGE_SIZE - BitBoardGetRank(s) - 1)))
+#define PAWN_ATTACKS(b, c) ((c == White) ? BitBoardShiftNW(b) | BitBoardShiftNE(b) : BitBoardShiftSW(b) | BitBoardShiftSE(b))
+
+typedef long (*TraverseFn)(LookupTable, ChessBoard *, BitBoard, Square);
 
 static Color getColorFromASCII(char asciiColor);
 static Piece getPieceFromASCII(char asciiPiece);
 static char getASCIIFromPiece(Piece p);
 
-static BitBoard pawnAttacksSet(BitBoard p, Color c);
 static Piece makeMove(ChessBoard *cb, Square from, Square to, Piece moving);
 static void unmakeMove(ChessBoard *cb, Square from, Square to, Piece captured);
 static BitMap getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
@@ -134,8 +134,9 @@ static Color getColorFromASCII(char asciiColor) {
 }
 
 static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
-  // Base case
-  if (cb->depth == 1 && traverseFn != countMoves) {
+  // Base cases
+  if (cb->depth == 0) return 1;
+  if (cb->depth == 1 && traverseFn != countMoves && traverseFn != printMoves) {
     return treeSearch(l, cb, countMoves);
   }
   long leafNodes = 0;
@@ -287,7 +288,7 @@ void printMove(Square from, Square to, long nodes) {
 // Return the checking pieces and simultaneously update the pinned pieces bitboard
 BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned) {
   Square ourKing = BitBoardGetLSB(OUR(King));
-  BitBoard checking = (pawnAttacksSet(OUR(King), cb->turn) & THEIR(Pawn)) |
+  BitBoard checking = (PAWN_ATTACKS(OUR(King), cb->turn) & THEIR(Pawn)) |
                       (LookupTableAttacks(l, ourKing, Knight, EMPTY_BOARD) & THEIR(Knight));
   BitBoard candidates = (LookupTableAttacks(l, ourKing, Bishop, them) & (THEIR(Bishop) | THEIR(Queen))) |
                         (LookupTableAttacks(l, ourKing, Rook, them) & (THEIR(Rook) | THEIR(Queen)));
@@ -310,13 +311,9 @@ static BitMap getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them) {
   BitBoard b;
   BitBoard occupancies = ALL & ~OUR(King);
 
-  attacked.board = pawnAttacksSet(THEIR(Pawn), !cb->turn);
+  attacked.board = PAWN_ATTACKS(THEIR(Pawn), !cb->turn);
   b = them & ~THEIR(Pawn);
   while (b) attacked.board |= LookupTableAttacks(l, BitBoardPopLSB(&b), GET_TYPE(cb->squares[BitBoardGetLSB(b)]), occupancies);
 
   return attacked;
-}
-
-static BitBoard pawnAttacksSet(BitBoard p, Color c) {
-  return (c == White) ? BitBoardShiftNorthwest(p) | BitBoardShiftNortheast(p) : BitBoardShiftSouthwest(p) | BitBoardShiftSoutheast(p);
 }

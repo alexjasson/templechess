@@ -58,18 +58,18 @@ int BitBoardGetAntiDiagonal(Square s) {
   return (EDGE_SIZE - 1) + BitBoardGetRank(s) - BitBoardGetFile(s);
 }
 
-BitBoard BitBoardShiftNortheast(BitBoard b) {
+BitBoard BitBoardShiftNE(BitBoard b) {
   return (b & ~EAST_EDGE) >> 7;
 }
 
-BitBoard BitBoardShiftNorthwest(BitBoard b) {
+BitBoard BitBoardShiftNW(BitBoard b) {
   return (b & ~WEST_EDGE) >> 9;
 }
 
-BitBoard BitBoardShiftSoutheast(BitBoard b) {
+BitBoard BitBoardShiftSE(BitBoard b) {
   return (b & ~EAST_EDGE) << 9;
 }
 
-BitBoard BitBoardShiftSouthwest(BitBoard b) {
+BitBoard BitBoardShiftSW(BitBoard b) {
   return (b & ~WEST_EDGE) << 7;
 }
