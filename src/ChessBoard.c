@@ -279,22 +279,14 @@ long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
   Square from = BitBoardGetLSB(br.from), to;
   Piece moving = cb->squares[from], captured;
   long nodes = 0;
+  int oneToOne = BitBoardCountBits(br.from) - 1; // If non zero, then one-to-one mapping
 
-  if (BitBoardCountBits(br.from) > 1) {
-    while (br.to) {
-      to = BitBoardPopLSB(&br.to);
-      from = BitBoardPopLSB(&br.from);
-      captured = makeMove(cb, from, to, moving);
-      nodes += treeSearch(l, cb, traverseMoves); // Continue traversing
-      unmakeMove(cb, from, to, captured);
-    }
-  } else {
-    while (br.to) {
-      to = BitBoardPopLSB(&br.to);
-      captured = makeMove(cb, from, to, moving);
-      nodes += treeSearch(l, cb, traverseMoves); // Continue traversing
-      unmakeMove(cb, from, to, captured);
-    }
+  while (br.to) {
+    to = BitBoardPopLSB(&br.to);
+    if (oneToOne) from = BitBoardPopLSB(&br.from);
+    captured = makeMove(cb, from, to, moving);
+    nodes += treeSearch(l, cb, traverseMoves); // Continue traversing
+    unmakeMove(cb, from, to, captured);
   }
 
   return nodes;
@@ -304,26 +296,16 @@ long printMoves(LookupTable l, ChessBoard *cb, Branch br) {
   Square from = BitBoardGetLSB(br.from), to;
   Piece moving = cb->squares[from], captured;
   long nodes = 0, subTree;
+  int oneToOne = BitBoardCountBits(br.from) - 1; // If non zero, then one-to-one mapping
 
-  if (BitBoardCountBits(br.from) > 1) {
-    while (br.to) {
-      to = BitBoardPopLSB(&br.to);
-      from = BitBoardPopLSB(&br.from);
-      captured = makeMove(cb, from, to, moving);
-      subTree = treeSearch(l, cb, traverseMoves); // Continue traversing
-      nodes += subTree;
-      printMove(from, to, subTree);
-      unmakeMove(cb, from, to, captured);
-    }
-  } else {
-    while (br.to) {
-      to = BitBoardPopLSB(&br.to);
-      captured = makeMove(cb, from, to, moving);
-      subTree = treeSearch(l, cb, traverseMoves); // Continue traversing
-      nodes += subTree;
-      printMove(from, to, subTree);
-      unmakeMove(cb, from, to, captured);
-    }
+  while (br.to) {
+    to = BitBoardPopLSB(&br.to);
+    if (oneToOne) from = BitBoardPopLSB(&br.from);
+    captured = makeMove(cb, from, to, moving);
+    subTree = treeSearch(l, cb, traverseMoves); // Continue traversing
+    nodes += subTree;
+    printMove(from, to, subTree);
+    unmakeMove(cb, from, to, captured);
   }
 
   return nodes;
