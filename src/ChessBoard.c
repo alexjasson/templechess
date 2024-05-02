@@ -186,29 +186,21 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
       nodes += traverseFn(l, cb, br);
     }
 
+    b1 = OUR(Pawn) & ~pinned;
     // Traverse non pinned left pawn attacks
-    b1 = PAWN_ATTACKS_LEFT(OUR(Pawn) & ~pinned, cb->turn) & checkMask & them;
-    if (b1) {
-      br.to = b1;
-      br.from = PAWN_ATTACKS_LEFT(br.to, !cb->turn);
-      nodes += traverseFn(l, cb, br);
-    }
+    br.to = PAWN_ATTACKS_LEFT(b1, cb->turn) & checkMask & them;
+    br.from = PAWN_ATTACKS_LEFT(br.to, !cb->turn);
+    nodes += traverseFn(l, cb, br);
 
     // Traverse non pinned right pawn attacks
-    b1 = PAWN_ATTACKS_RIGHT(OUR(Pawn) & ~pinned, cb->turn) & checkMask & them;
-    if (b1) {
-      br.to = b1;
-      br.from = PAWN_ATTACKS_RIGHT(br.to, !cb->turn);
-      nodes += traverseFn(l, cb, br);
-    }
+    br.to = PAWN_ATTACKS_RIGHT(b1, cb->turn) & checkMask & them;
+    br.from = PAWN_ATTACKS_RIGHT(br.to, !cb->turn);
+    nodes += traverseFn(l, cb, br);
 
     // Traverse non pinned single pawn pushes
-    b1 = SINGLE_PUSH(OUR(Pawn) & ~pinned, cb->turn) & checkMask & ~ALL;
-    if (b1) {
-      br.to = b1;
-      br.from = SINGLE_PUSH(br.to, !cb->turn);
-      nodes += traverseFn(l, cb, br);
-    }
+    br.to = SINGLE_PUSH(b1, cb->turn) & checkMask & ~ALL;
+    br.from = SINGLE_PUSH(br.to, !cb->turn);
+    nodes += traverseFn(l, cb, br);
 
     return nodes;
   }
@@ -224,29 +216,21 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     nodes += traverseFn(l, cb, br);
   }
 
+  b1 = OUR(Pawn) & ~pinned;
   // Traverse non pinned left pawn attacks
-  b1 = PAWN_ATTACKS_LEFT(OUR(Pawn) & ~pinned, cb->turn) & them;
-  if (b1) {
-    br.to = b1;
-    br.from = PAWN_ATTACKS_LEFT(br.to, !cb->turn);
-    nodes += traverseFn(l, cb, br);
-  }
+  br.to = PAWN_ATTACKS_LEFT(b1, cb->turn) & them;
+  br.from = PAWN_ATTACKS_LEFT(br.to, !cb->turn);
+  nodes += traverseFn(l, cb, br);
 
   // Traverse non pinned right pawn attacks
-  b1 = PAWN_ATTACKS_RIGHT(OUR(Pawn) & ~pinned, cb->turn) & them;
-  if (b1) {
-    br.to = b1;
-    br.from = PAWN_ATTACKS_RIGHT(br.to, !cb->turn);
-    nodes += traverseFn(l, cb, br);
-  }
+  br.to = PAWN_ATTACKS_RIGHT(b1, cb->turn) & them;
+  br.from = PAWN_ATTACKS_RIGHT(br.to, !cb->turn);
+  nodes += traverseFn(l, cb, br);
 
   // Traverse non pinned single pawn pushes
-  b1 = SINGLE_PUSH(OUR(Pawn) & ~pinned, cb->turn) & ~ALL;
-  if (b1) {
-    br.to = b1;
-    br.from = SINGLE_PUSH(br.to, !cb->turn);
-    nodes += traverseFn(l, cb, br);
-  }
+  br.to = SINGLE_PUSH(b1, cb->turn) & ~ALL;
+  br.from = SINGLE_PUSH(br.to, !cb->turn);
+  nodes += traverseFn(l, cb, br);
 
   // Traverse pinned piece moves
   b1 = (OUR(Bishop) | OUR(Rook)| OUR(Queen)) & pinned;
