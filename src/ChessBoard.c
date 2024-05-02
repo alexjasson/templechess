@@ -25,7 +25,11 @@
 #define GET_RANK(s) (SOUTH_EDGE >> (EDGE_SIZE * (EDGE_SIZE - BitBoardGetRank(s) - 1)))
 #define PAWN_ATTACKS(b, c) ((c == White) ? BitBoardShiftNW(b) | BitBoardShiftNE(b) : BitBoardShiftSW(b) | BitBoardShiftSE(b))
 
-typedef long (*TraverseFn)(LookupTable, ChessBoard *, BitBoard, Square);
+typedef struct {
+  BitBoard to;
+  BitBoard from;
+} Branch;
+typedef long (*TraverseFn)(LookupTable, ChessBoard *, Branch);
 
 static Color getColorFromASCII(char asciiColor);
 static Piece getPieceFromASCII(char asciiPiece);
@@ -38,9 +42,11 @@ static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, 
 static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn);
 
 static void printMove(Square from, Square to, long nodes);
-static long traverseMoves(LookupTable l, ChessBoard *cb, BitBoard moves, Square from);
-static long printMoves(LookupTable l, ChessBoard *cb, BitBoard moves, Square from);
-static long countMoves(LookupTable l, ChessBoard *cb, BitBoard moves, Square from);
+static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br);
+static long printMoves(LookupTable l, ChessBoard *cb, Branch br);
+static long countMoves(LookupTable l, ChessBoard *cb, Branch br);
+
+static Piece movePiece(ChessBoard *cb, Square from, Square to, Piece replacement);
 
 // Assumes FEN and depth is valid
 ChessBoard ChessBoardNew(char *fen, int depth) {
@@ -139,7 +145,8 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   long nodes = 0;
 
   // General purpose BitBoards/Squares
-  BitBoard b1, b2;
+  BitBoard b1;
+  Branch br;
   Square s1;
 
   // Data needed for move generation
@@ -157,8 +164,9 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   numChecking = BitBoardCountBits(checking);
 
   // Traverse king moves
-  b1 = LookupTableAttacks(l, ourKing, King, occupancies.board) & ~us & ~attacked.board;
-  nodes += traverseFn(l, cb, b1, ourKing);
+  br.to = LookupTableAttacks(l, ourKing, King, occupancies.board) & ~us & ~attacked.board;
+  br.from = OUR(King);
+  nodes += traverseFn(l, cb, br);
 
   if (numChecking > 1) return nodes; // Double check, only king can move
 
@@ -170,8 +178,9 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     b1 = us & ~(OUR(Pawn) | OUR(King)) & ~pinned;
     while (b1) {
       s1 = BitBoardPopLSB(&b1);
-      b2 = LookupTableAttacks(l, s1, GET_TYPE(cb->squares[s1]), occupancies.board) & checkMask;
-      nodes += traverseFn(l, cb, b2, s1);
+      br.to = LookupTableAttacks(l, s1, GET_TYPE(cb->squares[s1]), occupancies.board) & checkMask;
+      br.from = BitBoardSetBit(EMPTY_BOARD, s1);
+      nodes += traverseFn(l, cb, br);
     }
 
     return nodes;
@@ -183,8 +192,9 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   b1 = us & ~(OUR(Pawn) | OUR(King)) & ~pinned;
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
-    b2 = LookupTableAttacks(l, s1, GET_TYPE(cb->squares[s1]), occupancies.board) & ~us;
-    nodes += traverseFn(l, cb, b2, s1);
+    br.to = LookupTableAttacks(l, s1, GET_TYPE(cb->squares[s1]), occupancies.board) & ~us;
+    br.from = BitBoardSetBit(EMPTY_BOARD, s1);
+    nodes += traverseFn(l, cb, br);
   }
 
   // Traverse pinned piece moves
@@ -192,49 +202,73 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
     // Remove moves that are not on the pin line
-    b2 = LookupTableAttacks(l, s1, GET_TYPE(cb->squares[s1]), occupancies.board)
-       & LookupTableGetLineOfSight(l, ourKing, s1);
-    nodes += traverseFn(l, cb, b2, s1);
+    br.to = LookupTableAttacks(l, s1, GET_TYPE(cb->squares[s1]), occupancies.board)
+          & LookupTableGetLineOfSight(l, ourKing, s1);
+    br.from = BitBoardSetBit(EMPTY_BOARD, s1);
+    nodes += traverseFn(l, cb, br);
   }
 
   return nodes;
 }
 
-long traverseMoves(LookupTable l, ChessBoard *cb, BitBoard moves, Square from) {
+long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
+  Square from = BitBoardGetLSB(br.from), to;
   Piece moving = cb->squares[from], captured;
-  Square to;
   long nodes = 0;
 
-  while (moves) {
-    to = BitBoardPopLSB(&moves);
-    captured = makeMove(cb, from, to, moving);
-    nodes += treeSearch(l, cb, traverseMoves); // Continue traversing
-    unmakeMove(cb, from, to, captured);
+  if (BitBoardCountBits(br.from) > 1) {
+    while (br.to) {
+      to = BitBoardPopLSB(&br.to);
+      from = BitBoardPopLSB(&br.from);
+      captured = makeMove(cb, from, to, moving);
+      nodes += treeSearch(l, cb, traverseMoves); // Continue traversing
+      unmakeMove(cb, from, to, captured);
+    }
+  } else {
+    while (br.to) {
+      to = BitBoardPopLSB(&br.to);
+      captured = makeMove(cb, from, to, moving);
+      nodes += treeSearch(l, cb, traverseMoves); // Continue traversing
+      unmakeMove(cb, from, to, captured);
+    }
   }
+
   return nodes;
 }
 
-long printMoves(LookupTable l, ChessBoard *cb, BitBoard moves, Square from) {
+long printMoves(LookupTable l, ChessBoard *cb, Branch br) {
+  Square from = BitBoardGetLSB(br.from), to;
   Piece moving = cb->squares[from], captured;
-  Square to;
   long nodes = 0, subTree;
 
-  while (moves) {
-    to = BitBoardPopLSB(&moves);
-    captured = makeMove(cb, from, to, moving);
-    subTree = treeSearch(l, cb, traverseMoves); // Continue traversing
-    nodes += subTree;
-    printMove(from, to, subTree);
-    unmakeMove(cb, from, to, captured);
+  if (BitBoardCountBits(br.from) > 1) {
+    while (br.to) {
+      to = BitBoardPopLSB(&br.to);
+      from = BitBoardPopLSB(&br.from);
+      captured = makeMove(cb, from, to, moving);
+      subTree = treeSearch(l, cb, traverseMoves); // Continue traversing
+      nodes += subTree;
+      printMove(from, to, subTree);
+      unmakeMove(cb, from, to, captured);
+    }
+  } else {
+    while (br.to) {
+      to = BitBoardPopLSB(&br.to);
+      captured = makeMove(cb, from, to, moving);
+      subTree = treeSearch(l, cb, traverseMoves); // Continue traversing
+      nodes += subTree;
+      printMove(from, to, subTree);
+      unmakeMove(cb, from, to, captured);
+    }
   }
+
   return nodes;
 }
 
-long countMoves(LookupTable l, ChessBoard *cb, BitBoard moves, Square from) {
+long countMoves(LookupTable l, ChessBoard *cb, Branch br) {
   (void) l;
   (void) cb;
-  (void) from;
-  return BitBoardCountBits(moves);
+  return BitBoardCountBits(br.to);
 }
 
 void ChessBoardTreeSearch(LookupTable l, ChessBoard cb) {
@@ -243,15 +277,8 @@ void ChessBoardTreeSearch(LookupTable l, ChessBoard cb) {
 }
 
 inline static Piece makeMove(ChessBoard *cb, Square from, Square to, Piece moving) {
-  BitBoard b1 = BitBoardSetBit(EMPTY_BOARD, from);
-  BitBoard b2 = BitBoardSetBit(EMPTY_BOARD, to);
-  Piece captured = cb->squares[to];
-
-  cb->squares[to] = moving;
-  cb->squares[from] = EMPTY_PIECE;
-  cb->pieces[moving] ^= (b1 | b2);
-  cb->pieces[captured] &= ~b2;
-  cb->pieces[EMPTY_PIECE] |= b1;
+  Piece captured = movePiece(cb, from, to, EMPTY_PIECE);
+  (void) moving;
 
   cb->turn = !cb->turn;
   cb->depth--;
@@ -262,18 +289,26 @@ inline static Piece makeMove(ChessBoard *cb, Square from, Square to, Piece movin
 }
 
 inline static void unmakeMove(ChessBoard *cb, Square from, Square to, Piece captured) {
-  BitBoard b1 = BitBoardSetBit(EMPTY_BOARD, from);
-  BitBoard b2 = BitBoardSetBit(EMPTY_BOARD, to);
-  Piece moving = cb->squares[to];
-
-  cb->squares[from] = moving;
-  cb->squares[to] = captured;
-  cb->pieces[moving] ^= (b1 | b2);
-  cb->pieces[captured] |= b2;
-  cb->pieces[EMPTY_PIECE] &= ~b1;
+  movePiece(cb, to, from, captured);
 
   cb->turn = !cb->turn;
   cb->depth++;
+}
+
+// The replacement piece replaces the piece that has moved
+Piece movePiece(ChessBoard *cb, Square from, Square to, Piece replacement) {
+  BitBoard b1 = BitBoardSetBit(EMPTY_BOARD, from);
+  BitBoard b2 = BitBoardSetBit(EMPTY_BOARD, to);
+  Piece captured = cb->squares[to];
+  Piece moving = cb->squares[from];
+
+  cb->squares[to] = moving;
+  cb->squares[from] = replacement;
+  cb->pieces[moving] ^= (b1 | b2);
+  cb->pieces[captured] &= ~b2;
+  cb->pieces[replacement] |= b1;
+
+  return captured;
 }
 
 void printMove(Square from, Square to, long nodes) {
