@@ -261,6 +261,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
 
   // Traverse pinned pawn moves
   // Since there are not going to be many pinned pawns, we do a one-to-many mapping
+  // Note: Pinned pawns can't do en passant
   b1 = OUR(Pawn) & pinned;
   while (b1) {
     s1 = BitBoardPopLSB(&b1);

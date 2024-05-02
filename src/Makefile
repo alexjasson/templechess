@@ -4,7 +4,7 @@ CFLAGS1 = -Wall -Wextra -Werror -Ofast -march=native -flto -funroll-loops -fprof
 CFLAGS2 = -Wall -Wextra -Werror -Ofast -march=native -flto -funroll-loops -fprofile-use
 
 # Position/depth to be used for profiling
-BOARD = "k1q5/8/1K6/8/2N5/5n2/1R6/B7 b - - 0 1"
+BOARD = "8/rnbqkbnr/pppppppp/8/8/PPPPPPPP/RNBQKBNR/8 w - - 0 1"
 DEPTH = 5
 
 .PHONY: all clean fast
