@@ -24,6 +24,10 @@
 // Given a square, returns a bitboard representing the rank of that square
 #define GET_RANK(s) (SOUTH_EDGE >> (EDGE_SIZE * (EDGE_SIZE - BitBoardGetRank(s) - 1)))
 #define PAWN_ATTACKS(b, c) ((c == White) ? BitBoardShiftNW(b) | BitBoardShiftNE(b) : BitBoardShiftSW(b) | BitBoardShiftSE(b))
+#define PAWN_ATTACKS(b, c) ((c == White) ? BitBoardShiftNW(b) | BitBoardShiftNE(b) : BitBoardShiftSW(b) | BitBoardShiftSE(b))
+#define PAWN_ATTACKS_LEFT(b, c) ((c == White) ? BitBoardShiftNW(b) : BitBoardShiftSE(b))
+#define PAWN_ATTACKS_RIGHT(b, c) ((c == White) ? BitBoardShiftNE(b) : BitBoardShiftSW(b))
+#define SINGLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(b) : BitBoardShiftS(b))
 
 typedef struct {
   BitBoard to;
@@ -182,6 +186,24 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
       br.from = BitBoardSetBit(EMPTY_BOARD, s1);
       nodes += traverseFn(l, cb, br);
     }
+
+    // Traverse non pinned left pawn attacks
+    b1 = OUR(Pawn) & ~pinned;
+    br.to = PAWN_ATTACKS_LEFT(b1, cb->turn) & checkMask & them;
+    br.from = PAWN_ATTACKS_LEFT(br.to, !cb->turn);
+    nodes += traverseFn(l, cb, br);
+
+    // Traverse non pinned right pawn attacks
+    b1 = OUR(Pawn) & ~pinned;
+    br.to = PAWN_ATTACKS_RIGHT(b1, cb->turn) & checkMask & them;
+    br.from = PAWN_ATTACKS_RIGHT(br.to, !cb->turn);
+    nodes += traverseFn(l, cb, br);
+
+    // Traverse non pinned single pawn pushes
+    b1 = OUR(Pawn) & ~pinned;
+    br.to = SINGLE_PUSH(b1, cb->turn) & checkMask & ~ALL;
+    br.from = SINGLE_PUSH(br.to, !cb->turn);
+    nodes += traverseFn(l, cb, br);
 
     return nodes;
   }

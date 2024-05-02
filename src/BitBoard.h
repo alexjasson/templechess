@@ -41,6 +41,8 @@ int BitBoardGetAntiDiagonal(Square s);
 
 BitBoard BitBoardShiftNE(BitBoard b);
 BitBoard BitBoardShiftNW(BitBoard b);
+BitBoard BitBoardShiftN(BitBoard b);
+BitBoard BitBoardShiftS(BitBoard b);
 BitBoard BitBoardShiftSE(BitBoard b);
 BitBoard BitBoardShiftSW(BitBoard b);
 

@@ -66,6 +66,14 @@ BitBoard BitBoardShiftNW(BitBoard b) {
   return (b & ~WEST_EDGE) >> 9;
 }
 
+BitBoard BitBoardShiftN(BitBoard b) {
+  return b >> EDGE_SIZE;
+}
+
+BitBoard BitBoardShiftS(BitBoard b) {
+  return b << EDGE_SIZE;
+}
+
 BitBoard BitBoardShiftSE(BitBoard b) {
   return (b & ~EAST_EDGE) << 9;
 }
