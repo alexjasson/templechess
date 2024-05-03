@@ -67,3 +67,11 @@ To traverse left pawn moves:
   the second while loop into the traverseFn)
 
 - Get the checking piece type?
+
+- The branch will have the movetype and piecetype in it
+- There will be no enpassant/castling history, that information will just be stored
+  implicitly in the movetype, eg if it's a bothside castling movetype then you just
+  restored the castling bits to bothside castling
+- We should have a switch for the movetype of the branch rather than switching for every
+  move
+- Enpassant square will be encoded as it's actual square
