@@ -14,8 +14,8 @@ typedef struct {
 
   Color turn;
   int depth; // Start from desired depth and decrement until 0
-  BitBoard enPassant[MAX_DEPTH];
-  BitMap castling[MAX_DEPTH];
+  BitBoard enPassant;
+  BitMap castling;
 } ChessBoard;
 
 ChessBoard ChessBoardNew(char *fen, int depth); // ChessBoard is stack allocated
