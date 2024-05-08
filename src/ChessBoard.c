@@ -295,7 +295,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   nodes += traverseFn(l, cb, br);
 
   // Traverse non pinned/promoting en passant
-  // If it's check and theres an enpassant square, enpassant must be possible
   br.to = ENPASSANT_LEFT(b1, cb->turn) & cb->enPassant;
   br.from = ENPASSANT_LEFT(br.to, !cb->turn);
   nodes += traverseFn(l, cb, br);

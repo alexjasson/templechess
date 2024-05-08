@@ -59,19 +59,7 @@ To traverse left pawn moves:
 
 - Consider using a goto for numChecking in treeSearch to reduce nested if statements
 
-- You'll most likely have to have a switch which determines which move is being played
-  in the traverseFn and pass the 'MoveType' to it
-
-- You may need to pass the bitboard of the pieces to be moved and the moveType to the
-  traverseFn instead of the from square and the bitboard of moves (meaning you would move
-  the second while loop into the traverseFn)
-
 - Get the checking piece type?
 
-- The branch will have the movetype and piecetype in it
-- There will be no enpassant/castling history, that information will just be stored
-  implicitly in the movetype, eg if it's a bothside castling movetype then you just
-  restored the castling bits to bothside castling
-- We should have a switch for the movetype of the branch rather than switching for every
-  move
-- Enpassant square will be encoded as it's actual square
+
+- FIX BUG POSITION: 1nbqkbnr/ppp1p1pp/8/r3Pp1K/3p4/PP6/2PP1PPP/RNBQ1BNR w - f6 0 1
