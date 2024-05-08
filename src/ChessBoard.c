@@ -322,6 +322,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
 long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
   Move m;
   m.from = BitBoardGetLSB(br.from);
+  m.promoted = br.promoted;
   UndoData u;
   long nodes = 0;
   int oneToOne = BitBoardCountBits(br.from) - 1; // If non zero, then one-to-one mapping
@@ -340,6 +341,7 @@ long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
 long printMoves(LookupTable l, ChessBoard *cb, Branch br) {
   Move m;
   m.from = BitBoardGetLSB(br.from);
+  m.promoted = br.promoted;
   UndoData u;
   long nodes = 0, subTree;
   int oneToOne = BitBoardCountBits(br.from) - 1; // If non zero, then one-to-one mapping
