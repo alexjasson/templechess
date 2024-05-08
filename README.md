@@ -62,4 +62,4 @@ To traverse left pawn moves:
 - Get the checking piece type?
 
 
-- FIX BUG POSITION: 1nbqkbnr/ppp1p1pp/8/r3Pp1K/3p4/PP6/2PP1PPP/RNBQ1BNR w - f6 0 1
+- FIX BUG POSITION: 1nbqkbnr/ppp3pp/8/3PppK1/3p4/PP6/3P1PPP/RNBQ1BNR w - e6 0 1

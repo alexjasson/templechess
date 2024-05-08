@@ -30,6 +30,7 @@
 #define DOUBLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(BitBoardShiftN(b)) : BitBoardShiftS(BitBoardShiftS(b)))
 #define ENPASSANT_LEFT(b, c) ((c == White) ? BitBoardShiftW(b) : BitBoardShiftE(b))
 #define ENPASSANT_RIGHT(b, c) ((c == White) ? BitBoardShiftE(b) : BitBoardShiftW(b))
+#define ENPASSANT(b, c) (BitBoardShiftE(b) | BitBoardShiftW(b))
 
 #define ENPASSANT_RANK(c) (BitBoard)SOUTH_EDGE >> (EDGE_SIZE * ((c * 3) + 2)) // 6th rank for black, 3rd for white
 #define PROMOTING_RANK(c) (BitBoard)NORTH_EDGE << (EDGE_SIZE * ((c * 5) + 1)) // 2nd rank for black, 7th for white
@@ -235,11 +236,10 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     nodes += traverseFn(l, cb, br);
 
     // Traverse non pinned/promoting en passant
-    // If it's check and theres an enpassant square, enpassant must be possible
-    br.to = ENPASSANT_LEFT(b1, cb->turn) & cb->enPassant;
+    br.to = ENPASSANT_LEFT(b1, cb->turn) & cb->enPassant & checkMask;
     br.from = ENPASSANT_LEFT(br.to, !cb->turn);
     nodes += traverseFn(l, cb, br);
-    br.to = ENPASSANT_RIGHT(b1, cb->turn) & cb->enPassant;
+    br.to = ENPASSANT_RIGHT(b1, cb->turn) & cb->enPassant & checkMask;
     br.from = ENPASSANT_RIGHT(br.to, !cb->turn);
     nodes += traverseFn(l, cb, br);
 
@@ -295,12 +295,24 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   nodes += traverseFn(l, cb, br);
 
   // Traverse non pinned/promoting en passant
-  br.to = ENPASSANT_LEFT(b1, cb->turn) & cb->enPassant;
-  br.from = ENPASSANT_LEFT(br.to, !cb->turn);
-  nodes += traverseFn(l, cb, br);
-  br.to = ENPASSANT_RIGHT(b1, cb->turn) & cb->enPassant;
-  br.from = ENPASSANT_RIGHT(br.to, !cb->turn);
-  nodes += traverseFn(l, cb, br);
+  // br.to = ENPASSANT_LEFT(b1, cb->turn) & cb->enPassant;
+  // br.from = ENPASSANT_LEFT(br.to, !cb->turn);
+  // nodes += traverseFn(l, cb, br);
+  // br.to = ENPASSANT_RIGHT(b1, cb->turn) & cb->enPassant;
+  // br.from = ENPASSANT_RIGHT(br.to, !cb->turn);
+  // nodes += traverseFn(l, cb, br);
+
+  // Traverse non pinned/promoting en passant
+  b2 = ENPASSANT(cb->enPassant, cb->turn) & b1; // Pawns that can play enpassant
+  while (b2) {
+    s1 = BitBoardPopLSB(&b2);
+    // Check that the pawn is not "pseudo-pinned"
+    if (LookupTableAttacks(l, ourKing, Rook, ALL & ~BitBoardSetBit(cb->enPassant, s1)) &
+        GET_RANK(ourKing) & (THEIR(Rook) | THEIR(Queen))) continue;
+    br.to = cb->enPassant;
+    br.from = BitBoardSetBit(EMPTY_BOARD, s1);
+    nodes += traverseFn(l, cb, br);
+  }
 
   // Traverse pinned piece moves
   b1 = (OUR(Bishop) | OUR(Rook)| OUR(Queen)) & pinned;
@@ -316,7 +328,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // Traverse pinned/non promoting pawn moves
   // Since there are not going to be many pinned pawns, we do a one-to-many mapping
   // Note: Pinned pawns can't do en passant
-  // This can probably be shifted into above while loop in future
   b1 = OUR(Pawn) & ~(~pinned | PROMOTING_RANK(cb->turn));
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
@@ -325,9 +336,9 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     br.to = b3;
     br.to |= SINGLE_PUSH(b3 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL;
     br.to |= PAWN_ATTACKS(b2, cb->turn) & them;
-    br.to |= ENPASSANT_LEFT(b2, cb->turn) & cb->enPassant;
-    br.to |= ENPASSANT_RIGHT(b2, cb->turn) & cb->enPassant;
-    br.to &= LookupTableGetLineOfSight(l, ourKing, s1);
+    b3 = LookupTableGetLineOfSight(l, ourKing, s1); // The pin mask
+    br.to &= b3;
+    br.to |= ENPASSANT(b2, cb->turn) & cb->enPassant & SINGLE_PUSH(b3, !cb->turn);
     br.from = b2;
     nodes += traverseFn(l, cb, br);
   }
