@@ -28,6 +28,10 @@
 #define PAWN_ATTACKS_RIGHT(b, c) ((c == White) ? BitBoardShiftNE(b) : BitBoardShiftSW(b))
 #define SINGLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(b) : BitBoardShiftS(b))
 #define DOUBLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(BitBoardShiftN(b)) : BitBoardShiftS(BitBoardShiftS(b)))
+#define ENPASSANT_LEFT(b, c) ((c == White) ? BitBoardShiftW(b) : BitBoardShiftE(b))
+#define ENPASSANT_RIGHT(b, c) ((c == White) ? BitBoardShiftE(b) : BitBoardShiftW(b))
+
+#define ENPASSANT_RANK(c) (BitBoard)SOUTH_EDGE >> (EDGE_SIZE * ((c * 3) + 2)) // 6th rank for black, 3rd for white
 
 typedef struct {
   BitBoard to;
@@ -44,7 +48,8 @@ typedef struct {
 
 typedef struct {
   Piece captured;
-  Square enPassant;
+  Piece moved;
+  BitBoard enPassant;
   BitMap castling;
 } UndoData;
 
@@ -106,19 +111,22 @@ ChessBoard ChessBoardNew(char *fen, int depth) {
     }
     fen++;
   }
+  fen++;
 
   // Parse en passant
   if (*fen != '-') {
     int file = *fen - 'a';
     fen++;
     int rank = EDGE_SIZE - (*fen - '0');
-    cb.enPassant = BitBoardSetBit(EMPTY_BOARD, rank * EDGE_SIZE + file);
+    // Shift to 4th rank for white, 5th rank for black
+    cb.enPassant = SINGLE_PUSH(BitBoardSetBit(EMPTY_BOARD, rank * EDGE_SIZE + file), !cb.turn);
   }
 
   return cb;
 }
 
 void ChessBoardPrint(ChessBoard cb) {
+  printf("----------------------------------------------------\n");
   for (int rank = 0; rank < EDGE_SIZE; rank++) {
     for (int file = 0; file < EDGE_SIZE; file++) {
       Square s = rank * EDGE_SIZE + file;
@@ -130,6 +138,9 @@ void ChessBoardPrint(ChessBoard cb) {
   printf("a b c d e f g h\n\n");
   printf("Color: %d\n", cb.turn);
   printf("Depth: %d\n", cb.depth);
+  Square enPassant = BitBoardGetLSB(cb.enPassant);
+  printf("En Passant Square: %c%d\n", 'a' + (enPassant % EDGE_SIZE), EDGE_SIZE - (enPassant / EDGE_SIZE));
+  printf("----------------------------------------------------\n");
 }
 
 
@@ -162,7 +173,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   long nodes = 0;
 
   // General purpose BitBoards/Squares
-  BitBoard b1, b2;
+  BitBoard b1, b2, b3;
   Branch br;
   Square s1;
 
@@ -211,13 +222,28 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     br.from = PAWN_ATTACKS_RIGHT(br.to, !cb->turn);
     nodes += traverseFn(l, cb, br);
 
+    b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
     // Traverse non pinned single pawn pushes
-    br.to = SINGLE_PUSH(b1, cb->turn) & checkMask & ~ALL;
+    br.to = b2 & checkMask;
     br.from = SINGLE_PUSH(br.to, !cb->turn);
+    nodes += traverseFn(l, cb, br);
+    // Traverse non pinned double pawn pushes
+    br.to = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & checkMask;
+    br.from = DOUBLE_PUSH(br.to, !cb->turn);
+    nodes += traverseFn(l, cb, br);
+
+    // Traverse non pinned en passant
+    // If it's check and theres an enpassant square, enpassant must be possible
+    br.to = ENPASSANT_LEFT(b1, cb->turn) & cb->enPassant;
+    br.from = ENPASSANT_LEFT(br.to, !cb->turn);
+    nodes += traverseFn(l, cb, br);
+    br.to = ENPASSANT_RIGHT(b1, cb->turn) & cb->enPassant;
+    br.from = ENPASSANT_RIGHT(br.to, !cb->turn);
     nodes += traverseFn(l, cb, br);
 
     return nodes;
   }
+  //BitBoardPrint(cb->enPassant);
 
   // No check
 
@@ -229,7 +255,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     br.from = BitBoardSetBit(EMPTY_BOARD, s1);
     nodes += traverseFn(l, cb, br);
   }
-
+  //BitBoardPrint(cb->enPassant);
   b1 = OUR(Pawn) & ~pinned;
   // Traverse non pinned left pawn attacks
   br.to = PAWN_ATTACKS_LEFT(b1, cb->turn) & them;
@@ -241,9 +267,24 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   br.from = PAWN_ATTACKS_RIGHT(br.to, !cb->turn);
   nodes += traverseFn(l, cb, br);
 
+  b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
   // Traverse non pinned single pawn pushes
-  br.to = SINGLE_PUSH(b1, cb->turn) & ~ALL;
+  br.to = b2;
   br.from = SINGLE_PUSH(br.to, !cb->turn);
+  nodes += traverseFn(l, cb, br);
+  // Traverse non pinned double pawn pushes
+  br.to = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL;
+  br.from = DOUBLE_PUSH(br.to, !cb->turn);
+  nodes += traverseFn(l, cb, br);
+
+  // Traverse non pinned en passant
+  // If it's check and theres an enpassant square, enpassant must be possible
+  br.to = ENPASSANT_LEFT(b1, cb->turn) & cb->enPassant;
+  //BitBoardPrint(cb->enPassant);
+  br.from = ENPASSANT_LEFT(br.to, !cb->turn);
+  nodes += traverseFn(l, cb, br);
+  br.to = ENPASSANT_RIGHT(b1, cb->turn) & cb->enPassant;
+  br.from = ENPASSANT_RIGHT(br.to, !cb->turn);
   nodes += traverseFn(l, cb, br);
 
   // Traverse pinned piece moves
@@ -265,8 +306,12 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   while (b1) {
     s1 = BitBoardPopLSB(&b1);
     b2 = BitBoardSetBit(EMPTY_BOARD, s1);
-    br.to = PAWN_ATTACKS(b2, cb->turn) & them;
-    br.to |= SINGLE_PUSH(b2, cb->turn) & ~ALL;
+    b3 = SINGLE_PUSH(b2, cb->turn) & ~ALL;
+    br.to = b3;
+    br.to |= SINGLE_PUSH(b3 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL;
+    br.to |= PAWN_ATTACKS(b2, cb->turn) & them;
+    br.to |= ENPASSANT_LEFT(b2, cb->turn) & cb->enPassant;
+    br.to |= ENPASSANT_RIGHT(b2, cb->turn) & cb->enPassant;
     br.to &= LookupTableGetLineOfSight(l, ourKing, s1);
     br.from = b2;
     nodes += traverseFn(l, cb, br);
@@ -325,26 +370,55 @@ void ChessBoardTreeSearch(LookupTable l, ChessBoard cb) {
 }
 
 inline static UndoData move(ChessBoard *cb, Move m) {
+  int offset = m.from - m.to;
+
+  //ChessBoardPrint(*cb);
+  //printf("ChessBoard enpassant: %d\n", cb->enPassant);
+
   UndoData u;
+  u.moved = cb->squares[m.from];
   u.enPassant = cb->enPassant;
-  u.castling = cb->castling;
-  u.captured = addPiece(cb, m.to, cb->squares[m.from]);
+  //printf("Undodata enpassant: %d\n", u.enPassant);
+  u.captured = addPiece(cb, m.to, u.moved);
   addPiece(cb, m.from, EMPTY_PIECE);
+
+  if (GET_TYPE(u.moved) == Pawn) {
+    if ((offset == 16) || (offset == -16)) {
+      cb->enPassant = BitBoardSetBit(EMPTY_BOARD, m.to);
+    } else if ((offset == 1) || (offset == -1)) {
+      addPiece(cb, m.to + ((cb->turn) ? EDGE_SIZE : -EDGE_SIZE), u.moved);
+      addPiece(cb, m.to, EMPTY_PIECE);
+      cb->enPassant = EMPTY_BOARD;
+    } else {
+      cb->enPassant = EMPTY_BOARD;
+    }
+  } else {
+    cb->enPassant = EMPTY_BOARD;
+  }
 
   cb->turn = !cb->turn;
   cb->depth--;
-  cb->enPassant = EMPTY_BOARD;
 
+  //ChessBoardPrint(*cb);
   return u;
 }
 
 inline static void undoMove(ChessBoard *cb, Move m, UndoData u) {
-  addPiece(cb, m.from, cb->squares[m.to]);
+  int offset = m.from - m.to;
+
+  cb->enPassant = u.enPassant;
+  addPiece(cb, m.from, u.moved);
   addPiece(cb, m.to, u.captured);
+
+  if (GET_TYPE(u.moved) == Pawn) {
+    if ((offset == 1) || (offset == -1)) {
+      addPiece(cb, m.to + ((cb->turn) ? -EDGE_SIZE : EDGE_SIZE), EMPTY_PIECE);
+    }
+  }
 
   cb->turn = !cb->turn;
   cb->depth++;
-  cb->enPassant = u.enPassant;
+  //ChessBoardPrint(*cb);
 }
 
 // Adds a piece to a chessboard
