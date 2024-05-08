@@ -174,8 +174,8 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
 
   // General purpose BitBoards/Squares
   BitBoard b1, b2, b3;
-  Branch br;
   Square s1;
+  Branch br;
 
   // Data needed for move generation
   Square ourKing = BitBoardGetLSB(OUR(King));
@@ -194,6 +194,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // Traverse king moves
   br.to = LookupTableAttacks(l, ourKing, King, occupancies.board) & ~us & ~attacked.board;
   br.from = OUR(King);
+  br.promoted = EMPTY_PIECE;
   nodes += traverseFn(l, cb, br);
 
   if (numChecking > 1) return nodes; // Double check, only king can move
@@ -243,7 +244,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
 
     return nodes;
   }
-  //BitBoardPrint(cb->enPassant);
 
   // No check
 
@@ -255,7 +255,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     br.from = BitBoardSetBit(EMPTY_BOARD, s1);
     nodes += traverseFn(l, cb, br);
   }
-  //BitBoardPrint(cb->enPassant);
+
   b1 = OUR(Pawn) & ~pinned;
   // Traverse non pinned left pawn attacks
   br.to = PAWN_ATTACKS_LEFT(b1, cb->turn) & them;
@@ -280,7 +280,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // Traverse non pinned en passant
   // If it's check and theres an enpassant square, enpassant must be possible
   br.to = ENPASSANT_LEFT(b1, cb->turn) & cb->enPassant;
-  //BitBoardPrint(cb->enPassant);
   br.from = ENPASSANT_LEFT(br.to, !cb->turn);
   nodes += traverseFn(l, cb, br);
   br.to = ENPASSANT_RIGHT(b1, cb->turn) & cb->enPassant;
