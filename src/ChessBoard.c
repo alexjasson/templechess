@@ -327,6 +327,8 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     nodes += traverseFn(l, cb, br);
   }
 
+  // TODO: Add castling here
+
   // Traverse non pinned, promoting pawn branches - one to many mapping
   b1 = OUR(Pawn) & PROMOTING_RANK(cb->turn) & ~pinned;
   while (b1) {
