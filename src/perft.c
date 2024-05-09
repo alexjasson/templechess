@@ -5,8 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define BOARD "k1q5/8/1K6/8/2N5/5n2/1R6/B7 b - - 0 1"
-
 int main(int argc, char **argv) {
     // Check arguments
     if (argc != 3) {
@@ -17,12 +15,6 @@ int main(int argc, char **argv) {
     LookupTable l = LookupTableNew();
     ChessBoard cb = ChessBoardNew(argv[1], atoi(argv[2]));
     ChessBoardTreeSearch(l, cb);
-    BitBoard b = EMPTY_BOARD;
-    BitRank r = 255;
-    b = BitBoardSetBitRank(b, 3, r);
-    BitRank s = BitBoardGetBitRank(b, 3);
-    BitBoardPrint(b);
-    printf("%u\n", s);
 
 
     LookupTableFree(l);
