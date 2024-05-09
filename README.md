@@ -61,5 +61,5 @@ To traverse left pawn moves:
 
 - Get the checking piece type?
 
-
-- FIX BUG POSITION: 1nbqkbnr/ppp3pp/8/3PppK1/3p4/PP6/3P1PPP/RNBQ1BNR w - e6 0 1
+- Put regular pawn moves, piece moves and promotion moves in their own function? (regular meaning non pinned)
+  Since these are repeated twice.
