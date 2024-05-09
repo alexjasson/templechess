@@ -165,6 +165,46 @@ static Color getColorFromASCII(char asciiColor) {
   return (asciiColor == 'w') ? White : Black;
 }
 
+// Data: {pinned, them, intersection}
+inline static long promotionBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard *data) {
+  long nodes = 0;
+  BitBoard b1, b2;
+  Branch br;
+  Square s;
+  b1 = OUR(Pawn) & PROMOTING_RANK(cb->turn) & ~data[0];
+  while (b1) {
+    s = BitBoardPopLSB(&b1);
+    b2 = BitBoardSetBit(EMPTY_BOARD, s);
+    br.to = SINGLE_PUSH(b2, cb->turn) & ~ALL;
+    br.to |= PAWN_ATTACKS(b2, cb->turn) & data[1];
+    br.to &= data[2];
+    br.from = b2;
+    for (Type t = Knight; t <= Queen; t++) {
+      br.promoted = GET_PIECE(t, cb->turn);
+      nodes += traverseFn(l, cb, br);
+    }
+  }
+
+  return nodes;
+}
+
+// Data: {pinned, us, intersection}
+inline static long pieceBranches(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard *data) {
+  long nodes = 0;
+  BitBoard b;
+  Branch br;
+  Square s;
+  b = ~data[0] & data[1] & ~(OUR(Pawn) | OUR(King));
+  while (b) {
+    s = BitBoardPopLSB(&b);
+    br.to = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & data[2];
+    br.from = BitBoardSetBit(EMPTY_BOARD, s);
+    nodes += TraverseFn(l, cb, br);
+  }
+
+  return nodes;
+}
+
 static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // Base cases
   if (cb->depth == 0) return 1;
@@ -204,13 +244,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     b3 = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), ourKing); // Use b3 as checkmask
 
     // Traverse non pinned piece branches
-    b1 = us & ~(OUR(Pawn) | OUR(King)) & ~pinned;
-    while (b1) {
-      s1 = BitBoardPopLSB(&b1);
-      br.to = LookupTableAttacks(l, s1, GET_TYPE(cb->squares[s1]), occupancies.board) & b3;
-      br.from = BitBoardSetBit(EMPTY_BOARD, s1);
-      nodes += traverseFn(l, cb, br);
-    }
+    nodes += pieceBranches(l, cb, traverseFn, (BitBoard[]){pinned, us, b3});
 
     // Traverse non pinned, non promoting pawn branches
     b1 = OUR(Pawn) & ~(pinned | PROMOTING_RANK(cb->turn));
@@ -240,19 +274,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     nodes += traverseFn(l, cb, br);
 
     // Traverse non pinned, promoting pawn branches - one to many mapping
-    b1 = OUR(Pawn) & PROMOTING_RANK(cb->turn) & ~pinned;
-    while (b1) {
-      s1 = BitBoardPopLSB(&b1);
-      b2 = BitBoardSetBit(EMPTY_BOARD, s1);
-      br.to = SINGLE_PUSH(b2, cb->turn) & ~ALL;
-      br.to |= PAWN_ATTACKS(b2, cb->turn) & them;
-      br.to &= b3;
-      br.from = b2;
-      for (Type t = Knight; t <= Queen; t++) {
-        br.promoted = GET_PIECE(t, cb->turn);
-        nodes += traverseFn(l, cb, br);
-      }
-    }
+    nodes += promotionBranches(l, cb, traverseFn, (BitBoard[]){pinned, them, b3});
 
     return nodes;
   }
@@ -260,13 +282,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // No check
 
   // Traverse non pinned piece branches
-  b1 = us & ~(OUR(Pawn) | OUR(King)) & ~pinned;
-  while (b1) {
-    s1 = BitBoardPopLSB(&b1);
-    br.to = LookupTableAttacks(l, s1, GET_TYPE(cb->squares[s1]), occupancies.board) & ~us;
-    br.from = BitBoardSetBit(EMPTY_BOARD, s1);
-    nodes += traverseFn(l, cb, br);
-  }
+  nodes += pieceBranches(l, cb, traverseFn, (BitBoard[]){pinned, us, ~us});
 
   // Traverse pinned piece branches
   b1 = (OUR(Bishop) | OUR(Rook)| OUR(Queen)) & pinned;
@@ -330,18 +346,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // TODO: Add castling here
 
   // Traverse non pinned, promoting pawn branches - one to many mapping
-  b1 = OUR(Pawn) & PROMOTING_RANK(cb->turn) & ~pinned;
-  while (b1) {
-    s1 = BitBoardPopLSB(&b1);
-    b2 = BitBoardSetBit(EMPTY_BOARD, s1);
-    br.to = SINGLE_PUSH(b2, cb->turn) & ~ALL;
-    br.to |= PAWN_ATTACKS(b2, cb->turn) & them;
-    br.from = b2;
-    for (Type t = Knight; t <= Queen; t++) {
-      br.promoted = GET_PIECE(t, cb->turn);
-      nodes += traverseFn(l, cb, br);
-    }
-  }
+  nodes += promotionBranches(l, cb, traverseFn, (BitBoard[]){pinned, them, ~EMPTY_BOARD});
 
   // Traverse pinned, promoting pawn branches - one to many mapping
   b1 = OUR(Pawn) & PROMOTING_RANK(cb->turn) & pinned;
