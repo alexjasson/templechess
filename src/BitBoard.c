@@ -89,3 +89,14 @@ BitBoard BitBoardShiftW(BitBoard b) {
 BitBoard BitBoardShiftE(BitBoard b) {
   return (b << 1) & ~WEST_EDGE;
 }
+
+BitRank BitBoardGetBitRank(BitBoard b, int rank) {
+  BitRank *r = (BitRank *)&b;
+  return r[rank];
+}
+
+BitBoard BitBoardSetBitRank(BitBoard b, int rank, BitRank r) {
+  BitRank *ranks = (BitRank *)&b;
+  ranks[rank] = r;
+  return b;
+}

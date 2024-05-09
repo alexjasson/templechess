@@ -1,8 +1,6 @@
 #ifndef CHESSBOARD_H
 #define CHESSBOARD_H
 
-#include "BitMap.h"
-
 #define MAX_DEPTH 16
 #define PIECE_SIZE 12
 
@@ -15,7 +13,7 @@ typedef struct {
   Color turn;
   int depth; // Start from desired depth and decrement until 0
   BitBoard enPassant;
-  BitMap castling;
+  BitBoard castling;
 } ChessBoard;
 
 ChessBoard ChessBoardNew(char *fen, int depth); // ChessBoard is stack allocated

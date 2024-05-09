@@ -50,7 +50,7 @@ typedef struct {
   Piece captured;
   Piece moved;
   BitBoard enPassant;
-  BitMap castling;
+  BitBoard castling;
 } UndoData;
 
 static Color getColorFromASCII(char asciiColor);
@@ -59,7 +59,7 @@ static char getASCIIFromPiece(Piece p);
 
 static UndoData move(ChessBoard *cb, Move m);
 static void undoMove(ChessBoard *cb, Move m, UndoData u);
-static BitMap getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
+static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
 static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn);
 
@@ -110,7 +110,7 @@ ChessBoard ChessBoardNew(char *fen, int depth) {
     while (*fen != ' ') {
       int rank = (*fen == 'K' || *fen == 'Q') ? 7 : 0;
       BitRank flag = (*fen == 'K' || *fen == 'k') ? KINGSIDE_CASTLING : QUEENSIDE_CASTLING;
-      cb.castling.rank[rank] |= flag;
+      cb.castling |= BitBoardSetBitRank(cb.castling, rank, flag);
       fen++;
     }
     fen++;
@@ -273,20 +273,18 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
 
   // Data needed for move generation
   Square ourKing = BitBoardGetLSB(OUR(King));
-  BitBoard us, them, pinned, checking;
-  BitMap occupancies, attacked;
+  BitBoard us, them, pinned, checking, attacked;
   int numChecking;
   us = them = pinned = checking = EMPTY_BOARD;
 
   for (Type t = Pawn; t <= Queen; t++) us |= OUR(t);
-  occupancies.board = ALL;
-  them = occupancies.board & ~us;
+  them = ALL & ~us;
   attacked = getAttackedSquares(l, cb, them);
   checking = getCheckingPieces(l, cb, them, &pinned);
   numChecking = BitBoardCountBits(checking);
 
   // Traverse king branches
-  br.to = LookupTableAttacks(l, ourKing, King, occupancies.board) & ~us & ~attacked.board;
+  br.to = LookupTableAttacks(l, ourKing, King, ALL) & ~us & ~attacked;
   br.from = OUR(King);
   br.promoted = EMPTY_PIECE;
   nodes += traverseFn(l, cb, br);
@@ -497,14 +495,13 @@ BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoar
 }
 
 // Return the squares attacked by the enemy
-static BitMap getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them) {
-  BitMap attacked;
-  BitBoard b;
+static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them) {
+  BitBoard attacked, b;
   BitBoard occupancies = ALL & ~OUR(King);
 
-  attacked.board = PAWN_ATTACKS(THEIR(Pawn), !cb->turn);
+  attacked = PAWN_ATTACKS(THEIR(Pawn), !cb->turn);
   b = them & ~THEIR(Pawn);
-  while (b) attacked.board |= LookupTableAttacks(l, BitBoardPopLSB(&b), GET_TYPE(cb->squares[BitBoardGetLSB(b)]), occupancies);
+  while (b) attacked |= LookupTableAttacks(l, BitBoardPopLSB(&b), GET_TYPE(cb->squares[BitBoardGetLSB(b)]), occupancies);
 
   return attacked;
 }
