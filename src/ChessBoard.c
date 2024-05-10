@@ -17,12 +17,11 @@
 #define THEIR(t) (cb->pieces[GET_PIECE(t, !cb->turn)]) // Bitboard representing their pieces of type t
 #define ALL (~cb->pieces[EMPTY_PIECE]) // Bitboard of all the pieces
 
+// Masks used for castling
 #define KINGSIDE_CASTLING 0x9000000000000090
 #define QUEENSIDE_CASTLING 0x1100000000000011
-
 #define QUEENSIDE 0x1F1F1F1F1F1F1F1F
 #define KINGSIDE 0xF0F0F0F0F0F0F0F0
-
 #define ATTACK_MASK 0x6c0000000000006c
 #define OCCUPANCY_MASK 0x6e0000000000006e
 
@@ -62,13 +61,13 @@ static Color getColorFromASCII(char asciiColor);
 static Piece getPieceFromASCII(char asciiPiece);
 static char getASCIIFromPiece(Piece p);
 
-static UndoData move(ChessBoard *cb, Move m);
-static void undoMove(ChessBoard *cb, Move m, UndoData u);
+inline static UndoData move(ChessBoard *cb, Move m);
+inline static void undoMove(ChessBoard *cb, Move m, UndoData u);
 static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
 static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn);
 
-static void printMove(Move m, long nodes);
+static void printMove(Piece moved, Move m, long nodes);
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br);
 static long printMoves(LookupTable l, ChessBoard *cb, Branch br);
 static long countMoves(LookupTable l, ChessBoard *cb, Branch br);
@@ -76,6 +75,7 @@ static long countMoves(LookupTable l, ChessBoard *cb, Branch br);
 inline static long promotionBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard *data);
 inline static long pieceBranches(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard *data);
 inline static long pawnBranches(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard *data);
+inline static long enPassantBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard *data);
 
 static Piece addPiece(ChessBoard *cb, Square s, Piece replacemen);
 
@@ -134,7 +134,6 @@ ChessBoard ChessBoardNew(char *fen, int depth) {
 }
 
 void ChessBoardPrint(ChessBoard cb) {
-  printf("----------------------------------------------------\n");
   for (int rank = 0; rank < EDGE_SIZE; rank++) {
     for (int file = 0; file < EDGE_SIZE; file++) {
       Square s = rank * EDGE_SIZE + file;
@@ -144,12 +143,6 @@ void ChessBoardPrint(ChessBoard cb) {
     printf("%d\n", EDGE_SIZE - rank);
   }
   printf("a b c d e f g h\n\n");
-  printf("Color: %d\n", cb.turn);
-  printf("Depth: %d\n", cb.depth);
-  Square enPassant = BitBoardGetLSB(cb.enPassant);
-  printf("En Passant Square: %c%d\n", 'a' + (enPassant % EDGE_SIZE), EDGE_SIZE - (enPassant / EDGE_SIZE));
-  //BitBoardPrint(cb.castling);
-  printf("----------------------------------------------------\n");
 }
 
 
@@ -387,7 +380,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   return nodes;
 }
 
-long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
+static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
   Move m;
   m.from = BitBoardGetLSB(br.from);
   m.promoted = br.promoted;
@@ -406,7 +399,7 @@ long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
   return nodes;
 }
 
-long printMoves(LookupTable l, ChessBoard *cb, Branch br) {
+static long printMoves(LookupTable l, ChessBoard *cb, Branch br) {
   Move m;
   m.from = BitBoardGetLSB(br.from);
   m.promoted = br.promoted;
@@ -420,22 +413,21 @@ long printMoves(LookupTable l, ChessBoard *cb, Branch br) {
     u = move(cb, m);
     subTree = treeSearch(l, cb, traverseMoves); // Continue traversing
     nodes += subTree;
-    printMove(m, subTree);
+    printMove(u.moved, m, subTree);
     undoMove(cb, m, u);
   }
 
   return nodes;
 }
 
-long countMoves(LookupTable l, ChessBoard *cb, Branch br) {
+static long countMoves(LookupTable l, ChessBoard *cb, Branch br) {
   (void) l;
   (void) cb;
   return BitBoardCountBits(br.to);
 }
 
-void ChessBoardTreeSearch(LookupTable l, ChessBoard cb) {
-  long nodes = treeSearch(l, &cb, printMoves);
-  printf("\nNodes: %ld\n", nodes);
+long ChessBoardTreeSearch(LookupTable l, ChessBoard cb) {
+  return treeSearch(l, &cb, printMoves);
 }
 
 inline static UndoData move(ChessBoard *cb, Move m) {
@@ -515,12 +507,15 @@ static Piece addPiece(ChessBoard *cb, Square s, Piece replacement) {
   return captured;
 }
 
-void printMove(Move m, long nodes) {
+static void printMove(Piece moving, Move m, long nodes) {
+  // Handle en passant move being encded differently
+  int offset = m.from - m.to;
+  if ((GET_TYPE(moving) == Pawn) && ((offset == 1) || (offset == -1))) m.to = (GET_COLOR(moving)) ? m.to + EDGE_SIZE : m.to - EDGE_SIZE;
   printf("%c%d%c%d: %ld\n", 'a' + (m.from % EDGE_SIZE), EDGE_SIZE - (m.from / EDGE_SIZE), 'a' + (m.to % EDGE_SIZE), EDGE_SIZE - (m.to / EDGE_SIZE), nodes);
 }
 
 // Return the checking pieces and simultaneously update the pinned pieces bitboard
-BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned) {
+static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned) {
   Square ourKing = BitBoardGetLSB(OUR(King));
   BitBoard checking = (PAWN_ATTACKS(OUR(King), cb->turn) & THEIR(Pawn)) |
                       (LookupTableAttacks(l, ourKing, Knight, EMPTY_BOARD) & THEIR(Knight));
