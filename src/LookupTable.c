@@ -67,7 +67,6 @@ void initializeLookupTable(LookupTable l) {
     exit(EXIT_FAILURE);
   }
 
-  // Minor/major piece moves
   for (Square s = a8; s <= h1; s++) {
     l->bishopMagics[s] = getMagic(s, Bishop, fp);
     l->rookMagics[s] = getMagic(s, Rook, fp);
@@ -123,7 +122,7 @@ BitBoard LookupTableGetLineOfSight(LookupTable l, Square s1, Square s2) {
 static BitBoard getAttacks(Square s, Type t, BitBoard occupancies) {
   BitBoard attacks = EMPTY_BOARD;
 
-  // Loop through attacks, if attack does not meet criteria for piece/color then break/continue
+  // Loop through attacks, if attack does not meet criteria for piece then break/continue
   for (Direction d = North; d <= Northwest; d++) {
     for (int steps = 1; steps < EDGE_SIZE; steps++) {
       if ((t == Bishop && !IS_DIAGONAL(d)) || (t == Rook && IS_DIAGONAL(d))) continue;
@@ -138,7 +137,6 @@ static BitBoard getAttacks(Square s, Type t, BitBoard occupancies) {
   return attacks;
 }
 
-// Assume knight or queen will not be passed to this function
 static BitBoard getRelevantBits(Square s, Type t) {
   BitBoard relevantBits = getAttacks(s, t, EMPTY_BOARD);
   BitBoard piece = BitBoardSetBit(EMPTY_BOARD, s);
