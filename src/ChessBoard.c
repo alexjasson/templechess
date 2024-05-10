@@ -148,7 +148,7 @@ void ChessBoardPrint(ChessBoard cb) {
   printf("Depth: %d\n", cb.depth);
   Square enPassant = BitBoardGetLSB(cb.enPassant);
   printf("En Passant Square: %c%d\n", 'a' + (enPassant % EDGE_SIZE), EDGE_SIZE - (enPassant / EDGE_SIZE));
-  BitBoardPrint(cb.castling);
+  //BitBoardPrint(cb.castling);
   printf("----------------------------------------------------\n");
 }
 
@@ -320,7 +320,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   nodes += pawnBranches(l, cb, traverseFn, (BitBoard[]){pinned, them, ~EMPTY_BOARD});
   // Traverse non pinned, promoting pawn branches
   nodes += promotionBranches(l, cb, traverseFn, (BitBoard[]){pinned, them, ~EMPTY_BOARD});
-  // Traverse pinned Enpassant branches
+  // Traverse non pinned Enpassant branches
   nodes += enPassantBranches(l, cb, traverseFn, (BitBoard[]){pinned, ~EMPTY_BOARD});
 
   // Traverse pinned piece branches
@@ -467,7 +467,7 @@ inline static UndoData move(ChessBoard *cb, Move m) {
 
   cb->turn = !cb->turn;
   cb->depth--;
-
+  ChessBoardPrint(*cb);
   return u;
 }
 
@@ -497,6 +497,7 @@ inline static void undoMove(ChessBoard *cb, Move m, UndoData u) {
 
   cb->turn = !cb->turn;
   cb->depth++;
+  ChessBoardPrint(*cb);
 }
 
 // Adds a piece to a chessboard

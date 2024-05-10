@@ -1,7 +1,6 @@
 #ifndef CHESSBOARD_H
 #define CHESSBOARD_H
 
-#define MAX_DEPTH 16
 #define PIECE_SIZE 12
 
 typedef uint8_t Piece;
