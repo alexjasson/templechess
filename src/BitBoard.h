@@ -13,7 +13,6 @@
 #define EMPTY_BOARD 0
 
 typedef uint64_t BitBoard;
-typedef uint8_t BitRank;
 typedef uint8_t Bit;
 
 typedef enum {
@@ -48,8 +47,5 @@ BitBoard BitBoardShiftSE(BitBoard b);
 BitBoard BitBoardShiftSW(BitBoard b);
 BitBoard BitBoardShiftE(BitBoard b);
 BitBoard BitBoardShiftW(BitBoard b);
-
-BitRank BitBoardGetBitRank(BitBoard b, int rank);
-BitBoard BitBoardSetBitRank(BitBoard b, int rank, BitRank r);
 
 #endif

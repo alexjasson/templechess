@@ -114,9 +114,9 @@ ChessBoard ChessBoardNew(char *fen, int depth) {
     fen += 2;
   } else {
     while (*fen != ' ') {
-      int rank = (*fen == 'K' || *fen == 'Q') ? 7 : 0;
-      BitRank flag = (*fen == 'K' || *fen == 'k') ? KINGSIDE_CASTLING : QUEENSIDE_CASTLING;
-      cb.castling |= BitBoardSetBitRank(cb.castling, rank, flag);
+      Color c = (*fen == 'K' || *fen == 'Q') ? 0 : 7;
+      BitBoard castlingSquares = (*fen == 'K' || *fen == 'k') ? KINGSIDE_CASTLING : QUEENSIDE_CASTLING;
+      cb.castling |= (castlingSquares & BACK_RANK(c));
       fen++;
     }
     fen++;
@@ -245,8 +245,6 @@ inline static long enPassantBranches(LookupTable l, ChessBoard *cb, TraverseFn t
   Square s;
 
   b = ENPASSANT(cb->enPassant) & OUR(Pawn) & ~data[0];
-  //BitBoardPrint(b);
-  //BitBoardPrint(data[0]);
   while (b) {
     s = BitBoardPopLSB(&b);
     // Check that the pawn is not "pseudo-pinned"
