@@ -36,6 +36,7 @@
 
 #define ENPASSANT_RANK(c) (BitBoard)SOUTH_EDGE >> (EDGE_SIZE * ((c * 3) + 2)) // 6th rank for black, 3rd for white
 #define PROMOTING_RANK(c) (BitBoard)NORTH_EDGE << (EDGE_SIZE * ((c * 5) + 1)) // 2nd rank for black, 7th for white
+#define BACK_RANK(c) (BitBoard)((c == White) ? SOUTH_EDGE : NORTH_EDGE)
 
 typedef struct {
   BitBoard to;
@@ -340,28 +341,18 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     br.to |= PAWN_ATTACKS(b2, cb->turn) & them;
     b3 = LookupTableGetLineOfSight(l, ourKing, s1); // The pin mask
     br.to &= b3;
-    BitBoard enpassantMove = ENPASSANT(b2) & cb->enPassant;
-    enpassantMove = SINGLE_PUSH(enpassantMove, cb->turn);
-    enpassantMove &= b3;
-    enpassantMove = SINGLE_PUSH(enpassantMove, !cb->turn);
-    br.to |= enpassantMove;
+    br.to |= ENPASSANT(b2) & cb->enPassant & SINGLE_PUSH(b3, !cb->turn);
     br.from = b2;
     nodes += traverseFn(l, cb, br);
   }
 
-  // TODO: Add castling here
-  BitBoard mask = (cb->turn) ? NORTH_EDGE : SOUTH_EDGE;
-  BitBoard castlinBits = cb->castling | (ALL & OCCUPANCY_MASK) | (attacked & ATTACK_MASK);
-  castlinBits &= mask;
+  // Traverse castling branches
+  b1 = (cb->castling | (ALL & OCCUPANCY_MASK) | (attacked & ATTACK_MASK)) & BACK_RANK(cb->turn);
   br.from = OUR(King);
   br.to = EMPTY_BOARD;
-  if ((castlinBits & KINGSIDE) == (KINGSIDE_CASTLING & mask)) {
-    br.to = br.from << 2;
-  }
-  if ((castlinBits & QUEENSIDE) == (QUEENSIDE_CASTLING & mask)) {
-    br.to |= br.from >> 2;
-  }
-  if (br.to) nodes += traverseFn(l, cb, br);
+  if ((b1 & KINGSIDE) == (KINGSIDE_CASTLING & BACK_RANK(cb->turn))) br.to |= br.from << 2;
+  if ((b1 & QUEENSIDE) == (QUEENSIDE_CASTLING & BACK_RANK(cb->turn))) br.to |= br.from >> 2;
+  nodes += traverseFn(l, cb, br);
 
   // Traverse pinned, promoting pawn branches - one to many mapping
   b1 = OUR(Pawn) & PROMOTING_RANK(cb->turn) & pinned;
