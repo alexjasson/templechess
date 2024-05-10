@@ -426,8 +426,8 @@ static long countMoves(LookupTable l, ChessBoard *cb, Branch br) {
   return BitBoardCountBits(br.to);
 }
 
-long ChessBoardTreeSearch(LookupTable l, ChessBoard cb) {
-  return treeSearch(l, &cb, printMoves);
+long ChessBoardTreeSearch(LookupTable l, ChessBoard cb, int print) {
+  return (print == TRUE) ? treeSearch(l, &cb, printMoves) : treeSearch(l, &cb, traverseMoves);
 }
 
 inline static UndoData move(ChessBoard *cb, Move m) {
