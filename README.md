@@ -63,3 +63,5 @@ To traverse left pawn moves:
 
 - Put regular pawn moves, piece moves and promotion moves in their own function? (regular meaning non pinned)
   Since these are repeated twice.
+
+- TODO: fix bug in this position: "r3k3/p1ppqpb1/bn2pnN1/3P4/4P2r/PpN2Q1p/1PPBBPPP/R3K2R w KQq - 0 1" 2

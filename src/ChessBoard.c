@@ -17,9 +17,14 @@
 #define THEIR(t) (cb->pieces[GET_PIECE(t, !cb->turn)]) // Bitboard representing their pieces of type t
 #define ALL (~cb->pieces[EMPTY_PIECE]) // Bitboard of all the pieces
 
-#define BOTHSIDE_CASTLING 0b10001001
-#define KINGSIDE_CASTLING 0b00001001
-#define QUEENSIDE_CASTLING 0b10001000
+#define KINGSIDE_CASTLING 0x9000000000000090
+#define QUEENSIDE_CASTLING 0x1100000000000011
+
+#define QUEENSIDE 0x1F1F1F1F1F1F1F1F
+#define KINGSIDE 0xF0F0F0F0F0F0F0F0
+
+#define ATTACK_MASK 0x6c0000000000006c
+#define OCCUPANCY_MASK 0x6e0000000000006e
 
 // Given a square, returns a bitboard representing the rank of that square
 #define GET_RANK(s) (SOUTH_EDGE >> (EDGE_SIZE * (EDGE_SIZE - BitBoardGetRank(s) - 1)))
@@ -105,7 +110,7 @@ ChessBoard ChessBoardNew(char *fen, int depth) {
 
   // Parse castling
   if (*fen == '-') {
-    fen++;
+    fen += 2;
   } else {
     while (*fen != ' ') {
       int rank = (*fen == 'K' || *fen == 'Q') ? 7 : 0;
@@ -115,7 +120,6 @@ ChessBoard ChessBoardNew(char *fen, int depth) {
     }
     fen++;
   }
-  fen++;
 
   // Parse en passant
   if (*fen != '-') {
@@ -144,6 +148,7 @@ void ChessBoardPrint(ChessBoard cb) {
   printf("Depth: %d\n", cb.depth);
   Square enPassant = BitBoardGetLSB(cb.enPassant);
   printf("En Passant Square: %c%d\n", 'a' + (enPassant % EDGE_SIZE), EDGE_SIZE - (enPassant / EDGE_SIZE));
+  BitBoardPrint(cb.castling);
   printf("----------------------------------------------------\n");
 }
 
@@ -346,6 +351,18 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   }
 
   // TODO: Add castling here
+  BitBoard mask = (cb->turn) ? NORTH_EDGE : SOUTH_EDGE;
+  BitBoard castlinBits = cb->castling | (ALL & OCCUPANCY_MASK) | (attacked & ATTACK_MASK);
+  castlinBits &= mask;
+  br.from = OUR(King);
+  br.to = EMPTY_BOARD;
+  if ((castlinBits & KINGSIDE) == (KINGSIDE_CASTLING & mask)) {
+    br.to = br.from << 2;
+  }
+  if ((castlinBits & QUEENSIDE) == (QUEENSIDE_CASTLING & mask)) {
+    br.to |= br.from >> 2;
+  }
+  if (br.to) nodes += traverseFn(l, cb, br);
 
   // Traverse pinned, promoting pawn branches - one to many mapping
   b1 = OUR(Pawn) & PROMOTING_RANK(cb->turn) & pinned;
@@ -421,6 +438,8 @@ inline static UndoData move(ChessBoard *cb, Move m) {
   UndoData u;
   u.moved = cb->squares[m.from];
   u.enPassant = cb->enPassant;
+  u.castling = cb->castling;
+  cb->castling &= ~(BitBoardSetBit(EMPTY_BOARD, m.from) | BitBoardSetBit(EMPTY_BOARD, m.to));
   u.captured = addPiece(cb, m.to, u.moved);
   addPiece(cb, m.from, EMPTY_PIECE);
   cb->enPassant = EMPTY_BOARD;
@@ -434,6 +453,16 @@ inline static UndoData move(ChessBoard *cb, Move m) {
     } else if (m.promoted != EMPTY_PIECE) {
       addPiece(cb, m.to, m.promoted);
     }
+  } else if (GET_TYPE(u.moved) == King) {
+    if (offset == 2) {
+      // Queenside
+      addPiece(cb, m.to - 2, EMPTY_PIECE);
+      addPiece(cb, m.to + 1, GET_PIECE(Rook, cb->turn));
+    } else if (offset == -2) {
+      // Kingside
+      addPiece(cb, m.to + 1, EMPTY_PIECE);
+      addPiece(cb, m.to - 1, GET_PIECE(Rook, cb->turn));
+    }
   }
 
   cb->turn = !cb->turn;
@@ -446,12 +475,23 @@ inline static void undoMove(ChessBoard *cb, Move m, UndoData u) {
   int offset = m.from - m.to;
 
   cb->enPassant = u.enPassant;
+  cb->castling = u.castling;
   addPiece(cb, m.from, u.moved);
   addPiece(cb, m.to, u.captured);
 
   if (GET_TYPE(u.moved) == Pawn) {
     if ((offset == 1) || (offset == -1)) {
       addPiece(cb, m.to + ((cb->turn) ? -EDGE_SIZE : EDGE_SIZE), EMPTY_PIECE);
+    }
+  } else if (GET_TYPE(u.moved) == King) {
+    if (offset == 2) {
+      // Queenside
+      addPiece(cb, m.to - 2, GET_PIECE(Rook, !cb->turn));
+      addPiece(cb, m.to + 1, EMPTY_PIECE);
+    } else if (offset == -2) {
+      // Kingside
+      addPiece(cb, m.to + 1, GET_PIECE(Rook, !cb->turn));
+      addPiece(cb, m.to - 1, EMPTY_PIECE);
     }
   }
 
