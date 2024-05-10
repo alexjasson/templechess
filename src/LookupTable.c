@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <time.h>
-
 #include "BitBoard.h"
 #include "LookupTable.h"
 
+#define TRUE 1
+#define FALSE 0
 #define IS_DIAGONAL(d) (d % 2 == 1)
 #define POWERSET_SIZE(n) (1 << n)
 #define BISHOP_ATTACKS_POWERSET 512
@@ -131,9 +131,8 @@ static BitBoard getAttacks(Square s, Type t, BitBoard occupancies) {
       else if (t <= Knight && steps > 1) break;
 
       BitBoard attack = getMove(s, t, d, steps);
-      bool capture = attack & occupancies;
       attacks |= attack;
-      if (capture) break;
+      if (attack & occupancies) break;
     }
   }
   return attacks;
@@ -207,11 +206,11 @@ static Magic getMagic(Square s, Type t, FILE *fp) {
     attacks[i] = getAttacks(s, t, relevantBitsPowerset[i]);
   }
 
-  while (true) {
+  while (TRUE) {
     uint64_t magicNumberCandidate = getRandomU64() & getRandomU64() & getRandomU64();
 
     for (int j = 0; j < powersetSize; j++) usedAttacks[j] = EMPTY_BOARD;
-    int collision = false;
+    int collision = FALSE;
 
     // Test magic index
     for (int j = 0; j < powersetSize; j++) {
@@ -220,7 +219,7 @@ static Magic getMagic(Square s, Type t, FILE *fp) {
       if (usedAttacks[index] == EMPTY_BOARD) {
         usedAttacks[index] = attacks[j];
       } else if (usedAttacks[index] != attacks[j]) {
-        collision = true;
+        collision = TRUE;
         break;
       }
     }
@@ -247,12 +246,12 @@ static uint64_t getRandomU64() {
 
 static uint32_t xorshift() {
   static uint32_t state = 0;
-  static bool seeded = false;
+  static int seeded = FALSE;
 
   // Seed only once
   if (!seeded) {
     state = (uint32_t)time(NULL);
-    seeded = true;
+    seeded = TRUE;
   }
 
   uint32_t x = state;
