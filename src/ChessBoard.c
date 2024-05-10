@@ -33,7 +33,7 @@
 #define PAWN_ATTACKS_RIGHT(b, c) ((c == White) ? BitBoardShiftNE(b) : BitBoardShiftSW(b))
 #define SINGLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(b) : BitBoardShiftS(b))
 #define DOUBLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(BitBoardShiftN(b)) : BitBoardShiftS(BitBoardShiftS(b)))
-#define ENPASSANT(b, c) (BitBoardShiftE(b) | BitBoardShiftW(b))
+#define ENPASSANT(b) (BitBoardShiftE(b) | BitBoardShiftW(b))
 
 #define ENPASSANT_RANK(c) (BitBoard)SOUTH_EDGE >> (EDGE_SIZE * ((c * 3) + 2)) // 6th rank for black, 3rd for white
 #define PROMOTING_RANK(c) (BitBoard)NORTH_EDGE << (EDGE_SIZE * ((c * 5) + 1)) // 2nd rank for black, 7th for white
@@ -250,7 +250,9 @@ inline static long enPassantBranches(LookupTable l, ChessBoard *cb, TraverseFn t
   Branch br;
   Square s;
 
-  b = ENPASSANT(cb->enPassant, cb->turn) & OUR(Pawn) & ~data[0];
+  b = ENPASSANT(cb->enPassant) & OUR(Pawn) & ~data[0];
+  //BitBoardPrint(b);
+  //BitBoardPrint(data[0]);
   while (b) {
     s = BitBoardPopLSB(&b);
     // Check that the pawn is not "pseudo-pinned"
@@ -306,8 +308,8 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     nodes += pawnBranches(l, cb, traverseFn, (BitBoard[]){pinned, them, b3});
     // Traverse non pinned, promoting pawn branches
     nodes += promotionBranches(l, cb, traverseFn, (BitBoard[]){pinned, them, b3});
-    // Traverse enpassant branches
-    nodes += enPassantBranches(l, cb, traverseFn, (BitBoard[]){EMPTY_BOARD, ~EMPTY_BOARD});
+    // Traverse non pinned enpassant branches
+    nodes += enPassantBranches(l, cb, traverseFn, (BitBoard[]){pinned, ~EMPTY_BOARD});
 
     return nodes;
   }
@@ -345,7 +347,11 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     br.to |= PAWN_ATTACKS(b2, cb->turn) & them;
     b3 = LookupTableGetLineOfSight(l, ourKing, s1); // The pin mask
     br.to &= b3;
-    br.to |= ENPASSANT(b2, cb->turn) & cb->enPassant & SINGLE_PUSH(b3, !cb->turn);
+    BitBoard enpassantMove = ENPASSANT(b2) & cb->enPassant;
+    enpassantMove = SINGLE_PUSH(enpassantMove, cb->turn);
+    enpassantMove &= b3;
+    enpassantMove = SINGLE_PUSH(enpassantMove, !cb->turn);
+    br.to |= enpassantMove;
     br.from = b2;
     nodes += traverseFn(l, cb, br);
   }
@@ -467,7 +473,7 @@ inline static UndoData move(ChessBoard *cb, Move m) {
 
   cb->turn = !cb->turn;
   cb->depth--;
-  ChessBoardPrint(*cb);
+  //ChessBoardPrint(*cb);
   return u;
 }
 
@@ -497,7 +503,7 @@ inline static void undoMove(ChessBoard *cb, Move m, UndoData u) {
 
   cb->turn = !cb->turn;
   cb->depth++;
-  ChessBoardPrint(*cb);
+  //ChessBoardPrint(*cb);
 }
 
 // Adds a piece to a chessboard
