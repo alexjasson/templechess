@@ -2,25 +2,6 @@
 
 TODO:
 
-- A lookup table for all pawn moves including en passant, the key for
-  the lookup table will be the occupancies with the enpassant square
-  encoded on the back rank. Remember that for any given square a pawn
-  only has a maximum of 4 possible moves. En passant will be encoded
-  as a move to the side. For the pawn, all bits are relevant. For example,
-  if we're a pawn on the b file, we want to know if we can move (attack) on file a.
-- Have a pawnMove function that handles all pawn moves, can pass it a
-  piece type to handle promotion. Enpassant will be handled recursively.
-  Double pushes will be detected by square differences. During move traversal
-  promotions will be handled by splitting 'to' bits into separate bitboards for
-  promotion rank and ~promotion rank.
-- The relevant bits of a white pawn on the 4th rank would be the 3 bits in front of it
-  and the 8 bits on the back rank (for enPassant). However the 8 bits on the backrank need
-  only be a power set where each set has cardinality 1 or empty. So we have 3^2 * 9 = 72
-  maximum possible 'occupancy' sets for any given pawn. We will need some function to generate
-  subsets of maximum cardinality 1, since currently we only generate all subsets. That means the
-  pawns lookup table will take up 72 * 64 * 2 * 8 = ~74KB.
-  ^DEPRECIATED^
-
 - A function for setting two bits on a bitboard might be useful.
 - Use this algorithm when traversing castling:
   If (castling.rank >= QUEENSIDE_CASTLING || castling.rank == KINGSIDE_CASTLING) {
@@ -63,5 +44,3 @@ To traverse left pawn moves:
 
 - Put regular pawn moves, piece moves and promotion moves in their own function? (regular meaning non pinned)
   Since these are repeated twice.
-
-- TODO: fix bug in this position: "r3k3/p1ppqpb1/bn2pnN1/3P4/4P2r/PpN2Q1p/1PPBBPPP/R3K2R w KQq - 0 1" 2

@@ -473,7 +473,6 @@ inline static UndoData move(ChessBoard *cb, Move m) {
 
   cb->turn = !cb->turn;
   cb->depth--;
-  //ChessBoardPrint(*cb);
   return u;
 }
 
@@ -503,7 +502,6 @@ inline static void undoMove(ChessBoard *cb, Move m, UndoData u) {
 
   cb->turn = !cb->turn;
   cb->depth++;
-  //ChessBoardPrint(*cb);
 }
 
 // Adds a piece to a chessboard
