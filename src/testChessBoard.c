@@ -6,7 +6,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#define POSITIONS "data/positions.in"
+#define POSITIONS "data/testPositions.in"
 #define BUFFER_SIZE 128
 
 int main() {
@@ -49,9 +49,9 @@ int main() {
     ChessBoard cb = ChessBoardNew(fen, depth);
     long result = ChessBoardTreeSearch(l, cb, FALSE);
     if (result == nodes) {
-      printf("Test PASSED for position: %s at depth %d\n", fen, depth);
+      printf("\033[0;32mTest PASSED: %s at depth %d\033[0m\n", fen, depth);
     } else {
-      printf("Test FAILED for position: %s at depth %d\n", fen, depth);
+      printf("\033[0;31mTest FAILED: %s at depth %d\033[0m\n", fen, depth);
       printf("Expected: %ld, got: %ld\n", nodes, result);
     }
   }
