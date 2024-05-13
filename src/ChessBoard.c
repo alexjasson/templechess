@@ -438,8 +438,11 @@ static long countMoves(LookupTable l, ChessBoard *cb, Branch br) {
   return BitBoardCountBits(br.to);
 }
 
-long ChessBoardTreeSearch(LookupTable l, ChessBoard cb, int print) {
-  return (print == TRUE) ? treeSearch(l, &cb, printMoves) : treeSearch(l, &cb, traverseMoves);
+long ChessBoardTreeSearch(ChessBoard cb, int print) {
+  LookupTable l = LookupTableNew();
+  long nodes = (print == TRUE) ? treeSearch(l, &cb, printMoves) : treeSearch(l, &cb, traverseMoves);
+  LookupTableFree(l);
+  return nodes;
 }
 
 inline static UndoData move(ChessBoard *cb, Move m) {
