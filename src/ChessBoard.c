@@ -77,6 +77,11 @@ inline static long promotionBranches(LookupTable l, ChessBoard *cb, TraverseFn t
 inline static long pieceBranches(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard intersection[]);
 inline static long pawnBranches(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard intersection[]);
 inline static long enPassantBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard intersection[]);
+inline static long pieceBranchesPinned(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard intersection[]);
+inline static long pawnBranchesPinned(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard intersection[]);
+inline static long promotingBranchesPinned(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard intersection[]);
+inline static long kingBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard intersection[]);
+inline static long castlingBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard intersection[]);
 
 static Piece addPiece(ChessBoard *cb, Square s, Piece replacemen);
 
@@ -168,7 +173,6 @@ static Color getColorFromASCII(char asciiColor) {
   return (asciiColor == 'w') ? White : Black;
 }
 
-// Data: {pinned, them, intersection}
 inline static long promotionBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard intersection[]) {
   long nodes = 0;
   BitBoard b1, b2;
@@ -191,7 +195,6 @@ inline static long promotionBranches(LookupTable l, ChessBoard *cb, TraverseFn t
   return nodes;
 }
 
-// Data: {pinned, us, intersection}
 inline static long pieceBranches(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard intersection[]) {
   long nodes = 0;
   BitBoard b;
@@ -209,7 +212,6 @@ inline static long pieceBranches(LookupTable l, ChessBoard *cb, TraverseFn Trave
   return nodes;
 }
 
-// Data: {pinned, them, intersection}
 inline static long pawnBranches(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard intersection[]) {
   long nodes = 0;
   BitBoard b1, b2;
@@ -237,7 +239,6 @@ inline static long pawnBranches(LookupTable l, ChessBoard *cb, TraverseFn Traver
   return nodes;
 }
 
-// Data: {pinned, intersection} pinned is actually an intersection
 inline static long enPassantBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard intersection[]) {
   long nodes = 0;
   BitBoard b;
