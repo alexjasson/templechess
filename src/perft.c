@@ -11,11 +11,9 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
-    LookupTable l = LookupTableNew();
     ChessBoard cb = ChessBoardNew(argv[1], atoi(argv[2]));
-    long nodes = ChessBoardTreeSearch(l, cb, TRUE);
+    long nodes = ChessBoardTreeSearch(cb, TRUE);
     printf("\nNodes searched: %ld\n", nodes);
-    LookupTableFree(l);
 }
 
 

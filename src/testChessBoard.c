@@ -10,7 +10,6 @@
 #define BUFFER_SIZE 128
 
 int main() {
-  LookupTable l = LookupTableNew();
   FILE *file = fopen(POSITIONS, "r");
   if (file == NULL) {
     fprintf(stderr, "Could not open file: %s\n", POSITIONS);
@@ -47,7 +46,7 @@ int main() {
 
     // Test the ChessBoardTreeSearch function
     ChessBoard cb = ChessBoardNew(fen, depth);
-    long result = ChessBoardTreeSearch(l, cb, FALSE);
+    long result = ChessBoardTreeSearch(cb, FALSE);
     if (result == nodes) {
       printf("\033[0;32mTest PASSED: %s at depth %d\033[0m\n", fen, depth);
     } else {
