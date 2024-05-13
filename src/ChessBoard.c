@@ -62,6 +62,7 @@ static Color getColorFromASCII(char asciiColor);
 static Piece getPieceFromASCII(char asciiPiece);
 static char getASCIIFromPiece(Piece p);
 
+static Piece addPiece(ChessBoard *cb, Square s, Piece replacemen);
 inline static UndoData move(ChessBoard *cb, Move m);
 inline static void undoMove(ChessBoard *cb, Move m, UndoData u);
 static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
@@ -83,7 +84,6 @@ inline static long promotingBranchesPinned(LookupTable l, ChessBoard *cb, Traver
 inline static long kingBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard intersection[]);
 inline static long castlingBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard intersection[]);
 
-static Piece addPiece(ChessBoard *cb, Square s, Piece replacemen);
 
 // Assumes FEN and depth is valid
 ChessBoard ChessBoardNew(char *fen, int depth) {
