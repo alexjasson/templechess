@@ -23,8 +23,7 @@ typedef enum {
   a4, b4, c4, d4, e4, f4, g4, h4,
   a3, b3, c3, d3, e3, f3, g3, h3,
   a2, b2, c2, d2, e2, f2, g2, h2,
-  a1, b1, c1, d1, e1, f1, g1, h1,
-  None
+  a1, b1, c1, d1, e1, f1, g1, h1
 } Square;
 
 Bit BitBoardGetBit(BitBoard b, Square s);
@@ -32,8 +31,6 @@ void BitBoardPrint(BitBoard b);
 BitBoard BitBoardSetBit(BitBoard b, Square s);
 BitBoard BitBoardPopBit(BitBoard b, Square s);
 int BitBoardCountBits(BitBoard b);
-
-// These functions will return a 'none' square if the bitboard is empty
 Square BitBoardGetLSB(BitBoard b);
 Square BitBoardPopLSB(BitBoard *b);
 
@@ -42,9 +39,13 @@ int BitBoardGetFile(Square s);
 int BitBoardGetDiagonal(Square s);
 int BitBoardGetAntiDiagonal(Square s);
 
-BitBoard BitBoardShiftNortheast(BitBoard b);
-BitBoard BitBoardShiftNorthwest(BitBoard b);
-BitBoard BitBoardShiftSoutheast(BitBoard b);
-BitBoard BitBoardShiftSouthwest(BitBoard b);
+BitBoard BitBoardShiftNE(BitBoard b);
+BitBoard BitBoardShiftNW(BitBoard b);
+BitBoard BitBoardShiftN(BitBoard b);
+BitBoard BitBoardShiftS(BitBoard b);
+BitBoard BitBoardShiftSE(BitBoard b);
+BitBoard BitBoardShiftSW(BitBoard b);
+BitBoard BitBoardShiftE(BitBoard b);
+BitBoard BitBoardShiftW(BitBoard b);
 
 #endif

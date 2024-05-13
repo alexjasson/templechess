@@ -1,11 +1,24 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -Werror -Ofast
+CFLAGS0 = -Wall -Wextra -Werror -Ofast -march=native -flto -funroll-loops -fprofile-generate
+CFLAGS1 = -Wall -Wextra -Werror -Ofast -march=native -flto -funroll-loops -fprofile-use
+CFLAGS2 = -Wall -Wextra -Werror -Ofast -march=native -flto -funroll-loops
 
-.PHONY: all
-all: perft
-perft: perft.c BitBoard.c LookupTable.c ChessBoard.c utility.c
-	$(CC) $(CFLAGS) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c utility.c -lm
+# Position/depth to be used for profiling
+BOARD = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+DEPTH = 5
 
-.PHONY: clean
+.PHONY: all clean
+
+all: perft testChessBoard
+
+perft:
+	@$(CC) $(CFLAGS0) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c -lm
+	@./perft $(BOARD) $(DEPTH) >/dev/null 2>&1
+	$(CC) $(CFLAGS1) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c -lm
+	@rm -f *.gcda *.gcno
+
+testChessBoard:
+	$(CC) $(CFLAGS2) -o testChessBoard testChessBoard.c BitBoard.c LookupTable.c ChessBoard.c -lm
+
 clean:
-	rm -f *.o perft
+	rm -f *.o perft testChessBoard

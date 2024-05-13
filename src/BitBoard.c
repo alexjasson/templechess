@@ -27,16 +27,11 @@ BitBoard BitBoardPopBit(BitBoard b, Square s) {
 }
 
 int BitBoardCountBits(BitBoard b) {
-  int count = 0;
-  while (b) {
-    count++;
-    b &= b - 1;
-  }
-  return count;
+    return __builtin_popcountll(b);
 }
 
 Square BitBoardGetLSB(BitBoard b) {
-  return BitBoardCountBits((b & -b) - 1);
+    return __builtin_ctzll(b);
 }
 
 Square BitBoardPopLSB(BitBoard *b) {
@@ -63,18 +58,34 @@ int BitBoardGetAntiDiagonal(Square s) {
   return (EDGE_SIZE - 1) + BitBoardGetRank(s) - BitBoardGetFile(s);
 }
 
-BitBoard BitBoardShiftNortheast(BitBoard b) {
+BitBoard BitBoardShiftNE(BitBoard b) {
   return (b & ~EAST_EDGE) >> 7;
 }
 
-BitBoard BitBoardShiftNorthwest(BitBoard b) {
+BitBoard BitBoardShiftNW(BitBoard b) {
   return (b & ~WEST_EDGE) >> 9;
 }
 
-BitBoard BitBoardShiftSoutheast(BitBoard b) {
+BitBoard BitBoardShiftN(BitBoard b) {
+  return b >> EDGE_SIZE;
+}
+
+BitBoard BitBoardShiftS(BitBoard b) {
+  return b << EDGE_SIZE;
+}
+
+BitBoard BitBoardShiftSE(BitBoard b) {
   return (b & ~EAST_EDGE) << 9;
 }
 
-BitBoard BitBoardShiftSouthwest(BitBoard b) {
+BitBoard BitBoardShiftSW(BitBoard b) {
   return (b & ~WEST_EDGE) << 7;
+}
+
+BitBoard BitBoardShiftW(BitBoard b) {
+  return (b >> 1) & ~EAST_EDGE;
+}
+
+BitBoard BitBoardShiftE(BitBoard b) {
+  return (b << 1) & ~WEST_EDGE;
 }
