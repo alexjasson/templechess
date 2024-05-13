@@ -339,7 +339,6 @@ inline static long promotingBranchesPinned(LookupTable l, ChessBoard *cb, Traver
   return nodes;
 }
 
-
 static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // Base cases
   if (cb->depth == 0) return 1;
