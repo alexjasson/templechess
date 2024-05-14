@@ -1,7 +1,7 @@
 CC = gcc
-CFLAGS0 = -Wall -Wextra -Werror -Ofast -march=native -flto -funroll-loops -fprofile-generate
-CFLAGS1 = -Wall -Wextra -Werror -Ofast -march=native -flto -funroll-loops -fprofile-use
-CFLAGS2 = -Wall -Wextra -Werror -Ofast -march=native -flto -funroll-loops
+CFLAGS0 = -Wall -Wextra -Werror -Ofast -march=native -flto -fprofile-generate
+CFLAGS1 = -Wall -Wextra -Werror -Ofast -march=native -flto -fprofile-use
+CFLAGS2 = -Wall -Wextra -Werror -Ofast -march=native -flto
 
 # Position/depth to be used for profiling
 BOARD = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
