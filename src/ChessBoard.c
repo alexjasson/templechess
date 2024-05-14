@@ -357,8 +357,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // Traverse king branches
   nodes += kingBranches(l, cb, traverseFn, (BitBoard[]){~us, ~attacked});
 
-  if (numChecking > 1) return nodes; // Double check, only king can move
-
   if (numChecking > 0) { // Single check
 
     BitBoard checkMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), BitBoardGetLSB(OUR(King)));
@@ -368,25 +366,22 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     nodes += pawnBranches(l, cb, traverseFn, (BitBoard[]){~pinned, them, checkMask});
     nodes += promotionBranches(l, cb, traverseFn, (BitBoard[]){~pinned, them, checkMask});
     nodes += enPassantBranches(l, cb, traverseFn, (BitBoard[]){~pinned});
+  } else if (numChecking == 0) {
 
-    return nodes;
+    // Traverse all non pinned branches
+    nodes += pieceBranches(l, cb, traverseFn, (BitBoard[]){~pinned, us, ~us});
+    nodes += pawnBranches(l, cb, traverseFn, (BitBoard[]){~pinned, them, ~EMPTY_BOARD});
+    nodes += promotionBranches(l, cb, traverseFn, (BitBoard[]){~pinned, them, ~EMPTY_BOARD});
+    nodes += enPassantBranches(l, cb, traverseFn, (BitBoard[]){~pinned});
+
+    // Traverse all pinned branches
+    nodes += pieceBranchesPinned(l, cb, traverseFn, (BitBoard[]){pinned});
+    nodes += pawnBranchesPinned(l, cb, traverseFn, (BitBoard[]){pinned, them}); // Includes enpassant
+    nodes += promotingBranchesPinned(l, cb, traverseFn, (BitBoard[]){pinned, them});
+
+    // Traverse castling branches
+    nodes += castlingBranches(l, cb, traverseFn, (BitBoard[]){attacked});
   }
-
-  // No check
-
-  // Traverse all non pinned branches
-  nodes += pieceBranches(l, cb, traverseFn, (BitBoard[]){~pinned, us, ~us});
-  nodes += pawnBranches(l, cb, traverseFn, (BitBoard[]){~pinned, them, ~EMPTY_BOARD});
-  nodes += promotionBranches(l, cb, traverseFn, (BitBoard[]){~pinned, them, ~EMPTY_BOARD});
-  nodes += enPassantBranches(l, cb, traverseFn, (BitBoard[]){~pinned});
-
-  // Traverse all pinned branches
-  nodes += pieceBranchesPinned(l, cb, traverseFn, (BitBoard[]){pinned});
-  nodes += pawnBranchesPinned(l, cb, traverseFn, (BitBoard[]){pinned, them}); // Includes enpassant
-  nodes += promotingBranchesPinned(l, cb, traverseFn, (BitBoard[]){pinned, them});
-
-  // Traverse castling branches
-  nodes += castlingBranches(l, cb, traverseFn, (BitBoard[]){attacked});
 
   return nodes;
 }
