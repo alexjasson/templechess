@@ -357,7 +357,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // Traverse king branches
   nodes += kingBranches(l, cb, traverseFn, (BitBoard[]){~us, ~attacked});
 
-  if (numChecking > 0) { // Single check
+  if (numChecking == 1) { // Single check
 
     BitBoard checkMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), BitBoardGetLSB(OUR(King)));
 
