@@ -8,9 +8,13 @@ make
 ```
 
 ## Usage
+To run the perft:
 ```
 ./perft <FEN> <depth>
+```
+To run the tests:
+```
 ./testChessBoard
 ```
 
-!(perft(7).png)
+![](perft(7).png)
