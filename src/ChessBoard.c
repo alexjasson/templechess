@@ -448,11 +448,10 @@ long ChessBoardTreeSearch(ChessBoard cb, int print) {
 inline static void move(ChessBoard *cb, Move m) {
   int offset = m.from - m.to;
 
-
+  cb->enPassant = EMPTY_BOARD;
   cb->castling &= ~(BitBoardSetBit(EMPTY_BOARD, m.from) | BitBoardSetBit(EMPTY_BOARD, m.to));
   addPiece(cb, m.to, m.moved);
   addPiece(cb, m.from, EMPTY_PIECE);
-  cb->enPassant = EMPTY_BOARD;
 
   if (GET_TYPE(m.moved) == Pawn) {
     if ((offset == 16) || (offset == -16)) { // Double push
