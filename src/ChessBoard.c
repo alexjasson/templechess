@@ -387,6 +387,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
 }
 
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
+  if (br.from == EMPTY_BOARD) return 0;
   Move m;
   m.from = BitBoardGetLSB(br.from);
   m.promoted = br.promoted;
@@ -409,6 +410,7 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
 }
 
 static long printMoves(LookupTable l, ChessBoard *cb, Branch br) {
+  if (br.from == EMPTY_BOARD) return 0;
   Move m;
   m.from = BitBoardGetLSB(br.from);
   m.promoted = br.promoted;
@@ -433,6 +435,7 @@ static long printMoves(LookupTable l, ChessBoard *cb, Branch br) {
 }
 
 static long countMoves(LookupTable l, ChessBoard *cb, Branch br) {
+  if (br.from == EMPTY_BOARD) return 0;
   (void) l;
   (void) cb;
   return BitBoardCountBits(br.to);
@@ -547,7 +550,9 @@ static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them)
 
   attacked = PAWN_ATTACKS(THEIR(Pawn), !cb->turn);
   b = them & ~THEIR(Pawn);
-  while (b) attacked |= LookupTableAttacks(l, BitBoardPopLSB(&b), GET_TYPE(cb->squares[BitBoardGetLSB(b)]), occupancies);
-
+  while (b) {
+    Square s = BitBoardPopLSB(&b);
+    attacked |= LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), occupancies);
+  }
   return attacked;
 }
