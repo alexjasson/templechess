@@ -435,7 +435,6 @@ static long printMoves(LookupTable l, ChessBoard *cb, Branch br) {
 }
 
 static long countMoves(LookupTable l, ChessBoard *cb, Branch br) {
-  if (br.from == EMPTY_BOARD) return 0;
   (void) l;
   (void) cb;
   return BitBoardCountBits(br.to);
