@@ -60,7 +60,7 @@ static Color getColorFromASCII(char asciiColor);
 static Piece getPieceFromASCII(char asciiPiece);
 static char getASCIIFromPiece(Piece p);
 
-static Piece addPiece(ChessBoard *cb, Square s, Piece replacemen);
+static void addPiece(ChessBoard *cb, Square s, Piece replacement);
 inline static void move(ChessBoard *cb, Move m);
 inline static void undoMove(ChessBoard *cb, Move m);
 static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
@@ -505,14 +505,12 @@ inline static void undoMove(ChessBoard *cb, Move m) {
 }
 
 // Adds a piece to a chessboard
-static Piece addPiece(ChessBoard *cb, Square s, Piece replacement) {
+static void addPiece(ChessBoard *cb, Square s, Piece replacement) {
   BitBoard b = BitBoardSetBit(EMPTY_BOARD, s);
   Piece captured = cb->squares[s];
   cb->squares[s] = replacement;
   cb->pieces[replacement] |= b;
   cb->pieces[captured] &= ~b;
-
-  return captured;
 }
 
 static void printMove(Piece moving, Move m, long nodes) {
