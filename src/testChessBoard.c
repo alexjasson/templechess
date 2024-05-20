@@ -43,22 +43,22 @@ int main() {
 
     // Save the current stdout
     fflush(stdout); // Ensure all output is flushed before redirection
-    int saved_stdout = dup(STDOUT_FILENO);
-    int dev_null = open("/dev/null", O_WRONLY);
-    if (dev_null == -1) {
+    int savedStdout = dup(STDOUT_FILENO);
+    int devNull = open("/dev/null", O_WRONLY);
+    if (devNull == -1) {
       perror("open");
-      close(saved_stdout);
+      close(savedStdout);
       return 1;
     }
 
     // Redirect stdout to /dev/null
-    if (dup2(dev_null, STDOUT_FILENO) == -1) {
+    if (dup2(devNull, STDOUT_FILENO) == -1) {
       perror("dup2");
-      close(saved_stdout);
-      close(dev_null);
+      close(savedStdout);
+      close(devNull);
       return 1;
     }
-    close(dev_null);
+    close(devNull);
 
     // Call ChessBoardTreeSearch and suppress output
     ChessBoard cb = ChessBoardNew(fen, depth);
@@ -66,12 +66,12 @@ int main() {
 
     // Restore the original stdout
     fflush(stdout); // Ensure all output is flushed to /dev/null
-    if (dup2(saved_stdout, STDOUT_FILENO) == -1) {
+    if (dup2(savedStdout, STDOUT_FILENO) == -1) {
       perror("dup2");
-      close(saved_stdout);
+      close(savedStdout);
       return 1;
     }
-    close(saved_stdout);
+    close(savedStdout);
 
     // Print results after restoring stdout
     if (result == nodes) {
