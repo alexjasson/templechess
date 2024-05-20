@@ -320,9 +320,9 @@ static long countMoves(LookupTable l, ChessBoard *cb, Branch br) {
   return BitBoardCountBits(br.to);
 }
 
-long ChessBoardTreeSearch(ChessBoard cb, int print) {
+long ChessBoardTreeSearch(ChessBoard cb) {
   LookupTable l = LookupTableNew();
-  long nodes = (print == TRUE) ? treeSearch(l, &cb, printMoves) : treeSearch(l, &cb, traverseMoves);
+  long nodes = treeSearch(l, &cb, printMoves);
   LookupTableFree(l);
   return nodes;
 }

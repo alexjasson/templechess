@@ -12,7 +12,7 @@ int main(int argc, char **argv) {
     }
 
     ChessBoard cb = ChessBoardNew(argv[1], atoi(argv[2]));
-    long nodes = ChessBoardTreeSearch(cb, TRUE);
+    long nodes = ChessBoardTreeSearch(cb);
     printf("\nNodes searched: %ld\n", nodes);
 }
 
