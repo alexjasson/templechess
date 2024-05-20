@@ -2,8 +2,6 @@
 #define CHESSBOARD_H
 
 #define PIECE_SIZE 12
-#define TRUE 1
-#define FALSE 0
 
 typedef uint8_t Piece;
 
@@ -19,6 +17,6 @@ typedef struct {
 
 ChessBoard ChessBoardNew(char *fen, int depth); // ChessBoard is stack allocated
 void ChessBoardPrint(ChessBoard cb);
-long ChessBoardTreeSearch(ChessBoard cb, int print);
+long ChessBoardTreeSearch(ChessBoard cb);
 
 #endif

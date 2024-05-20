@@ -45,12 +45,10 @@ typedef struct {
 typedef long (*TraverseFn)(LookupTable, ChessBoard *, Branch);
 
 typedef struct {
-  // Data to make the move
-  Square to;
+  Square to; // Data to make the move
   Square from;
   Piece promoted; // Used in case of promotion, otherwise empty piece
-  // Data to undo the move
-  Piece captured;
+  Piece captured; // Data to undo the move
   Piece moved;
   BitBoard enPassant;
   BitBoard castling;
@@ -71,17 +69,6 @@ static void printMove(Piece moved, Move m, long nodes);
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br);
 static long printMoves(LookupTable l, ChessBoard *cb, Branch br);
 static long countMoves(LookupTable l, ChessBoard *cb, Branch br);
-
-inline static long promotionBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard intersection[]);
-inline static long pieceBranches(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard intersection[]);
-inline static long pawnBranches(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard intersection[]);
-inline static long enPassantBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard intersection[]);
-inline static long pieceBranchesPinned(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard intersection[]);
-inline static long pawnBranchesPinned(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard intersection[]);
-inline static long promotingBranchesPinned(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard intersection[]);
-inline static long kingBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard intersection[]);
-inline static long castlingBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard intersection[]);
-
 
 // Assumes FEN and depth is valid
 ChessBoard ChessBoardNew(char *fen, int depth) {
@@ -171,172 +158,6 @@ static Color getColorFromASCII(char asciiColor) {
   return (asciiColor == 'w') ? White : Black;
 }
 
-inline static long promotionBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard intersection[]) {
-  long nodes = 0;
-  BitBoard b1, b2;
-  Branch br;
-  Square s;
-  b1 = OUR(Pawn) & PROMOTING_RANK(cb->turn) & intersection[0];
-  while (b1) {
-    s = BitBoardPopLSB(&b1);
-    b2 = BitBoardSetBit(EMPTY_BOARD, s);
-    br.to = SINGLE_PUSH(b2, cb->turn) & ~ALL;
-    br.to |= PAWN_ATTACKS(b2, cb->turn) & intersection[1];
-    br.to &= intersection[2];
-    br.from = b2;
-    for (Type t = Knight; t <= Queen; t++) {
-      br.promoted = GET_PIECE(t, cb->turn);
-      nodes += traverseFn(l, cb, br);
-    }
-  }
-
-  return nodes;
-}
-
-inline static long pieceBranches(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard intersection[]) {
-  long nodes = 0;
-  BitBoard b;
-  Branch br;
-  Square s;
-  b = intersection[0] & intersection[1] & ~(OUR(Pawn) | OUR(King));
-  while (b) {
-    s = BitBoardPopLSB(&b);
-    br.promoted = EMPTY_PIECE;
-    br.to = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & intersection[2];
-    br.from = BitBoardSetBit(EMPTY_BOARD, s);
-    nodes += TraverseFn(l, cb, br);
-  }
-
-  return nodes;
-}
-
-inline static long pawnBranches(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard intersection[]) {
-  long nodes = 0;
-  BitBoard b1, b2;
-  Branch br;
-
-  b1 = OUR(Pawn) & ~(~intersection[0] | PROMOTING_RANK(cb->turn));
-  // Attacks
-  br.promoted = EMPTY_PIECE;
-  br.to = PAWN_ATTACKS_LEFT(b1, cb->turn) & intersection[1] & intersection[2];
-  br.from = PAWN_ATTACKS_LEFT(br.to, !cb->turn);
-  nodes += TraverseFn(l, cb, br);
-  br.to = PAWN_ATTACKS_RIGHT(b1, cb->turn) & intersection[1] & intersection[2];
-  br.from = PAWN_ATTACKS_RIGHT(br.to, !cb->turn);
-  nodes += TraverseFn(l, cb, br);
-
-  // Pushes
-  b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
-  br.to = b2 & intersection[2];
-  br.from = SINGLE_PUSH(br.to, !cb->turn);
-  nodes += TraverseFn(l, cb, br);
-  br.to = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & intersection[2];
-  br.from = DOUBLE_PUSH(br.to, !cb->turn);
-  nodes += TraverseFn(l, cb, br);
-
-  return nodes;
-}
-
-inline static long enPassantBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard intersection[]) {
-  long nodes = 0;
-  BitBoard b;
-  Branch br;
-  Square s;
-
-  b = ENPASSANT(cb->enPassant) & OUR(Pawn) & intersection[0];
-  while (b) {
-    s = BitBoardPopLSB(&b);
-    // Check that the pawn is not "pseudo-pinned"
-    if (LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), Rook, ALL & ~BitBoardSetBit(cb->enPassant, s)) &
-        GET_RANK(BitBoardGetLSB(OUR(King))) & (THEIR(Rook) | THEIR(Queen))) continue;
-    br.to = cb->enPassant;
-    br.from = BitBoardSetBit(EMPTY_BOARD, s);
-    nodes += traverseFn(l, cb, br);
-  }
-
-  return nodes;
-}
-
-inline static long kingBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard intersection[]) {
-  Branch br;
-  br.to = LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), King, ALL) & intersection[0] & intersection[1];
-  br.from = OUR(King);
-  br.promoted = EMPTY_PIECE;
-  return traverseFn(l, cb, br);
-}
-
-inline static long castlingBranches(LookupTable l, ChessBoard *cb, TraverseFn traverseFn, BitBoard intersection[]) {
-  BitBoard b = (cb->castling | (ALL & OCCUPANCY_MASK) | (intersection[0] & ATTACK_MASK)) & BACK_RANK(cb->turn);
-  Branch br;
-  br.promoted = EMPTY_PIECE;
-  br.from = OUR(King);
-  br.to = EMPTY_BOARD;
-  if ((b & KINGSIDE) == (KINGSIDE_CASTLING & BACK_RANK(cb->turn))) br.to |= br.from << 2;
-  if ((b & QUEENSIDE) == (QUEENSIDE_CASTLING & BACK_RANK(cb->turn))) br.to |= br.from >> 2;
-  return traverseFn(l, cb, br);
-}
-
-inline static long pieceBranchesPinned(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard intersection[]) {
-  long nodes = 0;
-  BitBoard b;
-  Branch br;
-  Square s;
-  b = (OUR(Bishop) | OUR(Rook) | OUR(Queen)) & intersection[0];
-  while (b) {
-    s = BitBoardPopLSB(&b);
-    br.promoted = EMPTY_PIECE;
-    br.to = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
-    br.from = BitBoardSetBit(EMPTY_BOARD, s);
-    nodes += TraverseFn(l, cb, br);
-  }
-
-  return nodes;
-}
-
-inline static long pawnBranchesPinned(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard intersection[]) {
-  long nodes = 0;
-  BitBoard b1, b2, b3;
-  Branch br;
-  Square s;
-  b1 = OUR(Pawn) & ~(~intersection[0] | PROMOTING_RANK(cb->turn));
-  while (b1) {
-    s = BitBoardPopLSB(&b1);
-    br.from = BitBoardSetBit(EMPTY_BOARD, s);
-    br.promoted = EMPTY_PIECE;
-    b2 = SINGLE_PUSH(br.from, cb->turn) & ~ALL;
-    b2 |= SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL;
-    b2 |= PAWN_ATTACKS(br.from, cb->turn) & intersection[1];
-    b3 = LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s); // The pin mask
-    b2 &= b3;
-    b2 |= ENPASSANT(br.from) & cb->enPassant & SINGLE_PUSH(b3, !cb->turn);
-    br.to = b2;
-    nodes += TraverseFn(l, cb, br);
-  }
-
-  return nodes;
-}
-
-inline static long promotingBranchesPinned(LookupTable l, ChessBoard *cb, TraverseFn TraverseFn, BitBoard intersection[]) {
-  long nodes = 0;
-  BitBoard b1, b2;
-  Branch br;
-  Square s;
-  b1 = OUR(Pawn) & PROMOTING_RANK(cb->turn) & intersection[0];
-  while (b1) {
-    s = BitBoardPopLSB(&b1);
-    b2 = BitBoardSetBit(EMPTY_BOARD, s);
-    br.to = PAWN_ATTACKS(b2, cb->turn) & intersection[1];
-    br.to &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
-    br.from = b2;
-    for (Type t = Knight; t <= Queen; t++) {
-      br.promoted = GET_PIECE(t, cb->turn);
-      nodes += TraverseFn(l, cb, br);
-    }
-  }
-
-  return nodes;
-}
-
 static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // Base cases
   if (cb->depth == 0) return 1;
@@ -345,7 +166,9 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   long nodes = 0;
 
   // Data needed for move generation
-  BitBoard us, them, pinned, checking, attacked;
+  BitBoard us, them, pinned, checking, attacked, moveMask, b1, b2;
+  Square s;
+  Branch br;
   int numChecking;
   us = them = pinned = EMPTY_BOARD;
   for (Type t = Pawn; t <= Queen; t++) us |= OUR(t);
@@ -355,32 +178,86 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   numChecking = BitBoardCountBits(checking);
 
   // Traverse king branches
-  nodes += kingBranches(l, cb, traverseFn, (BitBoard[]){~us, ~attacked});
+  br.to = LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), King, ALL) & ~us & ~attacked;
+  br.from = OUR(King);
+  br.promoted = EMPTY_PIECE;
+  nodes += traverseFn(l, cb, br);
 
-  if (numChecking == 1) { // Single check
-
-    BitBoard checkMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), BitBoardGetLSB(OUR(King)));
-
-    // Traverse all non pinned branches
-    nodes += pieceBranches(l, cb, traverseFn, (BitBoard[]){~pinned, us, checkMask});
-    nodes += pawnBranches(l, cb, traverseFn, (BitBoard[]){~pinned, them, checkMask});
-    nodes += promotionBranches(l, cb, traverseFn, (BitBoard[]){~pinned, them, checkMask});
-    nodes += enPassantBranches(l, cb, traverseFn, (BitBoard[]){~pinned});
-  } else if (numChecking == 0) {
-
-    // Traverse all non pinned branches
-    nodes += pieceBranches(l, cb, traverseFn, (BitBoard[]){~pinned, us, ~us});
-    nodes += pawnBranches(l, cb, traverseFn, (BitBoard[]){~pinned, them, ~EMPTY_BOARD});
-    nodes += promotionBranches(l, cb, traverseFn, (BitBoard[]){~pinned, them, ~EMPTY_BOARD});
-    nodes += enPassantBranches(l, cb, traverseFn, (BitBoard[]){~pinned});
-
-    // Traverse all pinned branches
-    nodes += pieceBranchesPinned(l, cb, traverseFn, (BitBoard[]){pinned});
-    nodes += pawnBranchesPinned(l, cb, traverseFn, (BitBoard[]){pinned, them}); // Includes enpassant
-    nodes += promotingBranchesPinned(l, cb, traverseFn, (BitBoard[]){pinned, them});
-
+  if (numChecking == 2) {
+    return nodes;
+  } else if (numChecking == 1) {
+    moveMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), BitBoardGetLSB(OUR(King)));
+  } else {
+    moveMask = ~us;
     // Traverse castling branches
-    nodes += castlingBranches(l, cb, traverseFn, (BitBoard[]){attacked});
+    b1 = (cb->castling | (ALL & OCCUPANCY_MASK) | (attacked & ATTACK_MASK)) & BACK_RANK(cb->turn);
+    br.to = EMPTY_BOARD;
+    if ((b1 & KINGSIDE) == (KINGSIDE_CASTLING & BACK_RANK(cb->turn))) br.to |= br.from << 2;
+    if ((b1 & QUEENSIDE) == (QUEENSIDE_CASTLING & BACK_RANK(cb->turn))) br.to |= br.from >> 2;
+    nodes += traverseFn(l, cb, br);
+  }
+
+  // Traverse piece branches
+  b1 = us & ~(OUR(Pawn) | OUR(King));
+  while (b1) {
+    s = BitBoardPopLSB(&b1);
+    br.to = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & moveMask;
+    br.from = BitBoardSetBit(EMPTY_BOARD, s);
+    if (br.from & pinned) br.to &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
+    nodes += traverseFn(l, cb, br);
+  }
+
+  // Enpassant pawn branches
+  b1 = ENPASSANT(cb->enPassant) & OUR(Pawn);
+  while (b1) {
+    s = BitBoardPopLSB(&b1);
+    // Check that the pawn is not "pseudo-pinned"
+    if (LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), Rook, ALL & ~BitBoardSetBit(cb->enPassant, s)) &
+        GET_RANK(BitBoardGetLSB(OUR(King))) & (THEIR(Rook) | THEIR(Queen))) continue;
+    br.to = cb->enPassant;
+    br.from = BitBoardSetBit(EMPTY_BOARD, s);
+    // If it's pinned, intersect with pin mask
+    if (br.from & pinned) {
+      br.to &= SINGLE_PUSH(LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s), !cb->turn);
+    }
+    nodes += traverseFn(l, cb, br);
+  }
+
+  // Non pinned, non promoting pawn branches
+  b1 = OUR(Pawn) & ~(pinned | PROMOTING_RANK(cb->turn));
+  br.to = PAWN_ATTACKS_LEFT(b1, cb->turn) & them & moveMask;
+  br.from = PAWN_ATTACKS_LEFT(br.to, !cb->turn);
+  nodes += traverseFn(l, cb, br);
+  br.to = PAWN_ATTACKS_RIGHT(b1, cb->turn) & them & moveMask;
+  br.from = PAWN_ATTACKS_RIGHT(br.to, !cb->turn);
+  nodes += traverseFn(l, cb, br);
+  b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
+  br.to = b2 & moveMask;
+  br.from = SINGLE_PUSH(br.to, !cb->turn);
+  nodes += traverseFn(l, cb, br);
+  br.to = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & moveMask;
+  br.from = DOUBLE_PUSH(br.to, !cb->turn);
+  nodes += traverseFn(l, cb, br);
+
+  // Rest of pawn branches
+  b1 = OUR(Pawn) & ~b1;
+  while (b1) {
+    s = BitBoardPopLSB(&b1);
+    br.from = BitBoardSetBit(EMPTY_BOARD, s);
+    br.promoted = EMPTY_PIECE;
+    br.to = SINGLE_PUSH(br.from, cb->turn) & ~ALL;
+    br.to |= SINGLE_PUSH(br.to & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL;
+    br.to |= PAWN_ATTACKS(br.from, cb->turn) & them;
+    if (br.from & pinned) br.to &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
+    br.to &= moveMask;
+    if (br.from & PROMOTING_RANK(cb->turn)) {
+      for (Type t = Knight; t <= Queen; t++) {
+        br.promoted = GET_PIECE(t, cb->turn);
+        nodes += traverseFn(l, cb, br);
+      }
+    } else {
+      nodes += traverseFn(l, cb, br);
+    }
   }
 
   return nodes;
@@ -440,9 +317,9 @@ static long countMoves(LookupTable l, ChessBoard *cb, Branch br) {
   return BitBoardCountBits(br.to);
 }
 
-long ChessBoardTreeSearch(ChessBoard cb, int print) {
+long ChessBoardTreeSearch(ChessBoard cb) {
   LookupTable l = LookupTableNew();
-  long nodes = (print == TRUE) ? treeSearch(l, &cb, printMoves) : treeSearch(l, &cb, traverseMoves);
+  long nodes = treeSearch(l, &cb, printMoves);
   LookupTableFree(l);
   return nodes;
 }
