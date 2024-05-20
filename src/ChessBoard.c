@@ -306,7 +306,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   long nodes = 0;
 
   // Data needed for move generation
-  BitBoard us, them, pinned, checking, attacked;
+  BitBoard us, them, pinned, checking, attacked, moveMask;
   int numChecking;
   us = them = pinned = EMPTY_BOARD;
   for (Type t = Pawn; t <= Queen; t++) us |= OUR(t);
@@ -318,26 +318,21 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // Traverse king branches
   nodes += kingBranches(l, cb, traverseFn, (BitBoard[]){~us, ~attacked});
 
-  if (numChecking == 1) { // Single check
-
-    BitBoard checkMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), BitBoardGetLSB(OUR(King)));
-
-    // Traverse all non pinned branches
-    nodes += pieceBranches(l, cb, traverseFn, (BitBoard[]){pinned, us, checkMask});
-    nodes += pawnBranches(l, cb, traverseFn, (BitBoard[]){pinned, them, checkMask});
-    nodes += promotionBranches(l, cb, traverseFn, (BitBoard[]){pinned, them, checkMask});
-    nodes += enPassantBranches(l, cb, traverseFn, (BitBoard[]){pinned});
-  } else if (numChecking == 0) {
-
-    // Traverse all non pinned branches
-    nodes += pieceBranches(l, cb, traverseFn, (BitBoard[]){pinned, us, ~us});
-    nodes += pawnBranches(l, cb, traverseFn, (BitBoard[]){pinned, them, ~us});
-    nodes += promotionBranches(l, cb, traverseFn, (BitBoard[]){pinned, them, ~us});
-    nodes += enPassantBranches(l, cb, traverseFn, (BitBoard[]){pinned});
-
+  if (numChecking == 2) {
+    return nodes;
+  } else if (numChecking == 1) {
+    moveMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), BitBoardGetLSB(OUR(King)));
+  } else {
     // Traverse castling branches
     nodes += castlingBranches(l, cb, traverseFn, (BitBoard[]){attacked});
+    moveMask = ~us;
   }
+
+  // Traverse the rest of the branches
+  nodes += pieceBranches(l, cb, traverseFn, (BitBoard[]){pinned, us, moveMask});
+  nodes += pawnBranches(l, cb, traverseFn, (BitBoard[]){pinned, them, moveMask});
+  nodes += promotionBranches(l, cb, traverseFn, (BitBoard[]){pinned, them, moveMask});
+  nodes += enPassantBranches(l, cb, traverseFn, (BitBoard[]){pinned});
 
   return nodes;
 }
