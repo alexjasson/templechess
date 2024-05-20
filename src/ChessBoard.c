@@ -166,7 +166,9 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   long nodes = 0;
 
   // Data needed for move generation
-  BitBoard us, them, pinned, checking, attacked, moveMask;
+  BitBoard us, them, pinned, checking, attacked, moveMask, b1, b2;
+  Square s;
+  Branch br;
   int numChecking;
   us = them = pinned = EMPTY_BOARD;
   for (Type t = Pawn; t <= Queen; t++) us |= OUR(t);
@@ -174,11 +176,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   attacked = getAttackedSquares(l, cb, them);
   checking = getCheckingPieces(l, cb, them, &pinned);
   numChecking = BitBoardCountBits(checking);
-
-  // Helper data
-  Branch br;
-  BitBoard b1, b2;
-  Square s;
 
   // Traverse king branches
   br.to = LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), King, ALL) & ~us & ~attacked;
