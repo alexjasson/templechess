@@ -266,15 +266,15 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
   m.promoted = br.promoted;
   long nodes = 0;
   int oneToOne = BitBoardCountBits(br.from) - 1; // If non zero, then one-to-one mapping
-  ChessBoard copy;
+  ChessBoard new;
 
   while (br.to) {
     if (oneToOne) m.from = BitBoardPopLSB(&br.from);
     m.to = BitBoardPopLSB(&br.to);
     m.moved = cb->squares[m.from];
-    memcpy(&copy, cb, sizeof(ChessBoard));
-    move(&copy, m);
-    nodes += treeSearch(l, &copy, traverseMoves); // Continue traversing
+    memcpy(&new, cb, sizeof(ChessBoard));
+    move(&new, m);
+    nodes += treeSearch(l, &new, traverseMoves); // Continue traversing
   }
 
   return nodes;
@@ -287,15 +287,15 @@ static long printMoves(LookupTable l, ChessBoard *cb, Branch br) {
   m.promoted = br.promoted;
   long nodes = 0, subTree;
   int oneToOne = BitBoardCountBits(br.from) - 1; // If non zero, then one-to-one mapping
-  ChessBoard copy;
+  ChessBoard new;
 
   while (br.to) {
     if (oneToOne) m.from = BitBoardPopLSB(&br.from);
     m.to = BitBoardPopLSB(&br.to);
     m.moved = cb->squares[m.from];
-    memcpy(&copy, cb, sizeof(ChessBoard));
-    move(&copy, m);
-    subTree = treeSearch(l, &copy, traverseMoves); // Continue traversing
+    memcpy(&new, cb, sizeof(ChessBoard));
+    move(&new, m);
+    subTree = treeSearch(l, &new, traverseMoves); // Continue traversing
     nodes += subTree;
     printMove(m.moved, m, subTree);
   }
