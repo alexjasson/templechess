@@ -48,10 +48,7 @@ typedef struct {
   Square to; // Data to make the move
   Square from;
   Piece promoted; // Used in case of promotion, otherwise empty piece
-  Piece captured; // Data to undo the move
   Piece moved;
-  BitBoard enPassant;
-  BitBoard castling;
 } Move;
 
 static Color getColorFromASCII(char asciiColor);
@@ -60,7 +57,6 @@ static char getASCIIFromPiece(Piece p);
 
 static void addPiece(ChessBoard *cb, Square s, Piece replacement);
 inline static void move(ChessBoard *cb, Move m);
-inline static void undoMove(ChessBoard *cb, Move m);
 static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
 static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn);
@@ -268,8 +264,6 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
   Move m;
   m.from = BitBoardGetLSB(br.from);
   m.promoted = br.promoted;
-  m.castling = cb->castling;
-  m.enPassant = cb->enPassant;
   long nodes = 0;
   int oneToOne = BitBoardCountBits(br.from) - 1; // If non zero, then one-to-one mapping
   ChessBoard copy;
@@ -277,12 +271,10 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
   while (br.to) {
     if (oneToOne) m.from = BitBoardPopLSB(&br.from);
     m.to = BitBoardPopLSB(&br.to);
-    m.captured = cb->squares[m.to];
     m.moved = cb->squares[m.from];
     memcpy(&copy, cb, sizeof(ChessBoard));
     move(&copy, m);
     nodes += treeSearch(l, &copy, traverseMoves); // Continue traversing
-    //undoMove(cb, m);
   }
 
   return nodes;
@@ -293,8 +285,6 @@ static long printMoves(LookupTable l, ChessBoard *cb, Branch br) {
   Move m;
   m.from = BitBoardGetLSB(br.from);
   m.promoted = br.promoted;
-  m.castling = cb->castling;
-  m.enPassant = cb->enPassant;
   long nodes = 0, subTree;
   int oneToOne = BitBoardCountBits(br.from) - 1; // If non zero, then one-to-one mapping
   ChessBoard copy;
@@ -302,14 +292,12 @@ static long printMoves(LookupTable l, ChessBoard *cb, Branch br) {
   while (br.to) {
     if (oneToOne) m.from = BitBoardPopLSB(&br.from);
     m.to = BitBoardPopLSB(&br.to);
-    m.captured = cb->squares[m.to];
     m.moved = cb->squares[m.from];
     memcpy(&copy, cb, sizeof(ChessBoard));
     move(&copy, m);
     subTree = treeSearch(l, &copy, traverseMoves); // Continue traversing
     nodes += subTree;
     printMove(m.moved, m, subTree);
-    //undoMove(cb, m);
   }
 
   return nodes;
@@ -357,32 +345,6 @@ inline static void move(ChessBoard *cb, Move m) {
 
   cb->turn = !cb->turn;
   cb->depth--;
-}
-
-inline static void undoMove(ChessBoard *cb, Move m) {
-  int offset = m.from - m.to;
-
-  cb->enPassant = m.enPassant;
-  cb->castling = m.castling;
-  addPiece(cb, m.from, m.moved);
-  addPiece(cb, m.to, m.captured);
-
-  if (GET_TYPE(m.moved) == Pawn) {
-    if ((offset == 1) || (offset == -1)) { // Enpassant
-      addPiece(cb, m.to + ((cb->turn) ? -EDGE_SIZE : EDGE_SIZE), EMPTY_PIECE);
-    }
-  } else if (GET_TYPE(m.moved) == King) {
-    if (offset == 2) { // Queenside castling
-      addPiece(cb, m.to - 2, GET_PIECE(Rook, !cb->turn));
-      addPiece(cb, m.to + 1, EMPTY_PIECE);
-    } else if (offset == -2) { // Kingside castling
-      addPiece(cb, m.to + 1, GET_PIECE(Rook, !cb->turn));
-      addPiece(cb, m.to - 1, EMPTY_PIECE);
-    }
-  }
-
-  cb->turn = !cb->turn;
-  cb->depth++;
 }
 
 // Adds a piece to a chessboard
