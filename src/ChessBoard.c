@@ -45,7 +45,7 @@ typedef struct {
 } Branch;
 typedef long (*TraverseFn)(LookupTable, ChessBoard *, Branch);
 
-typedef struct __attribute__((packed)) {
+typedef struct {
     Square to;
     Square from;
     Piece promoted;
@@ -66,7 +66,6 @@ static void printMove(Piece moved, Move m, long nodes);
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br);
 static long printMoves(LookupTable l, ChessBoard *cb, Branch br);
 static long countMoves(LookupTable l, ChessBoard *cb, Branch br);
-static void copyChessboard(ChessBoard* src, ChessBoard* dest);
 
 // Assumes FEN and depth is valid
 ChessBoard ChessBoardNew(char *fen, int depth) {
@@ -261,28 +260,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   return nodes;
 }
 
-// Hand crafted copy chessboard function as a slightly faster alternative to memcpy
-static void copyChessboard(ChessBoard* src, ChessBoard* dest) {
-    // Copy pieces (13 * 8 bytes = 104 bytes)
-    // We can copy 96 bytes (3 * 256 bits) in 3 iterations of 32 bytes each
-    for (int i = 0; i < 96; i += 32) {
-        _mm256_storeu_si256((__m256i*)((char*)dest->pieces + i), _mm256_loadu_si256((__m256i*)((char*)src->pieces + i)));
-    }
-
-    // Copy remaining 8 bytes of pieces
-    memcpy((char*)dest->pieces + 96, (char*)src->pieces + 96, 8);
-
-    // Copy squares (64 bytes)
-    for (int i = 0; i < 64; i += 32) {
-        _mm256_storeu_si256((__m256i*)&dest->squares[i], _mm256_loadu_si256((__m256i*)&src->squares[i]));
-    }
-
-    dest->turn = src->turn;
-    dest->depth = src->depth;
-    dest->enPassant = src->enPassant;
-    dest->castling = src->castling;
-}
-
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
   if (br.from == EMPTY_BOARD) return 0;
   Move m;
@@ -296,7 +273,7 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
     if (oneToOne) m.from = BitBoardPopLSB(&br.from);
     m.to = BitBoardPopLSB(&br.to);
     m.moved = cb->squares[m.from];
-    copyChessboard(cb, &new);
+    memcpy(&new, cb, sizeof(ChessBoard));
     move(&new, m);
     nodes += treeSearch(l, &new, traverseMoves); // Continue traversing
   }
@@ -317,7 +294,7 @@ static long printMoves(LookupTable l, ChessBoard *cb, Branch br) {
     if (oneToOne) m.from = BitBoardPopLSB(&br.from);
     m.to = BitBoardPopLSB(&br.to);
     m.moved = cb->squares[m.from];
-    copyChessboard(cb, &new);
+    memcpy(&new, cb, sizeof(ChessBoard));
     move(&new, m);
     subTree = treeSearch(l, &new, traverseMoves); // Continue traversing
     nodes += subTree;
