@@ -1,14 +1,12 @@
 # Detect compiler
-ifneq ($(shell which clang 2>/dev/null),)
-    CC := clang
-else ifneq ($(shell which gcc 2>/dev/null),)
+ifneq ($(shell which gcc 2>/dev/null),)
     CC := gcc
 else
-    $(error Compiler not found! Please install gcc or clang)
+    $(error Compiler not found! Please install gcc)
 endif
 
-CFLAGS0 = -Wall -Wextra -Werror -Ofast -march=native -flto -fprofile-generate
-CFLAGS1 = -Wall -Wextra -Werror -Ofast -march=native -flto -fprofile-use
+CFLAGS0 = -Ofast -march=native -flto -fprofile-generate
+CFLAGS1 = -Ofast -march=native -flto -fprofile-use
 CFLAGS2 = -fsanitize=undefined -Wall -Wextra -Werror -Ofast -march=native -flto
 
 # Position/depth to be used for profiling

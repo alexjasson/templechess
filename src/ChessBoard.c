@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <immintrin.h>
 
 #include "BitBoard.h"
 #include "LookupTable.h"
@@ -45,13 +46,10 @@ typedef struct {
 typedef long (*TraverseFn)(LookupTable, ChessBoard *, Branch);
 
 typedef struct {
-  Square to; // Data to make the move
-  Square from;
-  Piece promoted; // Used in case of promotion, otherwise empty piece
-  Piece captured; // Data to undo the move
-  Piece moved;
-  BitBoard enPassant;
-  BitBoard castling;
+    Square to;
+    Square from;
+    Piece promoted;
+    Piece moved;
 } Move;
 
 static Color getColorFromASCII(char asciiColor);
@@ -59,8 +57,7 @@ static Piece getPieceFromASCII(char asciiPiece);
 static char getASCIIFromPiece(Piece p);
 
 static void addPiece(ChessBoard *cb, Square s, Piece replacement);
-inline static void move(ChessBoard *cb, Move m);
-inline static void undoMove(ChessBoard *cb, Move m);
+static void move(ChessBoard *cb, Move m);
 static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
 static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn);
@@ -118,7 +115,7 @@ ChessBoard ChessBoardNew(char *fen, int depth) {
     fen++;
     int rank = EDGE_SIZE - (*fen - '0');
     // Shift to 4th rank for white, 5th rank for black
-    cb.enPassant = SINGLE_PUSH(BitBoardSetBit(EMPTY_BOARD, rank * EDGE_SIZE + file), !cb.turn);
+    cb.enPassant = SINGLE_PUSH(BitBoardSetBit(EMPTY_BOARD, rank * EDGE_SIZE + file), (!cb.turn));
   }
 
   return cb;
@@ -218,7 +215,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     br.from = BitBoardSetBit(EMPTY_BOARD, s);
     // If it's pinned, intersect with pin mask
     if (br.from & pinned) {
-      br.to &= SINGLE_PUSH(LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s), !cb->turn);
+      br.to &= SINGLE_PUSH(LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s), (!cb->turn));
     }
     nodes += traverseFn(l, cb, br);
   }
@@ -226,17 +223,17 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // Non pinned, non promoting pawn branches
   b1 = OUR(Pawn) & ~(pinned | PROMOTING_RANK(cb->turn));
   br.to = PAWN_ATTACKS_LEFT(b1, cb->turn) & them & moveMask;
-  br.from = PAWN_ATTACKS_LEFT(br.to, !cb->turn);
+  br.from = PAWN_ATTACKS_LEFT(br.to, (!cb->turn));
   nodes += traverseFn(l, cb, br);
   br.to = PAWN_ATTACKS_RIGHT(b1, cb->turn) & them & moveMask;
-  br.from = PAWN_ATTACKS_RIGHT(br.to, !cb->turn);
+  br.from = PAWN_ATTACKS_RIGHT(br.to, (!cb->turn));
   nodes += traverseFn(l, cb, br);
   b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
   br.to = b2 & moveMask;
-  br.from = SINGLE_PUSH(br.to, !cb->turn);
+  br.from = SINGLE_PUSH(br.to, (!cb->turn));
   nodes += traverseFn(l, cb, br);
   br.to = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & moveMask;
-  br.from = DOUBLE_PUSH(br.to, !cb->turn);
+  br.from = DOUBLE_PUSH(br.to, (!cb->turn));
   nodes += traverseFn(l, cb, br);
 
   // Rest of pawn branches
@@ -268,19 +265,17 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
   Move m;
   m.from = BitBoardGetLSB(br.from);
   m.promoted = br.promoted;
-  m.castling = cb->castling;
-  m.enPassant = cb->enPassant;
   long nodes = 0;
   int oneToOne = BitBoardCountBits(br.from) - 1; // If non zero, then one-to-one mapping
+  ChessBoard new;
 
   while (br.to) {
     if (oneToOne) m.from = BitBoardPopLSB(&br.from);
     m.to = BitBoardPopLSB(&br.to);
-    m.captured = cb->squares[m.to];
     m.moved = cb->squares[m.from];
-    move(cb, m);
-    nodes += treeSearch(l, cb, traverseMoves); // Continue traversing
-    undoMove(cb, m);
+    memcpy(&new, cb, sizeof(ChessBoard));
+    move(&new, m);
+    nodes += treeSearch(l, &new, traverseMoves); // Continue traversing
   }
 
   return nodes;
@@ -291,21 +286,19 @@ static long printMoves(LookupTable l, ChessBoard *cb, Branch br) {
   Move m;
   m.from = BitBoardGetLSB(br.from);
   m.promoted = br.promoted;
-  m.castling = cb->castling;
-  m.enPassant = cb->enPassant;
   long nodes = 0, subTree;
   int oneToOne = BitBoardCountBits(br.from) - 1; // If non zero, then one-to-one mapping
+  ChessBoard new;
 
   while (br.to) {
     if (oneToOne) m.from = BitBoardPopLSB(&br.from);
     m.to = BitBoardPopLSB(&br.to);
-    m.captured = cb->squares[m.to];
     m.moved = cb->squares[m.from];
-    move(cb, m);
-    subTree = treeSearch(l, cb, traverseMoves); // Continue traversing
+    memcpy(&new, cb, sizeof(ChessBoard));
+    move(&new, m);
+    subTree = treeSearch(l, &new, traverseMoves); // Continue traversing
     nodes += subTree;
     printMove(m.moved, m, subTree);
-    undoMove(cb, m);
   }
 
   return nodes;
@@ -324,7 +317,7 @@ long ChessBoardTreeSearch(ChessBoard cb) {
   return nodes;
 }
 
-inline static void move(ChessBoard *cb, Move m) {
+static void move(ChessBoard *cb, Move m) {
   int offset = m.from - m.to;
 
   cb->enPassant = EMPTY_BOARD;
@@ -353,32 +346,6 @@ inline static void move(ChessBoard *cb, Move m) {
 
   cb->turn = !cb->turn;
   cb->depth--;
-}
-
-inline static void undoMove(ChessBoard *cb, Move m) {
-  int offset = m.from - m.to;
-
-  cb->enPassant = m.enPassant;
-  cb->castling = m.castling;
-  addPiece(cb, m.from, m.moved);
-  addPiece(cb, m.to, m.captured);
-
-  if (GET_TYPE(m.moved) == Pawn) {
-    if ((offset == 1) || (offset == -1)) { // Enpassant
-      addPiece(cb, m.to + ((cb->turn) ? -EDGE_SIZE : EDGE_SIZE), EMPTY_PIECE);
-    }
-  } else if (GET_TYPE(m.moved) == King) {
-    if (offset == 2) { // Queenside castling
-      addPiece(cb, m.to - 2, GET_PIECE(Rook, !cb->turn));
-      addPiece(cb, m.to + 1, EMPTY_PIECE);
-    } else if (offset == -2) { // Kingside castling
-      addPiece(cb, m.to + 1, GET_PIECE(Rook, !cb->turn));
-      addPiece(cb, m.to - 1, EMPTY_PIECE);
-    }
-  }
-
-  cb->turn = !cb->turn;
-  cb->depth++;
 }
 
 // Adds a piece to a chessboard
@@ -422,7 +389,7 @@ static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them)
   BitBoard attacked, b;
   BitBoard occupancies = ALL & ~OUR(King);
 
-  attacked = PAWN_ATTACKS(THEIR(Pawn), !cb->turn);
+  attacked = PAWN_ATTACKS(THEIR(Pawn), (!cb->turn));
   b = them & ~THEIR(Pawn);
   while (b) {
     Square s = BitBoardPopLSB(&b);
