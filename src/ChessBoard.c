@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <immintrin.h>
 
 #include "BitBoard.h"
 #include "LookupTable.h"
@@ -44,11 +45,11 @@ typedef struct {
 } Branch;
 typedef long (*TraverseFn)(LookupTable, ChessBoard *, Branch);
 
-typedef struct {
-  Square to; // Data to make the move
-  Square from;
-  Piece promoted; // Used in case of promotion, otherwise empty piece
-  Piece moved;
+typedef struct __attribute__((packed)) {
+    Square to;
+    Square from;
+    Piece promoted;
+    Piece moved;
 } Move;
 
 static Color getColorFromASCII(char asciiColor);
@@ -56,7 +57,7 @@ static Piece getPieceFromASCII(char asciiPiece);
 static char getASCIIFromPiece(Piece p);
 
 static void addPiece(ChessBoard *cb, Square s, Piece replacement);
-inline static void move(ChessBoard *cb, Move m);
+static void move(ChessBoard *cb, Move m);
 static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
 static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn);
@@ -65,6 +66,7 @@ static void printMove(Piece moved, Move m, long nodes);
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br);
 static long printMoves(LookupTable l, ChessBoard *cb, Branch br);
 static long countMoves(LookupTable l, ChessBoard *cb, Branch br);
+static void copyChessboard(ChessBoard* src, ChessBoard* dest);
 
 // Assumes FEN and depth is valid
 ChessBoard ChessBoardNew(char *fen, int depth) {
@@ -114,7 +116,7 @@ ChessBoard ChessBoardNew(char *fen, int depth) {
     fen++;
     int rank = EDGE_SIZE - (*fen - '0');
     // Shift to 4th rank for white, 5th rank for black
-    cb.enPassant = SINGLE_PUSH(BitBoardSetBit(EMPTY_BOARD, rank * EDGE_SIZE + file), !cb.turn);
+    cb.enPassant = SINGLE_PUSH(BitBoardSetBit(EMPTY_BOARD, rank * EDGE_SIZE + file), (!cb.turn));
   }
 
   return cb;
@@ -214,7 +216,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     br.from = BitBoardSetBit(EMPTY_BOARD, s);
     // If it's pinned, intersect with pin mask
     if (br.from & pinned) {
-      br.to &= SINGLE_PUSH(LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s), !cb->turn);
+      br.to &= SINGLE_PUSH(LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s), (!cb->turn));
     }
     nodes += traverseFn(l, cb, br);
   }
@@ -222,17 +224,17 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // Non pinned, non promoting pawn branches
   b1 = OUR(Pawn) & ~(pinned | PROMOTING_RANK(cb->turn));
   br.to = PAWN_ATTACKS_LEFT(b1, cb->turn) & them & moveMask;
-  br.from = PAWN_ATTACKS_LEFT(br.to, !cb->turn);
+  br.from = PAWN_ATTACKS_LEFT(br.to, (!cb->turn));
   nodes += traverseFn(l, cb, br);
   br.to = PAWN_ATTACKS_RIGHT(b1, cb->turn) & them & moveMask;
-  br.from = PAWN_ATTACKS_RIGHT(br.to, !cb->turn);
+  br.from = PAWN_ATTACKS_RIGHT(br.to, (!cb->turn));
   nodes += traverseFn(l, cb, br);
   b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
   br.to = b2 & moveMask;
-  br.from = SINGLE_PUSH(br.to, !cb->turn);
+  br.from = SINGLE_PUSH(br.to, (!cb->turn));
   nodes += traverseFn(l, cb, br);
   br.to = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & moveMask;
-  br.from = DOUBLE_PUSH(br.to, !cb->turn);
+  br.from = DOUBLE_PUSH(br.to, (!cb->turn));
   nodes += traverseFn(l, cb, br);
 
   // Rest of pawn branches
@@ -259,6 +261,28 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   return nodes;
 }
 
+// Hand crafted copy chessboard function as a slightly faster alternative to memcpy
+static void copyChessboard(ChessBoard* src, ChessBoard* dest) {
+    // Copy pieces (13 * 8 bytes = 104 bytes)
+    // We can copy 96 bytes (3 * 256 bits) in 3 iterations of 32 bytes each
+    for (int i = 0; i < 96; i += 32) {
+        _mm256_storeu_si256((__m256i*)((char*)dest->pieces + i), _mm256_loadu_si256((__m256i*)((char*)src->pieces + i)));
+    }
+
+    // Copy remaining 8 bytes of pieces
+    memcpy((char*)dest->pieces + 96, (char*)src->pieces + 96, 8);
+
+    // Copy squares (64 bytes)
+    for (int i = 0; i < 64; i += 32) {
+        _mm256_storeu_si256((__m256i*)&dest->squares[i], _mm256_loadu_si256((__m256i*)&src->squares[i]));
+    }
+
+    dest->turn = src->turn;
+    dest->depth = src->depth;
+    dest->enPassant = src->enPassant;
+    dest->castling = src->castling;
+}
+
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
   if (br.from == EMPTY_BOARD) return 0;
   Move m;
@@ -272,7 +296,7 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
     if (oneToOne) m.from = BitBoardPopLSB(&br.from);
     m.to = BitBoardPopLSB(&br.to);
     m.moved = cb->squares[m.from];
-    memcpy(&new, cb, sizeof(ChessBoard));
+    copyChessboard(cb, &new);
     move(&new, m);
     nodes += treeSearch(l, &new, traverseMoves); // Continue traversing
   }
@@ -293,7 +317,7 @@ static long printMoves(LookupTable l, ChessBoard *cb, Branch br) {
     if (oneToOne) m.from = BitBoardPopLSB(&br.from);
     m.to = BitBoardPopLSB(&br.to);
     m.moved = cb->squares[m.from];
-    memcpy(&new, cb, sizeof(ChessBoard));
+    copyChessboard(cb, &new);
     move(&new, m);
     subTree = treeSearch(l, &new, traverseMoves); // Continue traversing
     nodes += subTree;
@@ -316,7 +340,7 @@ long ChessBoardTreeSearch(ChessBoard cb) {
   return nodes;
 }
 
-inline static void move(ChessBoard *cb, Move m) {
+static void move(ChessBoard *cb, Move m) {
   int offset = m.from - m.to;
 
   cb->enPassant = EMPTY_BOARD;
@@ -388,7 +412,7 @@ static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them)
   BitBoard attacked, b;
   BitBoard occupancies = ALL & ~OUR(King);
 
-  attacked = PAWN_ATTACKS(THEIR(Pawn), !cb->turn);
+  attacked = PAWN_ATTACKS(THEIR(Pawn), (!cb->turn));
   b = them & ~THEIR(Pawn);
   while (b) {
     Square s = BitBoardPopLSB(&b);
