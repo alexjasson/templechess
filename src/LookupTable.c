@@ -187,6 +187,7 @@ static int magicHash(Magic m, BitBoard occupancies) {
   return (int)(((m.bits & occupancies) * m.magicNumber) >> (m.bitShift));
 }
 
+// Plain magic bitboards implementation - See https://www.chessprogramming.org/Magic_Bitboards#Plain
 static Magic getMagic(Square s, Type t, FILE *fp) {
   Magic m;
   m.bits = getRelevantBits(s, t);
