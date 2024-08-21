@@ -40,7 +40,6 @@
 typedef struct {
   BitBoard to;
   BitBoard from;
-  Piece promoted; // Used in case of promotion, otherwise empty piece
 } Branch;
 typedef long (*TraverseFn)(LookupTable, ChessBoard *, Branch);
 
@@ -176,7 +175,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // Traverse king branches
   br.to = LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), King, ALL) & ~us & ~attacked;
   br.from = OUR(King);
-  br.promoted = EMPTY_PIECE;
   nodes += traverseFn(l, cb, br);
 
   if (numChecking == 2) {
@@ -220,7 +218,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   }
 
   // Non pinned pawn branches
-  b1 = OUR(Pawn) & ~(pinned);
+  b1 = OUR(Pawn) & ~pinned;
   br.to = PAWN_ATTACKS_LEFT(b1, cb->turn) & them & moveMask;
   br.from = PAWN_ATTACKS_LEFT(br.to, (!cb->turn));
   nodes += traverseFn(l, cb, br);
@@ -240,7 +238,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   while (b1) {
     s = BitBoardPopLSB(&b1);
     br.from = BitBoardSetBit(EMPTY_BOARD, s);
-    br.promoted = EMPTY_PIECE;
     br.to = SINGLE_PUSH(br.from, cb->turn) & ~ALL;
     br.to |= SINGLE_PUSH(br.to & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL;
     br.to |= PAWN_ATTACKS(br.from, cb->turn) & them;
