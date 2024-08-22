@@ -250,22 +250,18 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
 
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
     if (br.from == EMPTY_BOARD) return 0;
+    ChessBoard new;
     Move m;
-    m.from = BitBoardGetLSB(br.from);
     long nodes = 0;
     int oneToOne = BitBoardCountBits(br.from) - 1; // If non-zero, then one-to-one mapping
-    ChessBoard new;
 
+    m.from = BitBoardGetLSB(br.from);
     while (br.to) {
       if (oneToOne) m.from = BitBoardPopLSB(&br.from);
       m.to = BitBoardPopLSB(&br.to);
       m.moved = GET_TYPE(cb->squares[m.from]);
-      int promotion = 0;
-
-      if ((m.moved == Pawn) && (BitBoardSetBit(EMPTY_BOARD, m.to) & PROMOTING_RANK(cb->turn))) {
-        promotion = 1;
-        m.moved = Knight;
-      }
+      int promotion = ((m.moved == Pawn) && (BitBoardSetBit(EMPTY_BOARD, m.to) & PROMOTING_RANK(cb->turn)));
+      if (promotion) m.moved = Knight;
 
       Move:
       memcpy(&new, cb, sizeof(ChessBoard));
