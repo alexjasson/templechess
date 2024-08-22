@@ -46,7 +46,7 @@ typedef long (*TraverseFn)(LookupTable, ChessBoard *, Branch);
 typedef struct {
     Square to;
     Square from;
-    Piece moved;
+    Type moved;
 } Move;
 
 static Color getColorFromASCII(char asciiColor);
@@ -255,17 +255,16 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
     long nodes = 0;
     int oneToOne = BitBoardCountBits(br.from) - 1; // If non-zero, then one-to-one mapping
     ChessBoard new;
-    Type promotionType = Knight;
 
     while (br.to) {
       if (oneToOne) m.from = BitBoardPopLSB(&br.from);
       m.to = BitBoardPopLSB(&br.to);
-      m.moved = cb->squares[m.from];
+      m.moved = GET_TYPE(cb->squares[m.from]);
       int promotion = 0;
 
-      if ((GET_TYPE(m.moved) == Pawn) && (BitBoardSetBit(EMPTY_BOARD, m.to) & PROMOTING_RANK(cb->turn))) {
+      if ((m.moved == Pawn) && (BitBoardSetBit(EMPTY_BOARD, m.to) & PROMOTING_RANK(cb->turn))) {
         promotion = 1;
-        m.moved = GET_PIECE(promotionType, cb->turn);
+        m.moved = Knight;
       }
 
       Move:
@@ -273,14 +272,10 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
       move(&new, m);
       nodes += treeSearch(l, &new, traverseMoves); // Continue traversing
 
-      if (promotion && promotionType < Queen) {
-        promotionType++;
-        m.moved = GET_PIECE(promotionType, cb->turn);
+      if (promotion && m.moved < Queen) {
+        m.moved++;
         goto Move;
       }
-
-      // Reset promotionType for the next move
-      promotionType = Knight;
     }
 
     return nodes;
@@ -295,29 +290,22 @@ static long countMoves(LookupTable l, ChessBoard *cb, Branch br) {
   return BitBoardCountBits(br.to) + BitBoardCountBits(promotion) * 3;
 }
 
-long ChessBoardTreeSearch(ChessBoard cb) {
-  LookupTable l = LookupTableNew();
-  long nodes = treeSearch(l, &cb, traverseMoves);
-  LookupTableFree(l);
-  return nodes;
-}
-
 static void move(ChessBoard *cb, Move m) {
   int offset = m.from - m.to;
 
   cb->enPassant = EMPTY_BOARD;
   cb->castling &= ~(BitBoardSetBit(EMPTY_BOARD, m.from) | BitBoardSetBit(EMPTY_BOARD, m.to));
-  addPiece(cb, m.to, m.moved);
+  addPiece(cb, m.to, GET_PIECE(m.moved, cb->turn));
   addPiece(cb, m.from, EMPTY_PIECE);
 
-  if (GET_TYPE(m.moved) == Pawn) {
+  if (m.moved == Pawn) {
     if ((offset == 16) || (offset == -16)) { // Double push
       cb->enPassant = BitBoardSetBit(EMPTY_BOARD, m.to);
     } else if ((offset == 1) || (offset == -1)) { // Enpassant
-      addPiece(cb, m.to + ((cb->turn) ? EDGE_SIZE : -EDGE_SIZE), m.moved);
+      addPiece(cb, m.to + ((cb->turn) ? EDGE_SIZE : -EDGE_SIZE), GET_PIECE(m.moved, cb->turn));
       addPiece(cb, m.to, EMPTY_PIECE);
     }
-  } else if (GET_TYPE(m.moved) == King) {
+  } else if (m.moved == King) {
     if (offset == 2) { // Queenside castling
       addPiece(cb, m.to - 2, EMPTY_PIECE);
       addPiece(cb, m.to + 1, GET_PIECE(Rook, cb->turn));
@@ -338,6 +326,13 @@ static void addPiece(ChessBoard *cb, Square s, Piece replacement) {
   cb->squares[s] = replacement;
   cb->pieces[replacement] |= b;
   cb->pieces[captured] &= ~b;
+}
+
+long ChessBoardTreeSearch(ChessBoard cb) {
+  LookupTable l = LookupTableNew();
+  long nodes = treeSearch(l, &cb, traverseMoves);
+  LookupTableFree(l);
+  return nodes;
 }
 
 // static void printMove(Piece moving, Move m, long nodes) {
