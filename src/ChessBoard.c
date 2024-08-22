@@ -41,7 +41,6 @@ typedef struct {
   BitBoard to;
   BitBoard from;
 } Branch;
-typedef long (*TraverseFn)(LookupTable, ChessBoard *, Branch);
 
 typedef struct {
     Square to;
@@ -57,12 +56,12 @@ static void addPiece(ChessBoard *cb, Square s, Piece replacement);
 static void move(ChessBoard *cb, Move m);
 static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
-static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn);
+static long treeSearch(LookupTable l, ChessBoard *cb);
 
 // static void printMove(Piece moved, Move m, long nodes);
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br);
 // static long printMoves(LookupTable l, ChessBoard *cb, Branch br);
-static long countMoves(LookupTable l, ChessBoard *cb, Branch br);
+// tatic long countMoves(LookupTable l, ChessBoard *cb, Branch br);
 
 // Assumes FEN and depth is valid
 ChessBoard ChessBoardNew(char *fen, int depth) {
@@ -152,11 +151,8 @@ static Color getColorFromASCII(char asciiColor) {
   return (asciiColor == 'w') ? White : Black;
 }
 
-static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
-  // Base cases
-  if (cb->depth == 0) return 1;
-  // If we are at the node before the leaf nodes and still traversing, start counting moves
-  if (cb->depth == 1 && traverseFn == traverseMoves) return treeSearch(l, cb, countMoves);
+static long treeSearch(LookupTable l, ChessBoard *cb) {
+  if (cb->depth == 0) return 1; // Base case
   long nodes = 0;
 
   // Data needed for move generation
@@ -174,7 +170,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
   // Traverse king branches
   br.to = LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), King, ALL) & ~us & ~attacked;
   br.from = OUR(King);
-  nodes += traverseFn(l, cb, br);
+  nodes += traverseMoves(l, cb, br);
 
   if (numChecking == 2) {
     return nodes;
@@ -187,7 +183,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     br.to = EMPTY_BOARD;
     if ((b1 & KINGSIDE) == (KINGSIDE_CASTLING & BACK_RANK(cb->turn))) br.to |= br.from << 2;
     if ((b1 & QUEENSIDE) == (QUEENSIDE_CASTLING & BACK_RANK(cb->turn))) br.to |= br.from >> 2;
-    nodes += traverseFn(l, cb, br);
+    nodes += traverseMoves(l, cb, br);
   }
 
   // Traverse piece branches
@@ -197,7 +193,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     br.to = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & moveMask;
     br.from = BitBoardSetBit(EMPTY_BOARD, s);
     if (br.from & pinned) br.to &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
-    nodes += traverseFn(l, cb, br);
+    nodes += traverseMoves(l, cb, br);
   }
 
   // Enpassant pawn branches
@@ -213,24 +209,24 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     if (br.from & pinned) {
       br.to &= SINGLE_PUSH(LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s), (!cb->turn));
     }
-    nodes += traverseFn(l, cb, br);
+    nodes += traverseMoves(l, cb, br);
   }
 
   // Non pinned pawn branches
   b1 = OUR(Pawn) & ~pinned;
   br.to = PAWN_ATTACKS_LEFT(b1, cb->turn) & them & moveMask;
   br.from = PAWN_ATTACKS_LEFT(br.to, (!cb->turn));
-  nodes += traverseFn(l, cb, br);
+  nodes += traverseMoves(l, cb, br);
   br.to = PAWN_ATTACKS_RIGHT(b1, cb->turn) & them & moveMask;
   br.from = PAWN_ATTACKS_RIGHT(br.to, (!cb->turn));
-  nodes += traverseFn(l, cb, br);
+  nodes += traverseMoves(l, cb, br);
   b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
   br.to = b2 & moveMask;
   br.from = SINGLE_PUSH(br.to, (!cb->turn));
-  nodes += traverseFn(l, cb, br);
+  nodes += traverseMoves(l, cb, br);
   br.to = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & moveMask;
   br.from = DOUBLE_PUSH(br.to, (!cb->turn));
-  nodes += traverseFn(l, cb, br);
+  nodes += traverseMoves(l, cb, br);
 
   // Rest of pawn branches - pinned
   b1 = OUR(Pawn) & ~b1;
@@ -242,7 +238,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
     br.to |= PAWN_ATTACKS(br.from, cb->turn) & them;
     if (br.from & pinned) br.to &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
     br.to &= moveMask;
-    nodes += traverseFn(l, cb, br);
+    nodes += traverseMoves(l, cb, br);
   }
 
   return nodes;
@@ -250,6 +246,12 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
 
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
     if (br.from == EMPTY_BOARD) return 0;
+    if (cb->depth == 1) {
+      BitBoard promotion = EMPTY_BOARD;
+      if (GET_TYPE(cb->squares[BitBoardGetLSB(br.from)]) == Pawn) promotion |= (PROMOTING_RANK(cb->turn) & br.to);
+      return BitBoardCountBits(br.to) + BitBoardCountBits(promotion) * 3;
+    }
+
     ChessBoard new;
     Move m;
     long nodes = 0;
@@ -266,7 +268,7 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
       Move:
       memcpy(&new, cb, sizeof(ChessBoard));
       move(&new, m);
-      nodes += treeSearch(l, &new, traverseMoves); // Continue traversing
+      nodes += treeSearch(l, &new); // Continue traversing
 
       if (promotion && m.moved < Queen) {
         m.moved++;
@@ -275,15 +277,6 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
     }
 
     return nodes;
-}
-
-static long countMoves(LookupTable l, ChessBoard *cb, Branch br) {
-  if (br.from == EMPTY_BOARD) return 0;
-  BitBoard promotion = EMPTY_BOARD;
-  if (GET_TYPE(cb->squares[BitBoardGetLSB(br.from)]) == Pawn) promotion |= (PROMOTING_RANK(cb->turn) & br.to);
-  (void) l;
-  (void) cb;
-  return BitBoardCountBits(br.to) + BitBoardCountBits(promotion) * 3;
 }
 
 static void move(ChessBoard *cb, Move m) {
@@ -326,7 +319,7 @@ static void addPiece(ChessBoard *cb, Square s, Piece replacement) {
 
 long ChessBoardTreeSearch(ChessBoard cb) {
   LookupTable l = LookupTableNew();
-  long nodes = treeSearch(l, &cb, traverseMoves);
+  long nodes = treeSearch(l, &cb);
   LookupTableFree(l);
   return nodes;
 }
