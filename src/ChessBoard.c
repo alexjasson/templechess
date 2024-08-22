@@ -131,7 +131,9 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   // Data needed for move generation
   BitBoard us, them, pinned, checking, attacked, moveMask, b1, b2;
   Square s;
-  Branch br[32];
+  Branch br[32]; // Make sure they're all 0's in future
+  br[1].from = EMPTY_BOARD;
+  br[1].to = EMPTY_BOARD;
   int brSize = 1;
   int numChecking;
   us = them = pinned = EMPTY_BOARD;
@@ -196,20 +198,17 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     brSize++;
   }
 
-  // Enpassant pawn branches - make this only one branch
+  // Enpassant pawn branch - remember that the from is essentially the to since it's surjective
   b1 = ENPASSANT(cb->enPassant) & OUR(Pawn);
+  br[brSize].from = EMPTY_BOARD;
   while (b1) {
     s = BitBoardPopLSB(&b1);
     // Check that the pawn is not "pseudo-pinned"
     if (LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), Rook, ALL & ~BitBoardSetBit(cb->enPassant, s)) &
         GET_RANK(BitBoardGetLSB(OUR(King))) & (THEIR(Rook) | THEIR(Queen))) continue;
-    br[brSize].to = cb->enPassant;
-    br[brSize].from = BitBoardSetBit(EMPTY_BOARD, s);
+    br[brSize].from |= BitBoardSetBit(EMPTY_BOARD, s);
     // If it's pinned, intersect with pin mask
-    if (br[brSize].from & pinned) {
-      br[brSize].to &= SINGLE_PUSH(LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s), (!cb->turn));
-    }
-    brSize++;
+    if (br[brSize].from & pinned) br[brSize].from &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), BitBoardGetLSB(SINGLE_PUSH(cb->enPassant, (cb->turn))));
   }
 
   return traverseMoves(l, cb, br, brSize);
@@ -255,7 +254,15 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
   // Bijective pawn branches
 
   // handle the surjective enpassant branch separately
-  // ...
+  while (br[brSize].from) {
+    if (cb->depth == 1) { nodes += BitBoardCountBits(br[brSize].from); break; }
+    m.from = BitBoardPopLSB(&br[brSize].from);
+    m.to = BitBoardGetLSB(cb->enPassant);
+    m.moved = Pawn;
+    memcpy(&new, cb, sizeof(ChessBoard));
+    move(&new, m);
+    nodes += treeSearch(l, &new);
+  }
 
   return nodes;
 }
