@@ -46,7 +46,6 @@ typedef long (*TraverseFn)(LookupTable, ChessBoard *, Branch);
 typedef struct {
     Square to;
     Square from;
-    Piece promoted;
     Piece moved;
 } Move;
 
@@ -250,74 +249,42 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TraverseFn traverseFn) {
 }
 
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch br) {
-  if (br.from == EMPTY_BOARD) return 0;
-  Move m;
-  m.from = BitBoardGetLSB(br.from);
-  long nodes = 0;
-  int oneToOne = BitBoardCountBits(br.from) - 1; // If non zero, then one-to-one mapping
-  ChessBoard new;
+    if (br.from == EMPTY_BOARD) return 0;
+    Move m;
+    m.from = BitBoardGetLSB(br.from);
+    long nodes = 0;
+    int oneToOne = BitBoardCountBits(br.from) - 1; // If non-zero, then one-to-one mapping
+    ChessBoard new;
+    Type promotionType = Knight;
 
-  while (br.to) {
-    if (oneToOne) m.from = BitBoardPopLSB(&br.from);
-    m.to = BitBoardPopLSB(&br.to);
-    m.moved = cb->squares[m.from];
-    m.promoted = EMPTY_PIECE;
+    while (br.to) {
+      if (oneToOne) m.from = BitBoardPopLSB(&br.from);
+      m.to = BitBoardPopLSB(&br.to);
+      m.moved = cb->squares[m.from];
+      int promotion = 0;
 
-    int promotion = 0;
-    if ((GET_TYPE(m.moved) == Pawn) && (BitBoardSetBit(EMPTY_BOARD, m.to) & PROMOTING_RANK(cb->turn))) promotion = 1;
-    if (!promotion) {
+      if ((GET_TYPE(m.moved) == Pawn) && (BitBoardSetBit(EMPTY_BOARD, m.to) & PROMOTING_RANK(cb->turn))) {
+        promotion = 1;
+        m.moved = GET_PIECE(promotionType, cb->turn);
+      }
+
+      Move:
       memcpy(&new, cb, sizeof(ChessBoard));
       move(&new, m);
       nodes += treeSearch(l, &new, traverseMoves); // Continue traversing
-    } else {
-      for (Type t = Knight; t <= Queen; t++) {
-        m.promoted = GET_PIECE(t, cb->turn);
-        memcpy(&new, cb, sizeof(ChessBoard));
-        move(&new, m);
-        nodes += treeSearch(l, &new, traverseMoves); // Continue traversing
+
+      if (promotion && promotionType < Queen) {
+        promotionType++;
+        m.moved = GET_PIECE(promotionType, cb->turn);
+        goto Move;
       }
+
+      // Reset promotionType for the next move
+      promotionType = Knight;
     }
-  }
 
-  return nodes;
+    return nodes;
 }
-
-// static long printMoves(LookupTable l, ChessBoard *cb, Branch br) {
-//   if (br.from == EMPTY_BOARD) return 0;
-//   Move m;
-//   int promotion = 0;
-//   m.from = BitBoardGetLSB(br.from);
-//   m.promoted = br.promoted;
-//   long nodes = 0, subTree;
-//   int oneToOne = BitBoardCountBits(br.from) - 1; // If non zero, then one-to-one mapping
-//   ChessBoard new;
-
-//   while (br.to) {
-//     if (oneToOne) m.from = BitBoardPopLSB(&br.from);
-//     m.to = BitBoardPopLSB(&br.to);
-//     m.moved = cb->squares[m.from];
-
-//     if ((GET_TYPE(m.moved) == Pawn) && (BitBoardSetBit(EMPTY_BOARD, m.to) & PROMOTING_RANK(cb->turn))) promotion = 1;
-//     if (!promotion) {
-//       memcpy(&new, cb, sizeof(ChessBoard));
-//       move(&new, m);
-//       subTree = treeSearch(l, &new, traverseMoves); // Continue traversing
-//       nodes += subTree;
-//       printMove(m.moved, m, subTree);
-//     } else {
-//       for (Type t = Knight; t <= Queen; t++) {
-//         m.promoted = GET_PIECE(t, cb->turn);
-//         memcpy(&new, cb, sizeof(ChessBoard));
-//         move(&new, m);
-//         subTree = treeSearch(l, &new, traverseMoves); // Continue traversing
-//         nodes += subTree;
-//         printMove(m.moved, m, subTree);
-//       }
-//     }
-//   }
-
-//   return nodes;
-// }
 
 static long countMoves(LookupTable l, ChessBoard *cb, Branch br) {
   if (br.from == EMPTY_BOARD) return 0;
@@ -349,8 +316,6 @@ static void move(ChessBoard *cb, Move m) {
     } else if ((offset == 1) || (offset == -1)) { // Enpassant
       addPiece(cb, m.to + ((cb->turn) ? EDGE_SIZE : -EDGE_SIZE), m.moved);
       addPiece(cb, m.to, EMPTY_PIECE);
-    } else if (m.promoted != EMPTY_PIECE) { // Promotion
-      addPiece(cb, m.to, m.promoted);
     }
   } else if (GET_TYPE(m.moved) == King) {
     if (offset == 2) { // Queenside castling
