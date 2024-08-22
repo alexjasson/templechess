@@ -50,18 +50,13 @@ typedef struct {
 
 static Color getColorFromASCII(char asciiColor);
 static Piece getPieceFromASCII(char asciiPiece);
-static char getASCIIFromPiece(Piece p);
 
 static void addPiece(ChessBoard *cb, Square s, Piece replacement);
 static void move(ChessBoard *cb, Move m);
 static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
 static long treeSearch(LookupTable l, ChessBoard *cb);
-
-// static void printMove(Piece moved, Move m, long nodes);
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize);
-// static long printMoves(LookupTable l, ChessBoard *cb, Branch br);
-// tatic long countMoves(LookupTable l, ChessBoard *cb, Branch br);
 
 // Assumes FEN and depth is valid
 ChessBoard ChessBoardNew(char *fen, int depth) {
@@ -117,19 +112,6 @@ ChessBoard ChessBoardNew(char *fen, int depth) {
   return cb;
 }
 
-void ChessBoardPrint(ChessBoard cb) {
-  for (int rank = 0; rank < EDGE_SIZE; rank++) {
-    for (int file = 0; file < EDGE_SIZE; file++) {
-      Square s = rank * EDGE_SIZE + file;
-      Piece p = cb.squares[s];
-      printf("%c ", getASCIIFromPiece(p));
-    }
-    printf("%d\n", EDGE_SIZE - rank);
-  }
-  printf("a b c d e f g h\n\n");
-}
-
-
 // Assumes that asciiPiece is valid
 static Piece getPieceFromASCII(char asciiPiece) {
   if (asciiPiece == '-') return EMPTY_PIECE;
@@ -137,14 +119,6 @@ static Piece getPieceFromASCII(char asciiPiece) {
   Type t = (Type)(strchr(pieces, toupper(asciiPiece)) - pieces);
   Color c = isupper(asciiPiece) ? White : Black;
   return GET_PIECE(t, c);
-}
-
-// Assumes that piece is valid
-static char getASCIIFromPiece(Piece p) {
-  if (p == EMPTY_PIECE) return '-';
-  char *pieces = "PKNBRQ";
-  char asciiPiece = pieces[GET_TYPE(p)];
-  return GET_COLOR(p) == Black ? tolower(asciiPiece) : asciiPiece;
 }
 
 static Color getColorFromASCII(char asciiColor) {
@@ -326,13 +300,6 @@ long ChessBoardTreeSearch(ChessBoard cb) {
   LookupTableFree(l);
   return nodes;
 }
-
-// static void printMove(Piece moving, Move m, long nodes) {
-//   // Handle en passant move being encded differently
-//   int offset = m.from - m.to;
-//   if ((GET_TYPE(moving) == Pawn) && ((offset == 1) || (offset == -1))) m.to = (GET_COLOR(moving)) ? m.to + EDGE_SIZE : m.to - EDGE_SIZE;
-//   printf("%c%d%c%d: %ld\n", 'a' + (m.from % EDGE_SIZE), EDGE_SIZE - (m.from / EDGE_SIZE), 'a' + (m.to % EDGE_SIZE), EDGE_SIZE - (m.to / EDGE_SIZE), nodes);
-// }
 
 // Return the checking pieces and simultaneously update the pinned pieces bitboard
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned) {
