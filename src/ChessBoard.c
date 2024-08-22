@@ -127,7 +127,6 @@ static Color getColorFromASCII(char asciiColor) {
 
 static long treeSearch(LookupTable l, ChessBoard *cb) {
   if (cb->depth == 0) return 1; // Base case
-  long nodes = 0;
 
   // Data needed for move generation
   BitBoard us, them, pinned, checking, attacked, moveMask, b1, b2;
@@ -168,22 +167,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     brSize++;
   }
 
-  // Enpassant pawn branches
-  b1 = ENPASSANT(cb->enPassant) & OUR(Pawn);
-  while (b1) {
-    s = BitBoardPopLSB(&b1);
-    // Check that the pawn is not "pseudo-pinned"
-    if (LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), Rook, ALL & ~BitBoardSetBit(cb->enPassant, s)) &
-        GET_RANK(BitBoardGetLSB(OUR(King))) & (THEIR(Rook) | THEIR(Queen))) continue;
-    br[brSize].to = cb->enPassant;
-    br[brSize].from = BitBoardSetBit(EMPTY_BOARD, s);
-    // If it's pinned, intersect with pin mask
-    if (br[brSize].from & pinned) {
-      br[brSize].to &= SINGLE_PUSH(LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s), (!cb->turn));
-    }
-    brSize++;
-  }
-
   // Non pinned pawn branches
   b1 = OUR(Pawn) & ~pinned;
   br[brSize].to = PAWN_ATTACKS_LEFT(b1, cb->turn) & them & moveMask;
@@ -212,14 +195,32 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     br[brSize].to &= moveMask;
     brSize++;
   }
-  nodes += traverseMoves(l, cb, br, brSize);
 
-  return nodes;
+  // Enpassant pawn branches - make this only one branch
+  b1 = ENPASSANT(cb->enPassant) & OUR(Pawn);
+  while (b1) {
+    s = BitBoardPopLSB(&b1);
+    // Check that the pawn is not "pseudo-pinned"
+    if (LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), Rook, ALL & ~BitBoardSetBit(cb->enPassant, s)) &
+        GET_RANK(BitBoardGetLSB(OUR(King))) & (THEIR(Rook) | THEIR(Queen))) continue;
+    br[brSize].to = cb->enPassant;
+    br[brSize].from = BitBoardSetBit(EMPTY_BOARD, s);
+    // If it's pinned, intersect with pin mask
+    if (br[brSize].from & pinned) {
+      br[brSize].to &= SINGLE_PUSH(LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s), (!cb->turn));
+    }
+    brSize++;
+  }
+
+  return traverseMoves(l, cb, br, brSize);
 }
 
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize) {
   long nodes = 0;
+  ChessBoard new;
+  Move m;
 
+  // Injective king/piece branches
   for (int i = 0; i < brSize; i++) {
     if (br[i].from == EMPTY_BOARD) continue;
     if (cb->depth == 1) {
@@ -229,8 +230,6 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
       continue;
     }
 
-    ChessBoard new;
-    Move m;
     int oneToOne = BitBoardCountBits(br[i].from) - 1; // If non-zero, then one-to-one mapping
 
     m.from = BitBoardGetLSB(br[i].from);
@@ -252,6 +251,11 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
       }
     }
   }
+
+  // Bijective pawn branches
+
+  // handle the surjective enpassant branch separately
+  // ...
 
   return nodes;
 }
