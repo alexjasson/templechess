@@ -165,9 +165,9 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     s = BitBoardPopLSB(&b1);
     br[brSize].to = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & moveMask;
     br[brSize].from = BitBoardSetBit(EMPTY_BOARD, s);
-    if (br[brSize].from & pinned) br[brSize].to &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
     brSize++;
   }
+
 
   // Non pinned pawn branches
   b1 = OUR(Pawn) & ~pinned;
@@ -185,20 +185,33 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   br[brSize].from = DOUBLE_PUSH(br[brSize].to, (!cb->turn));
   brSize++;
 
+  // Prune pin squares from piece braches
+  b1 = us & ~(OUR(Pawn) | OUR(King));
+  int x = 1;
+  while (b1) {
+    s = BitBoardPopLSB(&b1);
+    if (BitBoardSetBit(EMPTY_BOARD, s) & pinned) {
+      br[x].to &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
+    }
+    x++;
+  }
+
+  // Now prune the pawn branches using x ...
+
   // Rest of pawn branches - pinned
-  b1 = OUR(Pawn) & ~b1;
+  b1 = OUR(Pawn) & pinned;
   while (b1) {
     s = BitBoardPopLSB(&b1);
     br[brSize].from = BitBoardSetBit(EMPTY_BOARD, s);
     br[brSize].to = SINGLE_PUSH(br[brSize].from, cb->turn) & ~ALL;
     br[brSize].to |= SINGLE_PUSH(br[brSize].to & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL;
     br[brSize].to |= PAWN_ATTACKS(br[brSize].from, cb->turn) & them;
-    if (br[brSize].from & pinned) br[brSize].to &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
+    br[brSize].to &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
     br[brSize].to &= moveMask;
     brSize++;
   }
 
-  // Enpassant pawn branch - remember that the from is essentially the to since it's surjective
+  // Enpassant branch - remember that the from is essentially the to since it's surjective
   b1 = ENPASSANT(cb->enPassant) & OUR(Pawn);
   br[brSize].from = EMPTY_BOARD;
   while (b1) {
@@ -253,7 +266,7 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
 
   // Bijective pawn branches
 
-  // handle the surjective enpassant branch separately
+  // Surjective enpassant branch
   while (br[brSize].from) {
     if (cb->depth == 1) { nodes += BitBoardCountBits(br[brSize].from); break; }
     m.from = BitBoardPopLSB(&br[brSize].from);
