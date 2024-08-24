@@ -232,6 +232,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     if (br[brSize].from & pinned) br[brSize].from &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), BitBoardGetLSB(SINGLE_PUSH(cb->enPassant, (cb->turn))));
     if (br[brSize].from) br[brSize].to = cb->enPassant;
   }
+  // brSize++; Make this work in future
 
   return traverseMoves(l, cb, br, brSize);
 }
@@ -245,18 +246,19 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
   // Injective king/piece branches
   for (int i = 0; i <= brSize; i++) {
     if (br[i].from == EMPTY_BOARD || br[i].to == EMPTY_BOARD) continue; // Necessary evil
-    a = BitBoardCountBits(br[i].to);
-    b = BitBoardCountBits(br[i].from);
-    int offset = a - b;
-    int max = (a > b) ? a : b;
 
     if (cb->depth == 1) {
       BitBoard promotion = EMPTY_BOARD;
       if (GET_TYPE(cb->squares[BitBoardGetLSB(br[i].from)]) == Pawn) promotion |= (PROMOTING_RANK(cb->turn) & br[i].to);
-      nodes += BitBoardCountBits(br[i].to) + BitBoardCountBits(promotion) * 3;
-      if (offset < 0) nodes++; // Todo: Handle enpassant by checking enpassant square with br[i].to - must change the way enpassant is stored for this, then move gunk down above
+      if (i == brSize) nodes += BitBoardCountBits(br[i].from);
+      else nodes += BitBoardCountBits(br[i].to) + BitBoardCountBits(promotion) * 3;
       continue;
     }
+
+    a = BitBoardCountBits(br[i].to);
+    b = BitBoardCountBits(br[i].from);
+    int offset = a - b;
+    int max = (a > b) ? a : b;
 
     for (int j = 0; j < max; j++) {
       m.from = BitBoardPopLSB(&br[i].from);
