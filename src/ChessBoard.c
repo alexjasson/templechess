@@ -131,9 +131,8 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   // Data needed for move generation
   BitBoard us, them, pinned, checking, attacked, moveMask, b1, b2;
   Square s;
-  Branch br[32]; // Make sure they're all 0's in future
-  br[1].from = EMPTY_BOARD;
-  br[1].to = EMPTY_BOARD;
+  Branch br[20]; // Make sure they're all 0's in future
+  for (int i = 0; i < 20; i++) br[i].to = br[i].from = EMPTY_BOARD;
   int brSize = 1;
   int numChecking;
   us = them = pinned = EMPTY_BOARD;
@@ -187,13 +186,13 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
 
   // Prune pin squares from piece braches
   b1 = us & ~(OUR(Pawn) | OUR(King));
-  int x = 1;
+  int i = 1;
   while (b1) {
     s = BitBoardPopLSB(&b1);
     if (BitBoardSetBit(EMPTY_BOARD, s) & pinned) {
-      br[x].to &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
+      br[i].to &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
     }
-    x++;
+    i++;
   }
 
   // Now prune the pawn branches
@@ -205,23 +204,22 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     b3 = LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s); // pin mask
 
     // Remove any attacks that aren't on the pin mask from the set
-    br[x].to &= ~(PAWN_ATTACKS_LEFT(b2, cb->turn) & ~b3);
-    br[x].from = PAWN_ATTACKS_LEFT(br[x].to, (!cb->turn));
-    x++;
-    br[x].to &= ~(PAWN_ATTACKS_RIGHT(b2, cb->turn) & ~b3);
-    br[x].from = PAWN_ATTACKS_RIGHT(br[x].to, (!cb->turn));
-    x++;
-    br[x].to &= ~(SINGLE_PUSH(b2, cb->turn) & ~b3);
-    br[x].from = SINGLE_PUSH(br[x].to, (!cb->turn));
-    x++;
-    br[x].to &= ~(DOUBLE_PUSH(b2, cb->turn) & ~b3);
-    br[x].from = DOUBLE_PUSH(br[x].to, (!cb->turn));
-    x -= 3;
+    br[i].to &= ~(PAWN_ATTACKS_LEFT(b2, cb->turn) & ~b3);
+    br[i].from = PAWN_ATTACKS_LEFT(br[i].to, (!cb->turn));
+    i++;
+    br[i].to &= ~(PAWN_ATTACKS_RIGHT(b2, cb->turn) & ~b3);
+    br[i].from = PAWN_ATTACKS_RIGHT(br[i].to, (!cb->turn));
+    i++;
+    br[i].to &= ~(SINGLE_PUSH(b2, cb->turn) & ~b3);
+    br[i].from = SINGLE_PUSH(br[i].to, (!cb->turn));
+    i++;
+    br[i].to &= ~(DOUBLE_PUSH(b2, cb->turn) & ~b3);
+    br[i].from = DOUBLE_PUSH(br[i].to, (!cb->turn));
+    i -= 3;
   }
 
   // Enpassant branch - remember that the from is essentially the to since it's surjective
   b1 = ENPASSANT(cb->enPassant) & OUR(Pawn);
-  br[brSize].from = EMPTY_BOARD;
   while (b1) {
     s = BitBoardPopLSB(&b1);
     // Check that the pawn is not "pseudo-pinned"
@@ -230,8 +228,8 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     br[brSize].from |= BitBoardSetBit(EMPTY_BOARD, s);
     // If it's pinned, intersect with pin mask
     if (br[brSize].from & pinned) br[brSize].from &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), BitBoardGetLSB(SINGLE_PUSH(cb->enPassant, (cb->turn))));
-    if (br[brSize].from) br[brSize].to = cb->enPassant;
   }
+  if (br[brSize].from) br[brSize].to = cb->enPassant;
   // brSize++; Make this work in future
 
   return traverseMoves(l, cb, br, brSize);
@@ -250,7 +248,7 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
     if (cb->depth == 1) {
       BitBoard promotion = EMPTY_BOARD;
       if (GET_TYPE(cb->squares[BitBoardGetLSB(br[i].from)]) == Pawn) promotion |= (PROMOTING_RANK(cb->turn) & br[i].to);
-      if (i == brSize) nodes += BitBoardCountBits(br[i].from);
+      if (i == brSize) nodes += BitBoardCountBits(br[i].from); // Enpassant - clean it up
       else nodes += BitBoardCountBits(br[i].to) + BitBoardCountBits(promotion) * 3;
       continue;
     }
