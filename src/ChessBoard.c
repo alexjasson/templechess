@@ -253,8 +253,6 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
     while (br[i].to) {
       m.to = BitBoardPopLSB(&br[i].to);
       m.moved = GET_TYPE(cb->squares[m.from]);
-      if (m.moved == Pawn) exit(1); // Make sure only piece branches
-
       memcpy(&new, cb, sizeof(ChessBoard));
       move(&new, m);
       nodes += treeSearch(l, &new); // Continue traversing
@@ -263,13 +261,11 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
 
   // Bijective pawn branches
   for (int i = numPieces; i < brSize; i++) {
-    if (br[i].from == EMPTY_BOARD) continue;
     if (cb->depth == 1) {
       BitBoard promotion = (PROMOTING_RANK(cb->turn) & br[i].to);
       nodes += BitBoardCountBits(br[i].to) + BitBoardCountBits(promotion) * 3;
       continue;
     }
-    if (GET_TYPE(cb->squares[BitBoardGetLSB(br[i].from)]) != Pawn) exit(1); // Make sure only pawn branches
 
     while (br[i].to) {
       m.to = BitBoardPopLSB(&br[i].to);
