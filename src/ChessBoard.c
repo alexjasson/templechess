@@ -58,6 +58,8 @@ static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, 
 static long treeSearch(LookupTable l, ChessBoard *cb);
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize);
 
+static BitBoard pawnMoves(BitBoard pawns, Color c, int move);
+
 // Assumes FEN and depth is valid
 ChessBoard ChessBoardNew(char *fen, int depth) {
   ChessBoard cb;
@@ -277,7 +279,9 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
   }
 
   // Bijective pawn branches
+  int j = 0;
   for (int i = numPieces; i < brSize; i++) {
+    BitBoard b = pawnMoves(br[i].to, !cb->turn, j);
     if (cb->depth == 1) {
       BitBoard promotion = (PROMOTING_RANK(cb->turn) & br[i].to);
       nodes += BitBoardCountBits(br[i].to) + BitBoardCountBits(promotion) * 3;
@@ -286,7 +290,7 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
 
     while (br[i].to) {
       m.to = BitBoardPopLSB(&br[i].to);
-      m.from = BitBoardPopLSB(&br[i].from);
+      m.from = BitBoardPopLSB(&b);
       BitBoard promotion = (BitBoardSetBit(EMPTY_BOARD, m.to) & PROMOTING_RANK(cb->turn));
       m.moved = (promotion) ? Knight : Pawn;
 
@@ -300,6 +304,7 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
         goto Move;
       }
     }
+    j++;
   }
 
   // Surjective enpassant branch
@@ -314,6 +319,17 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
   }
 
   return nodes;
+}
+
+// Helper function to iterate over the pawn moves - put in macro later?
+static BitBoard pawnMoves(BitBoard pawns, Color c, int move) {
+  switch (move) {
+    case 0: return PAWN_ATTACKS_LEFT(pawns, c);
+    case 1: return PAWN_ATTACKS_RIGHT(pawns, c);
+    case 2: return SINGLE_PUSH(pawns, c);
+    case 3: return DOUBLE_PUSH(pawns, c);
+    default: fprintf(stderr, "Invalid pawn move\n"); exit(EXIT_FAILURE);
+  }
 }
 
 static void move(ChessBoard *cb, Move m) {
