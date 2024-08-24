@@ -237,6 +237,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
 
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize) {
   int numPieces = BitBoardCountBits(OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen)) + 1;
+  BitBoard pieces = OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen);
   int doubleCheck = (brSize == 1) ? 1 : 0;
   long nodes = 0;
   ChessBoard new;
@@ -265,7 +266,7 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
       continue;
     }
 
-    m.from = BitBoardGetLSB(br[i].from);
+    m.from = BitBoardPopLSB(&pieces);
     while (br[i].to) {
       m.to = BitBoardPopLSB(&br[i].to);
       m.moved = GET_TYPE(cb->squares[m.from]);
