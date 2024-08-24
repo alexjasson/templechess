@@ -131,9 +131,8 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   // Data needed for move generation
   BitBoard us, them, pinned, checking, attacked, moveMask, b1, b2;
   Square s;
-  Branch br[32]; // Make sure they're all 0's in future
-  br[1].from = EMPTY_BOARD;
-  br[1].to = EMPTY_BOARD;
+  Branch br[20]; // Make sure they're all 0's in future
+  for (int i = 0; i < 20; i++) br[i].to = br[i].from = EMPTY_BOARD;
   int brSize = 1;
   int numChecking;
   us = them = pinned = EMPTY_BOARD;
@@ -237,29 +236,46 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
 }
 
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize) {
+  int numPieces = BitBoardCountBits(OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen)) + 1;
   long nodes = 0;
   ChessBoard new;
   Move m;
 
   // Injective king/piece branches
-  for (int i = 0; i < brSize; i++) {
+  for (int i = 0; i < numPieces; i++) {
     if (br[i].from == EMPTY_BOARD) continue;
     if (cb->depth == 1) {
-      BitBoard promotion = EMPTY_BOARD;
-      if (GET_TYPE(cb->squares[BitBoardGetLSB(br[i].from)]) == Pawn) promotion |= (PROMOTING_RANK(cb->turn) & br[i].to);
-      nodes += BitBoardCountBits(br[i].to) + BitBoardCountBits(promotion) * 3;
+      nodes += BitBoardCountBits(br[i].to);
       continue;
     }
 
-    int oneToOne = BitBoardCountBits(br[i].from) - 1; // If non-zero, then one-to-one mapping
-
     m.from = BitBoardGetLSB(br[i].from);
     while (br[i].to) {
-      if (oneToOne) m.from = BitBoardPopLSB(&br[i].from);
       m.to = BitBoardPopLSB(&br[i].to);
       m.moved = GET_TYPE(cb->squares[m.from]);
-      int promotion = ((m.moved == Pawn) && (BitBoardSetBit(EMPTY_BOARD, m.to) & PROMOTING_RANK(cb->turn)));
-      if (promotion) m.moved = Knight;
+      if (m.moved == Pawn) exit(1); // Make sure only piece branches
+
+      memcpy(&new, cb, sizeof(ChessBoard));
+      move(&new, m);
+      nodes += treeSearch(l, &new); // Continue traversing
+    }
+  }
+
+  // Bijective pawn branches
+  for (int i = numPieces; i < brSize; i++) {
+    if (br[i].from == EMPTY_BOARD) continue;
+    if (cb->depth == 1) {
+      BitBoard promotion = (PROMOTING_RANK(cb->turn) & br[i].to);
+      nodes += BitBoardCountBits(br[i].to) + BitBoardCountBits(promotion) * 3;
+      continue;
+    }
+    if (GET_TYPE(cb->squares[BitBoardGetLSB(br[i].from)]) != Pawn) exit(1); // Make sure only pawn branches
+
+    while (br[i].to) {
+      m.from = BitBoardPopLSB(&br[i].from);
+      m.to = BitBoardPopLSB(&br[i].to);
+      BitBoard promotion = (BitBoardSetBit(EMPTY_BOARD, m.to) & PROMOTING_RANK(cb->turn));
+      m.moved = (promotion) ? Knight : Pawn;
 
       Move:
       memcpy(&new, cb, sizeof(ChessBoard));
@@ -272,8 +288,6 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
       }
     }
   }
-
-  // Bijective pawn branches
 
   // Surjective enpassant branch
   while (br[brSize].from) {
