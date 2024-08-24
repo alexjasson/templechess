@@ -237,13 +237,13 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
 
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize) {
   int numPieces = BitBoardCountBits(OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen)) + 1;
+  if (brSize == 1) numPieces = 1; // Double check
   long nodes = 0;
   ChessBoard new;
   Move m;
 
   // Injective king/piece branches
   for (int i = 0; i < numPieces; i++) {
-    if (br[i].from == EMPTY_BOARD) continue;
     if (cb->depth == 1) {
       nodes += BitBoardCountBits(br[i].to);
       continue;
@@ -272,8 +272,8 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
     if (GET_TYPE(cb->squares[BitBoardGetLSB(br[i].from)]) != Pawn) exit(1); // Make sure only pawn branches
 
     while (br[i].to) {
-      m.from = BitBoardPopLSB(&br[i].from);
       m.to = BitBoardPopLSB(&br[i].to);
+      m.from = BitBoardPopLSB(&br[i].from);
       BitBoard promotion = (BitBoardSetBit(EMPTY_BOARD, m.to) & PROMOTING_RANK(cb->turn));
       m.moved = (promotion) ? Knight : Pawn;
 
