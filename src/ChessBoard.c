@@ -39,7 +39,6 @@
 
 typedef struct {
   BitBoard to;
-  BitBoard from;
 } Branch;
 
 typedef struct {
@@ -134,7 +133,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   BitBoard us, them, pinned, checking, attacked, moveMask, b1, b2;
   Square s;
   Branch br[20]; // Make sure they're all 0's in future
-  for (int i = 0; i < 20; i++) br[i].to = br[i].from = EMPTY_BOARD;
+  for (int i = 0; i < 20; i++) br[i].to = EMPTY_BOARD;
   int brSize = 1;
   int numChecking;
   us = them = pinned = EMPTY_BOARD;
@@ -146,7 +145,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
 
   // Traverse king branches
   br[0].to = LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), King, ALL) & ~us & ~attacked;
-  br[0].from = OUR(King);
 
   if (numChecking == 2) {
     return traverseMoves(l, cb, br, brSize);
@@ -165,7 +163,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   while (b1) {
     s = BitBoardPopLSB(&b1);
     br[brSize].to = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & moveMask;
-    br[brSize].from = BitBoardSetBit(EMPTY_BOARD, s);
     brSize++;
   }
 
@@ -173,17 +170,13 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   // Non pinned pawn branches
   b1 = OUR(Pawn);
   br[brSize].to = PAWN_ATTACKS_LEFT(b1, cb->turn) & them & moveMask;
-  br[brSize].from = PAWN_ATTACKS_LEFT(br[brSize].to, (!cb->turn));
   brSize++;
   br[brSize].to = PAWN_ATTACKS_RIGHT(b1, cb->turn) & them & moveMask;
-  br[brSize].from = PAWN_ATTACKS_RIGHT(br[brSize].to, (!cb->turn));
   brSize++;
   b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
   br[brSize].to = b2 & moveMask;
-  br[brSize].from = SINGLE_PUSH(br[brSize].to, (!cb->turn));
   brSize++;
   br[brSize].to = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & moveMask;
-  br[brSize].from = DOUBLE_PUSH(br[brSize].to, (!cb->turn));
   brSize++;
 
   // Prune pin squares from piece braches
@@ -208,30 +201,26 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
 
     // Remove any attacks that aren't on the pin mask from the set
     br[x].to &= ~(PAWN_ATTACKS_LEFT(b2, cb->turn) & ~b3);
-    br[x].from = PAWN_ATTACKS_LEFT(br[x].to, (!cb->turn));
     x++;
     br[x].to &= ~(PAWN_ATTACKS_RIGHT(b2, cb->turn) & ~b3);
-    br[x].from = PAWN_ATTACKS_RIGHT(br[x].to, (!cb->turn));
     x++;
     br[x].to &= ~(SINGLE_PUSH(b2, cb->turn) & ~b3);
-    br[x].from = SINGLE_PUSH(br[x].to, (!cb->turn));
     x++;
     br[x].to &= ~(DOUBLE_PUSH(b2, cb->turn) & ~b3);
-    br[x].from = DOUBLE_PUSH(br[x].to, (!cb->turn));
     x -= 3;
   }
 
   // Enpassant branch - remember that the from is essentially the to since it's surjective
   b1 = ENPASSANT(cb->enPassant) & OUR(Pawn);
-  br[brSize].from = EMPTY_BOARD;
+  br[brSize].to = EMPTY_BOARD;
   while (b1) {
     s = BitBoardPopLSB(&b1);
     // Check that the pawn is not "pseudo-pinned"
     if (LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), Rook, ALL & ~BitBoardSetBit(cb->enPassant, s)) &
         GET_RANK(BitBoardGetLSB(OUR(King))) & (THEIR(Rook) | THEIR(Queen))) continue;
-    br[brSize].from |= BitBoardSetBit(EMPTY_BOARD, s);
+    br[brSize].to |= BitBoardSetBit(EMPTY_BOARD, s);
     // If it's pinned, intersect with pin mask
-    if (br[brSize].from & pinned) br[brSize].from &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), BitBoardGetLSB(SINGLE_PUSH(cb->enPassant, (cb->turn))));
+    if (br[brSize].to & pinned) br[brSize].to &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), BitBoardGetLSB(SINGLE_PUSH(cb->enPassant, (cb->turn))));
   }
 
   return traverseMoves(l, cb, br, brSize);
@@ -308,9 +297,9 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
   }
 
   // Surjective enpassant branch
-  while (br[brSize].from) {
-    if (cb->depth == 1) { nodes += BitBoardCountBits(br[brSize].from); break; }
-    m.from = BitBoardPopLSB(&br[brSize].from);
+  while (br[brSize].to) {
+    if (cb->depth == 1) { nodes += BitBoardCountBits(br[brSize].to); break; }
+    m.from = BitBoardPopLSB(&br[brSize].to); // Since it's surjective
     m.to = BitBoardGetLSB(cb->enPassant);
     m.moved = Pawn;
     memcpy(&new, cb, sizeof(ChessBoard));
