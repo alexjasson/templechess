@@ -237,13 +237,29 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
 
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize) {
   int numPieces = BitBoardCountBits(OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen)) + 1;
-  if (brSize == 1) numPieces = 1; // Double check
+  int doubleCheck = (brSize == 1) ? 1 : 0;
   long nodes = 0;
   ChessBoard new;
   Move m;
 
-  // Injective king/piece branches
-  for (int i = 0; i < numPieces; i++) {
+  // Injective king branch
+  m.from = BitBoardGetLSB(OUR(King));
+  while (br[0].to) {
+    if (cb->depth == 1) {
+      nodes += BitBoardCountBits(br[0].to);
+      break;
+    }
+
+    m.to = BitBoardPopLSB(&br[0].to);
+    m.moved = GET_TYPE(cb->squares[m.from]);
+    memcpy(&new, cb, sizeof(ChessBoard));
+    move(&new, m);
+    nodes += treeSearch(l, &new); // Continue traversing
+  }
+  if (doubleCheck) return nodes;
+
+  // Injective piece branches
+  for (int i = 1; i < numPieces; i++) {
     if (cb->depth == 1) {
       nodes += BitBoardCountBits(br[i].to);
       continue;
