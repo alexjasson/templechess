@@ -10,11 +10,6 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Usage: %s <fen> <depth>\n", argv[0]);
         exit(1);
     }
-    BitBoardPrint(0x6c0000000000006c);
-    BitBoard b = 0x6c0000000000006c;
-    b = BitBoardSetBit(b, e1);
-    b = BitBoardSetBit(b, e8);
-    printf("Hexadecimal: %llx\n", b);
 
     ChessBoard cb = ChessBoardNew(argv[1], atoi(argv[2]));
     long nodes = ChessBoardTreeSearch(cb);
