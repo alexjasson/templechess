@@ -190,14 +190,10 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     if (LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), Rook, ALL & ~BitBoardSetBit(SINGLE_PUSH(cb->enPassant, (!cb->turn)), s)) &
         GET_RANK(BitBoardGetLSB(OUR(King))) & (THEIR(Rook) | THEIR(Queen))) continue;
     b2 |= BitBoardSetBit(EMPTY_BOARD, s);
-    // If it's pinned, intersect with pin mask
-    if (b2 & pinned) b2 &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), BitBoardGetLSB(cb->enPassant));
   }
   br[brSize].to = cb->enPassant;
   br[brSize].from = b2;
   brSize++;
-
-
 
   // Prune pin squares from piece braches (do checks here as well in future)
   int i = 1;
@@ -234,12 +230,15 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   i += 4;
 
   b1 = PAWN_ATTACKS(cb->enPassant, (!cb->turn)) & OUR(Pawn);
+  b2 = EMPTY_BOARD;
   while (b1) {
     s = BitBoardPopLSB(&b1);
-    // If it's pinned, intersect with pin mask
-    if (br[i].from & pinned) br[i].from &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), BitBoardGetLSB(cb->enPassant));
+    b2 |= BitBoardSetBit(EMPTY_BOARD, s);
+    // b2 contains the set of en passant pawns that can move
+    if (b2 & pinned) b2 &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), BitBoardGetLSB(cb->enPassant));
 
   }
+  br[i].from &= b2;
 
   return traverseMoves(l, cb, br, brSize);
 }
