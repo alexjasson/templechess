@@ -42,12 +42,6 @@ typedef struct {
   BitBoard from;
 } Branch;
 
-typedef struct {
-    Square to;
-    Square from;
-    Type moved;
-} Move;
-
 static Color getColorFromASCII(char asciiColor);
 static Piece getPieceFromASCII(char asciiPiece);
 
@@ -129,11 +123,11 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   if (cb->depth == 0) return 1; // Base case
 
   // Data needed for move generation
-  BitBoard us, them, pinned, checking, attacked, moveMask, b1, b2;
+  BitBoard us, them, pinned, checking, attacked, moveMask, b1, b2, b3;
   Square s;
   Branch br[20]; // Make sure they're all 0's in future
   for (int i = 0; i < 20; i++) br[i].to = br[i].from = EMPTY_BOARD;
-  int brSize = 1;
+  int brSize = 0;
   int numChecking;
   us = them = pinned = EMPTY_BOARD;
   for (Type t = Pawn; t <= Queen; t++) us |= OUR(t);
@@ -142,23 +136,25 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   checking = getCheckingPieces(l, cb, them, &pinned);
   numChecking = BitBoardCountBits(checking);
 
-  // Traverse king branches
+  // King branches
   br[0].to = LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), King, ALL) & ~us & ~attacked;
   br[0].from = OUR(King);
+  brSize++;
 
   if (numChecking == 2) {
+    // brSize++;
     return traverseMoves(l, cb, br, brSize);
   } else if (numChecking == 1) {
     moveMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), BitBoardGetLSB(OUR(King)));
   } else {
     moveMask = ~us;
-    // Traverse castling branches
+    // Castling branches
     b1 = (cb->castling | (ALL & OCCUPANCY_MASK) | (attacked & ATTACK_MASK)) & BACK_RANK(cb->turn);
     if ((b1 & KINGSIDE) == (KINGSIDE_CASTLING & BACK_RANK(cb->turn))) br[0].to |= OUR(King) << 2;
     if ((b1 & QUEENSIDE) == (QUEENSIDE_CASTLING & BACK_RANK(cb->turn))) br[0].to |= OUR(King) >> 2;
   }
 
-  // Traverse piece branches
+  // Piece branches
   b1 = us & ~(OUR(Pawn) | OUR(King));
   while (b1) {
     s = BitBoardPopLSB(&b1);
@@ -168,7 +164,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   }
 
 
-  // Non pinned pawn branches
+  // Pawn branches
   b1 = OUR(Pawn);
   br[brSize].to = PAWN_ATTACKS_LEFT(b1, cb->turn) & them & moveMask;
   br[brSize].from = PAWN_ATTACKS_LEFT(br[brSize].to, (!cb->turn));
@@ -184,9 +180,9 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   br[brSize].from = DOUBLE_PUSH(br[brSize].to, (!cb->turn));
   brSize++;
 
-  // Prune pin squares from piece braches
-  b1 = us & ~(OUR(Pawn) | OUR(King));
+  // Prune pin squares from piece braches (do checks here as well in future)
   int i = 1;
+  b1 = us & ~(OUR(Pawn) | OUR(King));
   while (b1) {
     s = BitBoardPopLSB(&b1);
     if (BitBoardSetBit(EMPTY_BOARD, s) & pinned) {
@@ -196,7 +192,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   }
 
   // Now prune the pawn branches
-  BitBoard b3;
   b1 = OUR(Pawn) & pinned;
   while (b1) {
     s = BitBoardPopLSB(&b1);
@@ -218,7 +213,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     i -= 3;
   }
 
-  // Enpassant branch - remember that the from is essentially the to since it's surjective
+  // Enpassant branch
   b1 = ENPASSANT(cb->enPassant) & OUR(Pawn);
   while (b1) {
     s = BitBoardPopLSB(&b1);
@@ -229,30 +224,37 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     // If it's pinned, intersect with pin mask
     if (br[brSize].from & pinned) br[brSize].from &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), BitBoardGetLSB(SINGLE_PUSH(cb->enPassant, (cb->turn))));
   }
-  if (br[brSize].from) br[brSize].to = cb->enPassant;
-  // brSize++; Make this work in future
+  if (br[brSize].from) {
+    br[brSize].to = cb->enPassant;
+    brSize++;
+  }
 
   return traverseMoves(l, cb, br, brSize);
 }
 
 static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize) {
   long nodes = 0;
+  int a, b;
   ChessBoard new;
   Move m;
-  int a, b;
 
-  // Injective king/piece branches
-  for (int i = 0; i <= brSize; i++) {
-    if (br[i].from == EMPTY_BOARD || br[i].to == EMPTY_BOARD) continue; // Necessary evil
+  if (cb->depth == 1) {
+    for (int i = 0; i < brSize; i++) {
+      if (br[i].from == EMPTY_BOARD || br[i].to == EMPTY_BOARD) continue; // Necessary evil
+      a = BitBoardCountBits(br[i].to);
+      b = BitBoardCountBits(br[i].from);
+      int offset = a - b;
 
-    if (cb->depth == 1) {
       BitBoard promotion = EMPTY_BOARD;
       if (GET_TYPE(cb->squares[BitBoardGetLSB(br[i].from)]) == Pawn) promotion |= (PROMOTING_RANK(cb->turn) & br[i].to);
-      if (i == brSize) nodes += BitBoardCountBits(br[i].from); // Enpassant - clean it up
-      else nodes += BitBoardCountBits(br[i].to) + BitBoardCountBits(promotion) * 3;
-      continue;
+      if (offset < 0) nodes++;
+      nodes += BitBoardCountBits(br[i].to) + BitBoardCountBits(promotion) * 3;
     }
+    return nodes;
+  }
 
+  for (int i = 0; i < brSize; i++) {
+    if (br[i].from == EMPTY_BOARD || br[i].to == EMPTY_BOARD) continue; // Necessary evil
     a = BitBoardCountBits(br[i].to);
     b = BitBoardCountBits(br[i].from);
     int offset = a - b;

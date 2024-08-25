@@ -15,6 +15,12 @@ typedef struct {
   BitBoard castling;
 } ChessBoard;
 
+typedef struct {
+  Square to;
+  Square from;
+  Type moved;
+} Move;
+
 ChessBoard ChessBoardNew(char *fen, int depth); // ChessBoard is stack allocated
 void ChessBoardPrint(ChessBoard cb);
 long ChessBoardTreeSearch(ChessBoard cb);
