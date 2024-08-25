@@ -25,14 +25,13 @@
 #define OCCUPANCY_MASK 0x6e0000000000006e
 
 // Given a square, returns a bitboard representing the rank of that square
-#define GET_RANK(s) (SOUTH_EDGE >> (EDGE_SIZE * (EDGE_SIZE - BitBoardGetRank(s) - 1)))
 #define PAWN_ATTACKS(b, c) ((c == White) ? BitBoardShiftNW(b) | BitBoardShiftNE(b) : BitBoardShiftSW(b) | BitBoardShiftSE(b))
 #define PAWN_ATTACKS_LEFT(b, c) ((c == White) ? BitBoardShiftNW(b) : BitBoardShiftSE(b))
 #define PAWN_ATTACKS_RIGHT(b, c) ((c == White) ? BitBoardShiftNE(b) : BitBoardShiftSW(b))
 #define SINGLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(b) : BitBoardShiftS(b))
 #define DOUBLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(BitBoardShiftN(b)) : BitBoardShiftS(BitBoardShiftS(b)))
-// #define ENPASSANT(b) (BitBoardShiftE(b) | BitBoardShiftW(b))
 
+#define GET_RANK(s) (SOUTH_EDGE >> (EDGE_SIZE * (EDGE_SIZE - BitBoardGetRank(s) - 1)))
 #define ENPASSANT_RANK(c) (BitBoard)SOUTH_EDGE >> (EDGE_SIZE * ((c * 3) + 2)) // 6th rank for black, 3rd for white
 #define PROMOTING_RANK(c) (BitBoard)((c == White) ? NORTH_EDGE : SOUTH_EDGE)
 #define BACK_RANK(c) (BitBoard)((c == White) ? SOUTH_EDGE : NORTH_EDGE)
@@ -48,7 +47,7 @@ static Color getColorFromASCII(char asciiColor);
 static Piece getPieceFromASCII(char asciiPiece);
 
 static void addPiece(ChessBoard *cb, Square s, Piece replacement);
-static void move(ChessBoard *cb, Move m);
+static void move(ChessBoard *new, ChessBoard *old, Move m);
 static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
 static long treeSearch(LookupTable l, ChessBoard *cb);
@@ -182,6 +181,24 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   br[brSize].from = DOUBLE_PUSH(br[brSize].to, (!cb->turn));
   brSize++;
 
+  // Enpassant branch
+  b1 = PAWN_ATTACKS(cb->enPassant, (!cb->turn)) & OUR(Pawn);
+  b2 = EMPTY_BOARD;
+  while (b1) {
+    s = BitBoardPopLSB(&b1);
+    // Check that the pawn is not "pseudo-pinned"
+    if (LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), Rook, ALL & ~BitBoardSetBit(SINGLE_PUSH(cb->enPassant, (!cb->turn)), s)) &
+        GET_RANK(BitBoardGetLSB(OUR(King))) & (THEIR(Rook) | THEIR(Queen))) continue;
+    b2 |= BitBoardSetBit(EMPTY_BOARD, s);
+    // If it's pinned, intersect with pin mask
+    if (b2 & pinned) b2 &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), BitBoardGetLSB(cb->enPassant));
+  }
+  br[brSize].to = cb->enPassant;
+  br[brSize].from = b2;
+  brSize++;
+
+
+
   // Prune pin squares from piece braches (do checks here as well in future)
   int i = 1;
   b1 = us & ~(OUR(Pawn) | OUR(King));
@@ -214,20 +231,15 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     br[i].from = DOUBLE_PUSH(br[i].to, (!cb->turn));
     i -= 3;
   }
+  i += 4;
 
-  // Enpassant branch
   b1 = PAWN_ATTACKS(cb->enPassant, (!cb->turn)) & OUR(Pawn);
   while (b1) {
     s = BitBoardPopLSB(&b1);
-    // Check that the pawn is not "pseudo-pinned"
-    if (LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), Rook, ALL & ~BitBoardSetBit(SINGLE_PUSH(cb->enPassant, (!cb->turn)), s)) &
-        GET_RANK(BitBoardGetLSB(OUR(King))) & (THEIR(Rook) | THEIR(Queen))) continue;
-    br[brSize].from |= BitBoardSetBit(EMPTY_BOARD, s);
     // If it's pinned, intersect with pin mask
-    if (br[brSize].from & pinned) br[brSize].from &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), BitBoardGetLSB(cb->enPassant));
+    if (br[i].from & pinned) br[i].from &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), BitBoardGetLSB(cb->enPassant));
+
   }
-  br[brSize].to = cb->enPassant;
-  brSize++;
 
   return traverseMoves(l, cb, br, brSize);
 }
@@ -270,8 +282,7 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
       if (promotion) m.moved = Knight;
 
       Move:
-      memcpy(&new, cb, sizeof(ChessBoard));
-      move(&new, m);
+      move(&new, cb, m);
       nodes += treeSearch(l, &new); // Continue traversing
 
       if (promotion && m.moved < Queen) {
@@ -284,32 +295,33 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
   return nodes;
 }
 
-static void move(ChessBoard *cb, Move m) {
+// Given an old board and a new board, copy the old board and play the move on the new board
+static void move(ChessBoard *new, ChessBoard *old, Move m) {
+  memcpy(new, old, sizeof(ChessBoard));
   int offset = m.from - m.to;
-  BitBoard lol = cb->enPassant;
-  cb->enPassant = EMPTY_BOARD;
-  cb->castling &= ~(BitBoardSetBit(EMPTY_BOARD, m.from) | BitBoardSetBit(EMPTY_BOARD, m.to));
-  addPiece(cb, m.to, GET_PIECE(m.moved, cb->turn));
-  addPiece(cb, m.from, EMPTY_PIECE);
+  new->enPassant = EMPTY_BOARD;
+  new->castling &= ~(BitBoardSetBit(EMPTY_BOARD, m.from) | BitBoardSetBit(EMPTY_BOARD, m.to));
+  addPiece(new, m.to, GET_PIECE(m.moved, new->turn));
+  addPiece(new, m.from, EMPTY_PIECE);
 
   if (m.moved == Pawn) {
     if ((offset == 16) || (offset == -16)) { // Double push
-      cb->enPassant = BitBoardSetBit(EMPTY_BOARD, m.from - (offset / 2));
-    } else if ((lol) && (m.to == BitBoardGetLSB(lol))) { // Enpassant - clean it up after change board rep
-      addPiece(cb, BitBoardGetLSB(SINGLE_PUSH(BitBoardSetBit(EMPTY_BOARD, m.to), (!cb->turn))), EMPTY_PIECE);
+      new->enPassant = BitBoardSetBit(EMPTY_BOARD, m.from - (offset / 2));
+    } else if ((old->enPassant) && (m.to == BitBoardGetLSB(old->enPassant))) { // Enpassant - clean it up after change board rep
+      addPiece(new, m.to + (new->turn ? -8: 8), EMPTY_PIECE);
     }
   } else if (m.moved == King) {
     if (offset == 2) { // Queenside castling
-      addPiece(cb, m.to - 2, EMPTY_PIECE);
-      addPiece(cb, m.to + 1, GET_PIECE(Rook, cb->turn));
+      addPiece(new, m.to - 2, EMPTY_PIECE);
+      addPiece(new, m.to + 1, GET_PIECE(Rook, new->turn));
     } else if (offset == -2) { // Kingside castling
-      addPiece(cb, m.to + 1, EMPTY_PIECE);
-      addPiece(cb, m.to - 1, GET_PIECE(Rook, cb->turn));
+      addPiece(new, m.to + 1, EMPTY_PIECE);
+      addPiece(new, m.to - 1, GET_PIECE(Rook, new->turn));
     }
   }
 
-  cb->turn = !cb->turn;
-  cb->depth--;
+  new->turn = !new->turn;
+  new->depth--;
 }
 
 // Adds a piece to a chessboard

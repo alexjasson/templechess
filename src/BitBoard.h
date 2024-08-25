@@ -45,7 +45,5 @@ BitBoard BitBoardShiftN(BitBoard b);
 BitBoard BitBoardShiftS(BitBoard b);
 BitBoard BitBoardShiftSE(BitBoard b);
 BitBoard BitBoardShiftSW(BitBoard b);
-BitBoard BitBoardShiftE(BitBoard b);
-BitBoard BitBoardShiftW(BitBoard b);
 
 #endif

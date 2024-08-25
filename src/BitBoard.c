@@ -81,11 +81,3 @@ BitBoard BitBoardShiftSE(BitBoard b) {
 BitBoard BitBoardShiftSW(BitBoard b) {
   return (b & ~WEST_EDGE) << 7;
 }
-
-BitBoard BitBoardShiftW(BitBoard b) {
-  return (b >> 1) & ~EAST_EDGE;
-}
-
-BitBoard BitBoardShiftE(BitBoard b) {
-  return (b << 1) & ~WEST_EDGE;
-}
