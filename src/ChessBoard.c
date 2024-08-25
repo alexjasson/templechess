@@ -31,7 +31,7 @@
 #define PAWN_ATTACKS_RIGHT(b, c) ((c == White) ? BitBoardShiftNE(b) : BitBoardShiftSW(b))
 #define SINGLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(b) : BitBoardShiftS(b))
 #define DOUBLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(BitBoardShiftN(b)) : BitBoardShiftS(BitBoardShiftS(b)))
-#define ENPASSANT(b) (BitBoardShiftE(b) | BitBoardShiftW(b))
+// #define ENPASSANT(b) (BitBoardShiftE(b) | BitBoardShiftW(b))
 
 #define ENPASSANT_RANK(c) (BitBoard)SOUTH_EDGE >> (EDGE_SIZE * ((c * 3) + 2)) // 6th rank for black, 3rd for white
 #define PROMOTING_RANK(c) (BitBoard)((c == White) ? NORTH_EDGE : SOUTH_EDGE)
@@ -40,6 +40,8 @@
 typedef struct {
   BitBoard to;
   BitBoard from;
+  // Type
+  // Size
 } Branch;
 
 static Color getColorFromASCII(char asciiColor);
@@ -100,7 +102,7 @@ ChessBoard ChessBoardNew(char *fen, int depth) {
     fen++;
     int rank = EDGE_SIZE - (*fen - '0');
     // Shift to 4th rank for white, 5th rank for black
-    cb.enPassant = SINGLE_PUSH(BitBoardSetBit(EMPTY_BOARD, rank * EDGE_SIZE + file), (!cb.turn));
+    cb.enPassant = BitBoardSetBit(EMPTY_BOARD, rank * EDGE_SIZE + file);
   }
 
   return cb;
@@ -214,15 +216,15 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   }
 
   // Enpassant branch
-  b1 = ENPASSANT(cb->enPassant) & OUR(Pawn);
+  b1 = PAWN_ATTACKS(cb->enPassant, (!cb->turn)) & OUR(Pawn);
   while (b1) {
     s = BitBoardPopLSB(&b1);
     // Check that the pawn is not "pseudo-pinned"
-    if (LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), Rook, ALL & ~BitBoardSetBit(cb->enPassant, s)) &
+    if (LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), Rook, ALL & ~BitBoardSetBit(SINGLE_PUSH(cb->enPassant, (!cb->turn)), s)) &
         GET_RANK(BitBoardGetLSB(OUR(King))) & (THEIR(Rook) | THEIR(Queen))) continue;
     br[brSize].from |= BitBoardSetBit(EMPTY_BOARD, s);
     // If it's pinned, intersect with pin mask
-    if (br[brSize].from & pinned) br[brSize].from &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), BitBoardGetLSB(SINGLE_PUSH(cb->enPassant, (cb->turn))));
+    if (br[brSize].from & pinned) br[brSize].from &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), BitBoardGetLSB(cb->enPassant));
   }
   br[brSize].to = cb->enPassant;
   brSize++;
@@ -284,7 +286,7 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
 
 static void move(ChessBoard *cb, Move m) {
   int offset = m.from - m.to;
-
+  BitBoard lol = cb->enPassant;
   cb->enPassant = EMPTY_BOARD;
   cb->castling &= ~(BitBoardSetBit(EMPTY_BOARD, m.from) | BitBoardSetBit(EMPTY_BOARD, m.to));
   addPiece(cb, m.to, GET_PIECE(m.moved, cb->turn));
@@ -292,10 +294,9 @@ static void move(ChessBoard *cb, Move m) {
 
   if (m.moved == Pawn) {
     if ((offset == 16) || (offset == -16)) { // Double push
-      cb->enPassant = BitBoardSetBit(EMPTY_BOARD, m.to);
-    } else if ((offset == 1) || (offset == -1)) { // Enpassant
-      addPiece(cb, m.to + ((cb->turn) ? EDGE_SIZE : -EDGE_SIZE), GET_PIECE(m.moved, cb->turn));
-      addPiece(cb, m.to, EMPTY_PIECE);
+      cb->enPassant = BitBoardSetBit(EMPTY_BOARD, m.from - (offset / 2));
+    } else if ((lol) && (m.to == BitBoardGetLSB(lol))) { // Enpassant - clean it up after change board rep
+      addPiece(cb, BitBoardGetLSB(SINGLE_PUSH(BitBoardSetBit(EMPTY_BOARD, m.to), (!cb->turn))), EMPTY_PIECE);
     }
   } else if (m.moved == King) {
     if (offset == 2) { // Queenside castling
