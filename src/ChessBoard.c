@@ -143,7 +143,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   brSize++;
 
   if (numChecking == 2) {
-    // brSize++;
     return traverseMoves(l, cb, br, brSize);
   } else if (numChecking == 1) {
     moveMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), BitBoardGetLSB(OUR(King)));
@@ -206,7 +205,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     i++;
   }
 
-  // Now prune the pawn branches
+  // Prunee pawn branches
   b1 = OUR(Pawn) & pinned;
   while (b1) {
     s = BitBoardPopLSB(&b1);
@@ -229,6 +228,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   }
   i += 4;
 
+  // Prune enpassant branch
   b1 = PAWN_ATTACKS(cb->enPassant, (!cb->turn)) & OUR(Pawn);
   b2 = EMPTY_BOARD;
   while (b1) {
