@@ -224,10 +224,8 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     // If it's pinned, intersect with pin mask
     if (br[brSize].from & pinned) br[brSize].from &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), BitBoardGetLSB(SINGLE_PUSH(cb->enPassant, (cb->turn))));
   }
-  if (br[brSize].from) {
-    br[brSize].to = cb->enPassant;
-    brSize++;
-  }
+  br[brSize].to = cb->enPassant;
+  brSize++;
 
   return traverseMoves(l, cb, br, brSize);
 }
