@@ -124,7 +124,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   if (cb->depth == 0) return 1; // Base case
 
   // Data needed for move generation
-  BitBoard us, them, pinned, checking, attacked, moveMask, b1, b2, b3;
+  BitBoard us, them, pinned, checking, attacked, checkMask, b1, b2, b3;
   Square s;
   Branch br[20]; // Make sure they're all 0's in future
   for (int i = 0; i < 20; i++) br[i].to = br[i].from = EMPTY_BOARD;
@@ -145,20 +145,16 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   if (numChecking == 2) {
     return traverseMoves(l, cb, br, brSize);
   } else if (numChecking == 1) {
-    moveMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), BitBoardGetLSB(OUR(King)));
+    checkMask = checking | LookupTableGetSquaresBetween(l, BitBoardGetLSB(checking), BitBoardGetLSB(OUR(King)));
   } else {
-    moveMask = ~us;
-    // Castling branches
-    b1 = (cb->castling | (ALL & OCCUPANCY_MASK) | (attacked & ATTACK_MASK)) & BACK_RANK(cb->turn);
-    if ((b1 & KINGSIDE) == (KINGSIDE_CASTLING & BACK_RANK(cb->turn))) br[0].to |= OUR(King) << 2;
-    if ((b1 & QUEENSIDE) == (QUEENSIDE_CASTLING & BACK_RANK(cb->turn))) br[0].to |= OUR(King) >> 2;
+    checkMask = ~EMPTY_BOARD;
   }
 
   // Piece branches
   b1 = us & ~(OUR(Pawn) | OUR(King));
   while (b1) {
     s = BitBoardPopLSB(&b1);
-    br[brSize].to = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & moveMask;
+    br[brSize].to = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & ~us;
     br[brSize].from = BitBoardSetBit(EMPTY_BOARD, s);
     brSize++;
   }
@@ -166,17 +162,17 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
 
   // Pawn branches
   b1 = OUR(Pawn);
-  br[brSize].to = PAWN_ATTACKS_LEFT(b1, cb->turn) & them & moveMask;
+  br[brSize].to = PAWN_ATTACKS_LEFT(b1, cb->turn) & them;
   br[brSize].from = PAWN_ATTACKS_LEFT(br[brSize].to, (!cb->turn));
   brSize++;
-  br[brSize].to = PAWN_ATTACKS_RIGHT(b1, cb->turn) & them & moveMask;
+  br[brSize].to = PAWN_ATTACKS_RIGHT(b1, cb->turn) & them;
   br[brSize].from = PAWN_ATTACKS_RIGHT(br[brSize].to, (!cb->turn));
   brSize++;
   b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
-  br[brSize].to = b2 & moveMask;
+  br[brSize].to = b2;
   br[brSize].from = SINGLE_PUSH(br[brSize].to, (!cb->turn));
   brSize++;
-  br[brSize].to = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & moveMask;
+  br[brSize].to = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL;
   br[brSize].from = DOUBLE_PUSH(br[brSize].to, (!cb->turn));
   brSize++;
 
@@ -194,7 +190,14 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   br[brSize].from = b2;
   brSize++;
 
-  // Prune pin squares from piece braches (do checks here as well in future)
+  // Castling branches - pseudo legal only occupancy considered
+  b1 = (cb->castling | (ALL & OCCUPANCY_MASK)) & BACK_RANK(cb->turn);
+  if ((b1 & KINGSIDE) == (KINGSIDE_CASTLING & BACK_RANK(cb->turn)) && (~checkMask == EMPTY_BOARD)) br[0].to |= OUR(King) << 2;
+  if ((b1 & QUEENSIDE) == (QUEENSIDE_CASTLING & BACK_RANK(cb->turn)) && (~checkMask == EMPTY_BOARD)) br[0].to |= OUR(King) >> 2;
+
+
+
+  // Prune piece branches - checks and pins
   int i = 1;
   b1 = us & ~(OUR(Pawn) | OUR(King));
   while (b1) {
@@ -202,10 +205,11 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     if (BitBoardSetBit(EMPTY_BOARD, s) & pinned) {
       br[i].to &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
     }
+    br[i].to &= checkMask;
     i++;
   }
 
-  // Prunee pawn branches
+  // Prune pawn branches - checks and pins
   b1 = OUR(Pawn) & pinned;
   while (b1) {
     s = BitBoardPopLSB(&b1);
@@ -226,9 +230,21 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     br[i].from = DOUBLE_PUSH(br[i].to, (!cb->turn));
     i -= 3;
   }
-  i += 4;
+  b1 = OUR(Pawn);
+  br[i].to &= checkMask;
+  br[i].from = PAWN_ATTACKS_LEFT(br[i].to, (!cb->turn));
+  i++;
+  br[i].to &= checkMask;
+  br[i].from = PAWN_ATTACKS_RIGHT(br[i].to, (!cb->turn));
+  i++;
+  br[i].to &= checkMask;
+  br[i].from = SINGLE_PUSH(br[i].to, (!cb->turn));
+  i++;
+  br[i].to &= checkMask;
+  br[i].from = DOUBLE_PUSH(br[i].to, (!cb->turn));
+  i++;
 
-  // Prune enpassant branch
+  // Prune enpassant branch - pin squares
   b1 = PAWN_ATTACKS(cb->enPassant, (!cb->turn)) & OUR(Pawn);
   b2 = EMPTY_BOARD;
   while (b1) {
@@ -239,6 +255,11 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
 
   }
   br[i].from &= b2;
+
+  // Prune castling branches - checks and attacked squares
+  b1 = (cb->castling | (attacked & ATTACK_MASK)) & BACK_RANK(cb->turn);
+  if ((b1 & KINGSIDE) != (KINGSIDE_CASTLING & BACK_RANK(cb->turn)) || (~checkMask != EMPTY_BOARD)) br[0].to &= ~(OUR(King) << 2);
+  if ((b1 & QUEENSIDE) != (QUEENSIDE_CASTLING & BACK_RANK(cb->turn)) || (~checkMask != EMPTY_BOARD)) br[0].to &= ~(OUR(King) >> 2);
 
   return traverseMoves(l, cb, br, brSize);
 }
