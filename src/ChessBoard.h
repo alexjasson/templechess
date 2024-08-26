@@ -24,5 +24,6 @@ typedef struct {
 ChessBoard ChessBoardNew(char *fen, int depth); // ChessBoard is stack allocated
 void ChessBoardPrint(ChessBoard cb);
 long ChessBoardTreeSearch(ChessBoard cb);
+void ChessBoardPlayMove(ChessBoard *new, ChessBoard *old, Move move);
 
 #endif
