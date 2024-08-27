@@ -11,7 +11,7 @@ typedef struct {
 
   Color turn;
   int depth; // Start from desired depth and decrement until 0
-  BitBoard enPassant;
+  Square enPassant;
   BitBoard castling;
 } ChessBoard;
 

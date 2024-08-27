@@ -98,7 +98,7 @@ ChessBoard ChessBoardNew(char *fen, int depth) {
     int file = *fen - 'a';
     fen++;
     int rank = EDGE_SIZE - (*fen - '0');
-    cb.enPassant = BitBoardSetBit(EMPTY_BOARD, rank * EDGE_SIZE + file);
+    cb.enPassant = rank * EDGE_SIZE + file;
   }
 
   return cb;
@@ -219,19 +219,23 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   }
 
   // Add enpassant branch and prune it - pin squares
-  b1 = PAWN_ATTACKS(cb->enPassant, (!cb->turn)) & OUR(Pawn);
-  b2 = EMPTY_BOARD;
-  while (b1) {
-    s = BitBoardPopLSB(&b1);
-    // Check that the pawn is not "pseudo-pinned"
-    if (LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), Rook, ALL & ~BitBoardSetBit(SINGLE_PUSH(cb->enPassant, (!cb->turn)), s)) &
-        GET_RANK(BitBoardGetLSB(OUR(King))) & (THEIR(Rook) | THEIR(Queen))) continue;
-    b2 |= BitBoardSetBit(EMPTY_BOARD, s);
-    if (b2 & pinned) b2 &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), BitBoardGetLSB(cb->enPassant));
+  if (cb->enPassant != EMPTY_SQUARE) {
+    b1 = PAWN_ATTACKS(BitBoardSetBit(EMPTY_BOARD, cb->enPassant), (!cb->turn)) & OUR(Pawn);
+    b2 = EMPTY_BOARD;
+    b3 = BitBoardSetBit(EMPTY_BOARD, cb->enPassant); // Enpassant square in bitboard form
+    while (b1) {
+      s = BitBoardPopLSB(&b1);
+
+      // Check that the pawn is not "pseudo-pinned"
+      if (LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), Rook, ALL & ~BitBoardSetBit(SINGLE_PUSH(b3, (!cb->turn)), s)) &
+          GET_RANK(BitBoardGetLSB(OUR(King))) & (THEIR(Rook) | THEIR(Queen))) continue;
+      b2 |= BitBoardSetBit(EMPTY_BOARD, s);
+      if (b2 & pinned) b2 &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), cb->enPassant);
+    }
+    br[brSize].to = b3;
+    br[brSize].from = b2;
+    brSize++;
   }
-  br[brSize].to = cb->enPassant;
-  br[brSize].from = b2;
-  brSize++;
 
   return traverseMoves(l, cb, br, brSize);
 }
@@ -291,15 +295,15 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br, int brSize)
 void ChessBoardPlayMove(ChessBoard *new, ChessBoard *old, Move m) {
   memcpy(new, old, sizeof(ChessBoard));
   int offset = m.from - m.to;
-  new->enPassant = EMPTY_BOARD;
+  new->enPassant = EMPTY_SQUARE;
   new->castling &= ~(BitBoardSetBit(EMPTY_BOARD, m.from) | BitBoardSetBit(EMPTY_BOARD, m.to));
   addPiece(new, m.to, GET_PIECE(m.moved, new->turn));
   addPiece(new, m.from, EMPTY_PIECE);
 
   if (m.moved == Pawn) {
     if ((offset == 16) || (offset == -16)) { // Double push
-      new->enPassant = BitBoardSetBit(EMPTY_BOARD, m.from - (offset / 2));
-    } else if ((old->enPassant) && (m.to == BitBoardGetLSB(old->enPassant))) { // Enpassant
+      new->enPassant = m.from - (offset / 2);
+    } else if (m.to == old->enPassant) { // Enpassant
       addPiece(new, m.to + (new->turn ? -8: 8), EMPTY_PIECE);
     }
   } else if (m.moved == King) {
