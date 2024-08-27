@@ -44,7 +44,6 @@ static void addPiece(ChessBoard *cb, Square s, Piece replacement);
 static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
 static long treeSearch(LookupTable l, ChessBoard *cb);
-static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br);
 
 // Assumes FEN and depth is valid
 ChessBoard ChessBoardNew(char *fen, int depth) {
@@ -178,14 +177,12 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   i++;
   curr.to[i] &= checkMask;
   curr.from[i] = PAWN_ATTACKS_RIGHT(curr.to[i], (!cb->turn));
-  i++;
   b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
   moves = b2 & checkMask;
   BranchAdd(&curr, moves, SINGLE_PUSH(moves, (!cb->turn)));
-  i++;
   moves = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & checkMask;
   BranchAdd(&curr, moves, DOUBLE_PUSH(moves, (!cb->turn)));
-
+  i--;
 
   b1 = OUR(Pawn) & pinned;
   while (b1) {
@@ -194,7 +191,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     b3 = LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s); // pin mask
 
     // Remove any attacks that aren't on the pin mask from the set
-    i -= 3;
     curr.to[i] &= ~(PAWN_ATTACKS_LEFT(b2, cb->turn) & ~b3);
     curr.from[i] = PAWN_ATTACKS_LEFT(curr.to[i], (!cb->turn));
     i++;
@@ -206,6 +202,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     i++;
     curr.to[i] &= ~(DOUBLE_PUSH(b2, cb->turn) & ~b3);
     curr.from[i] = DOUBLE_PUSH(curr.to[i], (!cb->turn));
+    i -= 3;
   }
 
   // Add enpassant branch and prune it - pin squares
@@ -225,43 +222,40 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     BranchAdd(&curr, b3, b2);
   }
 
-  return traverseMoves(l, cb, &curr);
-}
-
-static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br) {
+  // ------- BEGIN RECURSIVE PART ----------
   long nodes = 0;
   int a, b;
   ChessBoard new;
   Move m;
 
   if (cb->depth == 1) {
-    for (int i = 0; i < br->size; i++) {
-      if (BranchIsEmpty(br, i)) continue;
-      a = BitBoardCountBits(br->to[i]);
-      b = BitBoardCountBits(br->from[i]);
+    for (int i = 0; i < curr.size; i++) {
+      if (BranchIsEmpty(&curr, i)) continue;
+      a = BitBoardCountBits(curr.to[i]);
+      b = BitBoardCountBits(curr.from[i]);
       int offset = a - b;
 
       BitBoard promotion = EMPTY_BOARD;
-      if (GET_TYPE(cb->squares[BitBoardGetLSB(br->from[i])]) == Pawn) promotion |= (PROMOTING_RANK(cb->turn) & br->to[i]);
+      if (GET_TYPE(cb->squares[BitBoardGetLSB(curr.from[i])]) == Pawn) promotion |= (PROMOTING_RANK(cb->turn) & curr.to[i]);
       if (offset < 0) nodes++;
-      nodes += BitBoardCountBits(br->to[i]) + BitBoardCountBits(promotion) * 3;
+      nodes += BitBoardCountBits(curr.to[i]) + BitBoardCountBits(promotion) * 3;
     }
     return nodes;
   }
 
-  for (int i = 0; i < br->size; i++) {
-    if (BranchIsEmpty(br, i)) continue;
-    a = BitBoardCountBits(br->to[i]);
-    b = BitBoardCountBits(br->from[i]);
+  for (int i = 0; i < curr.size; i++) {
+    if (BranchIsEmpty(&curr, i)) continue;
+    a = BitBoardCountBits(curr.to[i]);
+    b = BitBoardCountBits(curr.from[i]);
     int offset = a - b;
     int max = (a > b) ? a : b;
 
     for (int j = 0; j < max; j++) {
-      m.from = BitBoardPopLSB(&br->from[i]);
-      m.to = BitBoardPopLSB(&br->to[i]);
+      m.from = BitBoardPopLSB(&curr.from[i]);
+      m.to = BitBoardPopLSB(&curr.to[i]);
       m.moved = GET_TYPE(cb->squares[m.from]);
-      if (offset > 0) br->from[i] = BitBoardSetBit(EMPTY_BOARD, m.from); // Injective
-      else if (offset < 0) br->to[i] = BitBoardSetBit(EMPTY_BOARD, m.to); // Surjective
+      if (offset > 0) curr.from[i] = BitBoardSetBit(EMPTY_BOARD, m.from); // Injective
+      else if (offset < 0) curr.to[i] = BitBoardSetBit(EMPTY_BOARD, m.to); // Surjective
       int promotion = ((m.moved == Pawn) && (BitBoardSetBit(EMPTY_BOARD, m.to) & PROMOTING_RANK(cb->turn)));
       if (promotion) m.moved = Knight;
 
@@ -317,11 +311,8 @@ static void addPiece(ChessBoard *cb, Square s, Piece replacement) {
   cb->pieces[captured] &= ~b;
 }
 
-long ChessBoardTreeSearch(ChessBoard cb) {
-  LookupTable l = LookupTableNew();
-  long nodes = treeSearch(l, &cb);
-  LookupTableFree(l);
-  return nodes;
+long ChessBoardTreeSearch(LookupTable l, ChessBoard cb) {
+  return treeSearch(l, &cb);
 }
 
 // Return the checking pieces and simultaneously update the pinned pieces bitboard

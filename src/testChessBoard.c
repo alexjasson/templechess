@@ -61,8 +61,10 @@ int main() {
     close(devNull);
 
     // Call ChessBoardTreeSearch and suppress output
+    LookupTable l = LookupTableNew();
     ChessBoard cb = ChessBoardNew(fen, depth);
-    long result = ChessBoardTreeSearch(cb);
+    long result = ChessBoardTreeSearch(l, cb);
+    LookupTableFree(l);
 
     // Restore the original stdout
     fflush(stdout); // Ensure all output is flushed to /dev/null
