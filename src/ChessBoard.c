@@ -126,9 +126,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   BitBoard moves;
 
   // King branches
-  // br[0].to = LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), King, EMPTY_BOARD) & ~us;
-  // br[0].from = OUR(King);
-  // brSize++;
   moves = LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), King, EMPTY_BOARD) & ~us;
   BranchAdd(&curr, moves, OUR(King));
 
@@ -136,23 +133,14 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   b1 = us & ~(OUR(Pawn) | OUR(King));
   while (b1) {
     s = BitBoardPopLSB(&b1);
-    // br[brSize].to = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & ~us;
-    // br[brSize].from = BitBoardSetBit(EMPTY_BOARD, s);
-    // brSize++;
     moves = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & ~us;
     BranchAdd(&curr, moves, BitBoardSetBit(EMPTY_BOARD, s));
   }
 
   // Pawn branches
   b1 = OUR(Pawn);
-  // br[brSize].to = PAWN_ATTACKS_LEFT(b1, cb->turn) & them;
-  // br[brSize].from = PAWN_ATTACKS_LEFT(br[brSize].to, (!cb->turn));
-  // brSize++;
   moves = PAWN_ATTACKS_LEFT(b1, cb->turn) & them;
   BranchAdd(&curr, moves, PAWN_ATTACKS_LEFT(moves, (!cb->turn)));
-  // br[brSize].to = PAWN_ATTACKS_RIGHT(b1, cb->turn) & them;
-  // br[brSize].from = PAWN_ATTACKS_RIGHT(br[brSize].to, (!cb->turn));
-  // brSize++;
   moves = PAWN_ATTACKS_RIGHT(b1, cb->turn) & them;
   BranchAdd(&curr, moves, PAWN_ATTACKS_RIGHT(moves, (!cb->turn)));
 
@@ -192,15 +180,9 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   curr.from[i] = PAWN_ATTACKS_RIGHT(curr.to[i], (!cb->turn));
   i++;
   b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
-  // br[i].to = b2 & checkMask;
-  // br[i].from = SINGLE_PUSH(br[i].to, (!cb->turn));
-  // brSize++;
   moves = b2 & checkMask;
   BranchAdd(&curr, moves, SINGLE_PUSH(moves, (!cb->turn)));
   i++;
-  // br[i].to = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & checkMask;
-  // br[i].from = DOUBLE_PUSH(br[i].to, (!cb->turn));
-  // brSize++;
   moves = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & checkMask;
   BranchAdd(&curr, moves, DOUBLE_PUSH(moves, (!cb->turn)));
 
@@ -240,9 +222,6 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
       b2 |= BitBoardSetBit(EMPTY_BOARD, s);
       if (b2 & pinned) b2 &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), cb->enPassant);
     }
-    // br[brSize].to = b3;
-    // br[brSize].from = b2;
-    // brSize++;
     BranchAdd(&curr, b3, b2);
   }
 
@@ -278,7 +257,7 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br) {
     int max = (a > b) ? a : b;
 
     for (int j = 0; j < max; j++) {
-      m.from = BitBoardPopLSB(&br->from[i]); // COuld be an issue here
+      m.from = BitBoardPopLSB(&br->from[i]);
       m.to = BitBoardPopLSB(&br->to[i]);
       m.moved = GET_TYPE(cb->squares[m.from]);
       if (offset > 0) br->from[i] = BitBoardSetBit(EMPTY_BOARD, m.from); // Injective
