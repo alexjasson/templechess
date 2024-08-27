@@ -1,6 +1,7 @@
 #include "BitBoard.h"
 #include "LookupTable.h"
 #include "ChessBoard.h"
+#include "Branch.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -61,10 +62,8 @@ int main() {
     close(devNull);
 
     // Call ChessBoardTreeSearch and suppress output
-    LookupTable l = LookupTableNew();
     ChessBoard cb = ChessBoardNew(fen, depth);
-    long result = ChessBoardTreeSearch(l, cb);
-    LookupTableFree(l);
+    long result = BranchTreeSearch(&cb);
 
     // Restore the original stdout
     fflush(stdout); // Ensure all output is flushed to /dev/null

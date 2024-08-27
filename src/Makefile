@@ -16,7 +16,7 @@ DEPTH = 5
 # Targets
 .PHONY: all clean
 
-all: perft testChessBoard
+all: perft test
 
 perft:
 	@$(CC) $(CFLAGS0) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c Branch.c -lm
@@ -24,10 +24,10 @@ perft:
 	$(CC) $(CFLAGS1) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c Branch.c -lm
 	@rm -f *.gcda *.gcno
 
-testChessBoard:
-	$(CC) $(CFLAGS2) -o testChessBoard testChessBoard.c BitBoard.c LookupTable.c ChessBoard.c Branch.c -lm
+test:
+	$(CC) $(CFLAGS2) -o test test.c BitBoard.c LookupTable.c ChessBoard.c Branch.c -lm
 
 clean:
-	rm -f *.o perft testChessBoard
+	rm -f *.o perft test
 
 

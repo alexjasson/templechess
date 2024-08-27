@@ -12,5 +12,6 @@ typedef struct {
 Branch BranchNew();
 void BranchAdd(Branch *b, BitBoard to, BitBoard from);
 int BranchIsEmpty(Branch *b, int index);
+long BranchTreeSearch(ChessBoard *cb);
 
 #endif
