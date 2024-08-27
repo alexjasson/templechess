@@ -257,7 +257,7 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br) {
 
   if (cb->depth == 1) {
     for (int i = 0; i < br->size; i++) {
-      if (br->from[i] == EMPTY_BOARD || br->to[i] == EMPTY_BOARD) continue; // Necessary evil
+      if (BranchIsEmpty(br, i)) continue;
       a = BitBoardCountBits(br->to[i]);
       b = BitBoardCountBits(br->from[i]);
       int offset = a - b;
@@ -271,7 +271,7 @@ static long traverseMoves(LookupTable l, ChessBoard *cb, Branch *br) {
   }
 
   for (int i = 0; i < br->size; i++) {
-    if (br->from[i] == EMPTY_BOARD || br->to[i] == EMPTY_BOARD) continue; // Necessary evil
+    if (BranchIsEmpty(br, i)) continue;
     a = BitBoardCountBits(br->to[i]);
     b = BitBoardCountBits(br->from[i]);
     int offset = a - b;

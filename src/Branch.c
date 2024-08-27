@@ -14,3 +14,8 @@ void BranchAdd(Branch *b, BitBoard to, BitBoard from) {
   b->from[b->size] = from;
   b->size++;
 }
+
+// Returns whether an element in a branch is empty
+int BranchIsEmpty(Branch *b, int index) {
+  return b->to[index] == EMPTY_BOARD || b->from[index] == EMPTY_BOARD;
+}
