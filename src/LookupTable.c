@@ -67,7 +67,7 @@ void initializeLookupTable(LookupTable l) {
     exit(EXIT_FAILURE);
   }
 
-  for (Square s = a8; s <= h1; s++) {
+  for (Square s = 0; s < BOARD_SIZE; s++) {
     l->bishopMagics[s] = getMagic(s, Bishop, fp);
     l->rookMagics[s] = getMagic(s, Rook, fp);
     l->knightAttacks[s] = getAttacks(s, Knight, EMPTY_BOARD);
@@ -86,8 +86,8 @@ void initializeLookupTable(LookupTable l) {
   fclose(fp);
 
   // Helper tables
-  for (Square s1 = a8; s1 <= h1; s1++) {
-    for (Square s2 = a8; s2 <= h1; s2++) {
+  for (Square s1 = 0; s1 < BOARD_SIZE; s1++) {
+    for (Square s2 = 0; s2 < BOARD_SIZE; s2++) {
       l->squaresBetween[s1][s2] = getSquaresBetween(l, s1, s2);
       l->lineOfSight[s1][s2] = getLineOfSight(l, s1, s2);
     }

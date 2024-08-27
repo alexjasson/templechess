@@ -57,7 +57,7 @@ ChessBoard ChessBoardNew(char *fen, int depth) {
   memset(&cb, 0, sizeof(ChessBoard));
 
   // Parse pieces and squares
-  for (Square s = a8; s <= h1 && *fen; fen++) {
+  for (Square s = 0; s < BOARD_SIZE && *fen; fen++) {
     if (*fen == '/') continue;
 
     if (*fen >= '1' && *fen <= '8') {
@@ -152,18 +152,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   br[brSize].to = PAWN_ATTACKS_RIGHT(b1, cb->turn) & them;
   br[brSize].from = PAWN_ATTACKS_RIGHT(br[brSize].to, (!cb->turn));
   brSize++;
-  b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
-  br[brSize].to = b2;
-  br[brSize].from = SINGLE_PUSH(br[brSize].to, (!cb->turn));
-  brSize++;
-  br[brSize].to = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL;
-  br[brSize].from = DOUBLE_PUSH(br[brSize].to, (!cb->turn));
-  brSize++;
 
-  // Castling branches - pseudo legal, only occupancy considered
-  b1 = (cb->castling | (ALL & OCCUPANCY_MASK)) & BACK_RANK(cb->turn);
-  if ((b1 & KINGSIDE) == (KINGSIDE_CASTLING & BACK_RANK(cb->turn))) br[0].to |= OUR(King) << 2;
-  if ((b1 & QUEENSIDE) == (QUEENSIDE_CASTLING & BACK_RANK(cb->turn))) br[0].to |= OUR(King) >> 2;
 
 
   attacked = getAttackedSquares(l, cb, them);
@@ -174,11 +163,11 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     checkMask &= (BitBoardSetBit(EMPTY_BOARD, s) | LookupTableGetSquaresBetween(l, BitBoardGetLSB(OUR(King)), s));
   }
 
-  // Prune king branch - attacks
+  // Prune king branch and add castling - attacks
   br[0].to &= ~attacked;
-  b1 = (cb->castling | (attacked & ATTACK_MASK)) & BACK_RANK(cb->turn);
-  if ((b1 & KINGSIDE) != (KINGSIDE_CASTLING & BACK_RANK(cb->turn)) || (~checkMask != EMPTY_BOARD)) br[0].to &= ~(OUR(King) << 2);
-  if ((b1 & QUEENSIDE) != (QUEENSIDE_CASTLING & BACK_RANK(cb->turn)) || (~checkMask != EMPTY_BOARD)) br[0].to &= ~(OUR(King) >> 2);
+  b1 = (cb->castling | (attacked & ATTACK_MASK) | (ALL & OCCUPANCY_MASK)) & BACK_RANK(cb->turn);
+  if ((b1 & KINGSIDE) == (KINGSIDE_CASTLING & BACK_RANK(cb->turn)) && (~checkMask == EMPTY_BOARD)) br[0].to |= OUR(King) << 2;
+  if ((b1 & QUEENSIDE) == (QUEENSIDE_CASTLING & BACK_RANK(cb->turn)) && (~checkMask == EMPTY_BOARD)) br[0].to |= OUR(King) >> 2;
 
   // Prune piece branches - checks and pins
   int i = 1;
@@ -191,7 +180,23 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     br[i++].to &= checkMask;
   }
 
-  // Prune pawn branches - checks and pins
+  // Prune pawn branches and add pushes - checks and pins
+  b1 = OUR(Pawn);
+  br[i].to &= checkMask;
+  br[i].from = PAWN_ATTACKS_LEFT(br[i].to, (!cb->turn));
+  i++;
+  br[i].to &= checkMask;
+  br[i].from = PAWN_ATTACKS_RIGHT(br[i].to, (!cb->turn));
+  i++;
+  b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
+  br[i].to = b2 & checkMask;
+  br[i].from = SINGLE_PUSH(br[i].to, (!cb->turn));
+  brSize++;
+  i++;
+  br[i].to = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & checkMask;
+  br[i].from = DOUBLE_PUSH(br[i].to, (!cb->turn));
+  brSize++;
+
   b1 = OUR(Pawn) & pinned;
   while (b1) {
     s = BitBoardPopLSB(&b1);
@@ -199,6 +204,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     b3 = LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s); // pin mask
 
     // Remove any attacks that aren't on the pin mask from the set
+    i -= 3;
     br[i].to &= ~(PAWN_ATTACKS_LEFT(b2, cb->turn) & ~b3);
     br[i].from = PAWN_ATTACKS_LEFT(br[i].to, (!cb->turn));
     i++;
@@ -210,21 +216,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
     i++;
     br[i].to &= ~(DOUBLE_PUSH(b2, cb->turn) & ~b3);
     br[i].from = DOUBLE_PUSH(br[i].to, (!cb->turn));
-    i -= 3;
   }
-  b1 = OUR(Pawn);
-  br[i].to &= checkMask;
-  br[i].from = PAWN_ATTACKS_LEFT(br[i].to, (!cb->turn));
-  i++;
-  br[i].to &= checkMask;
-  br[i].from = PAWN_ATTACKS_RIGHT(br[i].to, (!cb->turn));
-  i++;
-  br[i].to &= checkMask;
-  br[i].from = SINGLE_PUSH(br[i].to, (!cb->turn));
-  i++;
-  br[i].to &= checkMask;
-  br[i].from = DOUBLE_PUSH(br[i].to, (!cb->turn));
-  i++;
 
   // Add enpassant branch and prune it - pin squares
   b1 = PAWN_ATTACKS(cb->enPassant, (!cb->turn)) & OUR(Pawn);
