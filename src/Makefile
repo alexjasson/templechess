@@ -19,13 +19,13 @@ DEPTH = 5
 all: perft testChessBoard
 
 perft:
-	@$(CC) $(CFLAGS0) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c -lm
+	@$(CC) $(CFLAGS0) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c Branch.c -lm
 	@./perft $(BOARD) $(DEPTH) >/dev/null 2>&1
-	$(CC) $(CFLAGS1) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c -lm
+	$(CC) $(CFLAGS1) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c Branch.c -lm
 	@rm -f *.gcda *.gcno
 
 testChessBoard:
-	$(CC) $(CFLAGS2) -o testChessBoard testChessBoard.c BitBoard.c LookupTable.c ChessBoard.c -lm
+	$(CC) $(CFLAGS2) -o testChessBoard testChessBoard.c BitBoard.c LookupTable.c ChessBoard.c Branch.c -lm
 
 clean:
 	rm -f *.o perft testChessBoard
