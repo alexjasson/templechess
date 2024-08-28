@@ -30,7 +30,7 @@
 #define PROMOTING_RANK(c) (BitBoard)((c == White) ? NORTH_EDGE : SOUTH_EDGE)
 #define BACK_RANK(c) (BitBoard)((c == White) ? SOUTH_EDGE : NORTH_EDGE)
 
-static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
+//static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
 static long treeSearch(LookupTable l, ChessBoard *cb, Branch *curr);
 
@@ -78,6 +78,41 @@ long BranchTreeSearch(ChessBoard *cb) {
   return nodes;
 }
 
+// Attacked bitboard returned is correct!
+BitBoard BranchAttacks(LookupTable l, ChessBoard *cb, Branch *b) {
+  Square s;
+  Type t;
+  BitBoard us, them, moves, attacks, b1;
+  us = OUR(Pawn) | OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen) | OUR(King);
+  them = ALL & ~us;
+
+  // King branches
+  moves = LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), King, EMPTY_BOARD);
+  attacks = moves;
+  BranchAdd(b, moves & ~us, OUR(King), King);
+
+  // Piece branches
+  b1 = us & ~(OUR(Pawn) | OUR(King));
+  while (b1) {
+    s = BitBoardPopLSB(&b1);
+    t = GET_TYPE(cb->squares[s]);
+    moves = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL & ~THEIR(King));
+    attacks |= moves;
+    BranchAdd(b, moves & ~us, BitBoardSetBit(EMPTY_BOARD, s), t);
+  }
+
+  // Pawn branches
+  b1 = OUR(Pawn);
+  moves = PAWN_ATTACKS_LEFT(b1, cb->turn);
+  attacks |= moves;
+  BranchAdd(b, moves & them, PAWN_ATTACKS_LEFT(moves, (!cb->turn)), Pawn);
+  moves = PAWN_ATTACKS_RIGHT(b1, cb->turn);
+  attacks |= moves;
+  BranchAdd(b, moves & them, PAWN_ATTACKS_RIGHT(moves, (!cb->turn)), Pawn);
+
+  return attacks;
+}
+
 
 
 
@@ -88,34 +123,17 @@ static long treeSearch(LookupTable l, ChessBoard *cb, Branch *curr) {
 
   // Data needed for move generation
   Square s;
-  Type t;
   BitBoard us, them, pinned, checking, attacked, checkMask, moves, b1, b2, b3;
   us = OUR(Pawn) | OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen) | OUR(King);
   them = ALL & ~us;
 
-  // King branches
-  moves = LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), King, EMPTY_BOARD) & ~us;
-  BranchAdd(curr, moves, OUR(King), King);
-
-  // Piece branches
-  b1 = us & ~(OUR(Pawn) | OUR(King));
-  while (b1) {
-    s = BitBoardPopLSB(&b1);
-    t = GET_TYPE(cb->squares[s]);
-    moves = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & ~us;
-    BranchAdd(curr, moves, BitBoardSetBit(EMPTY_BOARD, s), t);
-  }
-
-  // Pawn branches
-  b1 = OUR(Pawn);
-  moves = PAWN_ATTACKS_LEFT(b1, cb->turn) & them;
-  BranchAdd(curr, moves, PAWN_ATTACKS_LEFT(moves, (!cb->turn)), Pawn);
-  moves = PAWN_ATTACKS_RIGHT(b1, cb->turn) & them;
-  BranchAdd(curr, moves, PAWN_ATTACKS_RIGHT(moves, (!cb->turn)), Pawn);
-
-
-
-  attacked = getAttackedSquares(l, cb, them);
+  BranchAttacks(l, cb, curr);
+  // flip cb
+  Branch lol;
+  memset(&lol, 0, sizeof(Branch));
+  cb->turn = !cb->turn;
+  attacked = BranchAttacks(l, cb, &lol);
+  cb->turn = !cb->turn;
   checking = getCheckingPieces(l, cb, them, &pinned);
   checkMask = ~EMPTY_BOARD;
   while (checking) {
@@ -237,7 +255,6 @@ int BranchExtract(Branch *b, Move *moveSet, Color c) {
       }
     }
   }
-  memset(b, 0, sizeof(Branch));
   return index;
 }
 
@@ -263,15 +280,15 @@ static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, 
 }
 
 // Return the squares attacked by the enemy
-static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them) {
-  BitBoard attacked, b;
-  BitBoard occupancies = ALL & ~OUR(King);
+// static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them) {
+//   BitBoard attacked, b;
+//   BitBoard occupancies = ALL & ~OUR(King);
 
-  attacked = PAWN_ATTACKS(THEIR(Pawn), (!cb->turn));
-  b = them & ~THEIR(Pawn);
-  while (b) {
-    Square s = BitBoardPopLSB(&b);
-    attacked |= LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), occupancies);
-  }
-  return attacked;
-}
+//   attacked = PAWN_ATTACKS(THEIR(Pawn), (!cb->turn));
+//   b = them & ~THEIR(Pawn);
+//   while (b) {
+//     Square s = BitBoardPopLSB(&b);
+//     attacked |= LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), occupancies);
+//   }
+//   return attacked;
+// }
