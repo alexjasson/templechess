@@ -32,7 +32,7 @@
 
 //static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
-static long treeSearch(LookupTable l, ChessBoard *cb, Branch *curr);
+static long treeSearch(LookupTable l, ChessBoard *cb, Branch *curr, Branch *next);
 
 Branch BranchNew() {
   Branch b;
@@ -72,8 +72,9 @@ int BranchCount(Branch *b, Color c) {
 long BranchTreeSearch(ChessBoard *cb) {
   long nodes = 0;
   Branch curr = BranchNew();
+  Branch next = BranchNew();
   LookupTable l = LookupTableNew();
-  nodes = treeSearch(l, cb, &curr);
+  nodes = treeSearch(l, cb, &curr, &next);
   LookupTableFree(l);
   return nodes;
 }
@@ -117,7 +118,7 @@ BitBoard BranchAttacks(LookupTable l, ChessBoard *cb, Branch *b) {
 
 
 
-static long treeSearch(LookupTable l, ChessBoard *cb, Branch *curr) {
+static long treeSearch(LookupTable l, ChessBoard *cb, Branch *curr, Branch *next) {
   if (cb->depth == 0) return 1; // Base case
   memset(curr, 0, sizeof(Branch));
 
@@ -129,10 +130,9 @@ static long treeSearch(LookupTable l, ChessBoard *cb, Branch *curr) {
 
   BranchAttacks(l, cb, curr);
   // flip cb
-  Branch lol;
-  memset(&lol, 0, sizeof(Branch));
+  memset(next, 0, sizeof(Branch));
   cb->turn = !cb->turn;
-  attacked = BranchAttacks(l, cb, &lol);
+  attacked = BranchAttacks(l, cb, next);
   cb->turn = !cb->turn;
   checking = getCheckingPieces(l, cb, them, &pinned);
   checkMask = ~EMPTY_BOARD;
@@ -221,7 +221,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, Branch *curr) {
   for (int i = 0; i < size; i++) {
     Move m = moveSet[i];
     ChessBoardPlayMove(&new, cb, m);
-    nodes += treeSearch(l, &new, curr);
+    nodes += treeSearch(l, &new, curr, next);
   }
 
   return nodes;
