@@ -6,12 +6,12 @@
 typedef struct {
   BitBoard to[BRANCH_SIZE];
   BitBoard from[BRANCH_SIZE];
-  Type moved[BRANCH_SIZE];
+  Piece moved[BRANCH_SIZE];
   int size;
 } Branch;
 
 Branch BranchNew();
-void BranchAdd(Branch *b, BitBoard to, BitBoard from, Type moved);
+void BranchAdd(Branch *b, BitBoard to, BitBoard from, Piece moved);
 int BranchIsEmpty(Branch *b, int index);
 int BranchCount(Branch *b, Color c);
 long BranchTreeSearch(ChessBoard *cb);
