@@ -99,16 +99,16 @@ void ChessBoardPlayMove(ChessBoard *new, ChessBoard *old, Move m) {
   int offset = m.from - m.to;
   new->enPassant = EMPTY_SQUARE;
   new->castling &= ~(BitBoardSetBit(EMPTY_BOARD, m.from) | BitBoardSetBit(EMPTY_BOARD, m.to));
-  addPiece(new, m.to, GET_PIECE(m.moved, new->turn));
+  addPiece(new, m.to, m.moved);
   addPiece(new, m.from, EMPTY_PIECE);
 
-  if (m.moved == Pawn) {
+  if (GET_TYPE(m.moved) == Pawn) {
     if ((offset == 16) || (offset == -16)) { // Double push
       new->enPassant = m.from - (offset / 2);
     } else if (m.to == old->enPassant) { // Enpassant
       addPiece(new, m.to + (new->turn ? -8: 8), EMPTY_PIECE);
     }
-  } else if (m.moved == King) {
+  } else if (GET_TYPE(m.moved) == King) {
     if (offset == 2) { // Queenside castling
       addPiece(new, m.to - 2, EMPTY_PIECE);
       addPiece(new, m.to + 1, GET_PIECE(Rook, new->turn));

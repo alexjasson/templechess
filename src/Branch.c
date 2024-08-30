@@ -240,17 +240,17 @@ int BranchExtract(Branch *b, Move *moveSet, Color c) {
     for (int j = 0; j < max; j++) {
       m.from = BitBoardPopLSB(&b->from[i]);
       m.to = BitBoardPopLSB(&b->to[i]);
-      m.moved = b->moved[i];
+      m.moved = GET_PIECE(b->moved[i], c);
       if (offset > 0) b->from[i] = BitBoardSetBit(EMPTY_BOARD, m.from); // Injective
       else if (offset < 0) b->to[i] = BitBoardSetBit(EMPTY_BOARD, m.to); // Surjective
-      int promotion = ((m.moved == Pawn) && (BitBoardSetBit(EMPTY_BOARD, m.to) & PROMOTING_RANK(c)));
-      if (promotion) m.moved = Knight;
+      int promotion = (GET_TYPE(m.moved) == Pawn) && (BitBoardSetBit(EMPTY_BOARD, m.to) & PROMOTING_RANK(c));
+      if (promotion) m.moved = GET_PIECE(Knight, c);
 
       Move:
       moveSet[index++] = m;
 
-      if (promotion && m.moved < Queen) {
-        m.moved++;
+      if (promotion && GET_TYPE(m.moved) < Queen) {
+        m.moved = GET_PIECE((GET_TYPE(m.moved) + 1), c);
         goto Move;
       }
     }
