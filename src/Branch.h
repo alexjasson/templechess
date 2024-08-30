@@ -13,7 +13,7 @@ typedef struct {
 Branch BranchNew();
 void BranchAdd(Branch *b, BitBoard to, BitBoard from, Piece moved);
 int BranchIsEmpty(Branch *b, int index);
-int BranchCount(Branch *b, Color c);
+int BranchCount(Branch *b);
 long BranchTreeSearch(ChessBoard *cb);
 int BranchExtract(Branch *b, Move *moveSet);
 BitBoard BranchAttacks(LookupTable l, ChessBoard *cb, Branch *b);

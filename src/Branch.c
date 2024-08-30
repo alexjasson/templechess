@@ -52,7 +52,7 @@ int BranchIsEmpty(Branch *b, int index) {
   return b->to[index] == EMPTY_BOARD || b->from[index] == EMPTY_BOARD;
 }
 
-int BranchCount(Branch *b, Color c) {
+int BranchCount(Branch *b) {
   int x, y, offset, nodes = 0;
 
   for (int i = 0; i < b->size; i++) {
@@ -60,9 +60,11 @@ int BranchCount(Branch *b, Color c) {
     x = BitBoardCountBits(b->to[i]);
     y = BitBoardCountBits(b->from[i]);
     offset = x - y;
+    Type t = GET_TYPE(b->moved[i]);
+    Color c = GET_COLOR(b->moved[i]);
 
     BitBoard promotion = EMPTY_BOARD;
-    if (GET_TYPE(b->moved[i]) == Pawn) promotion |= (PROMOTING_RANK(c) & b->to[i]);
+    if (t == Pawn) promotion |= (PROMOTING_RANK(c) & b->to[i]);
     if (offset < 0) nodes++;
     nodes += BitBoardCountBits(b->to[i]) + BitBoardCountBits(promotion) * 3;
   }
@@ -213,7 +215,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, Branch *curr, Branch *next
   ChessBoard new;
   Move moveSet[218];
 
-  if (cb->depth == 1) return BranchCount(curr, cb->turn);
+  if (cb->depth == 1) return BranchCount(curr);
 
   int size = BranchExtract(curr, moveSet);
   for (int i = 0; i < size; i++) {
