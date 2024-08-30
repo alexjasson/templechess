@@ -15,7 +15,7 @@ void BranchAdd(Branch *b, BitBoard to, BitBoard from, Piece moved);
 int BranchIsEmpty(Branch *b, int index);
 int BranchCount(Branch *b, Color c);
 long BranchTreeSearch(ChessBoard *cb);
-int BranchExtract(Branch *b, Move *moveSet, Color c);
+int BranchExtract(Branch *b, Move *moveSet);
 BitBoard BranchAttacks(LookupTable l, ChessBoard *cb, Branch *b);
 
 #endif

@@ -215,7 +215,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, Branch *curr, Branch *next
 
   if (cb->depth == 1) return BranchCount(curr, cb->turn);
 
-  int size = BranchExtract(curr, moveSet, cb->turn);
+  int size = BranchExtract(curr, moveSet);
   for (int i = 0; i < size; i++) {
     Move m = moveSet[i];
     ChessBoardPlayMove(&new, cb, m);
@@ -225,7 +225,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, Branch *curr, Branch *next
   return nodes;
 }
 
-int BranchExtract(Branch *b, Move *moveSet, Color c) {
+int BranchExtract(Branch *b, Move *moveSet) {
   Move m;
   int index = 0;
   for (int i = 0; i < b->size; i++) {
@@ -241,15 +241,18 @@ int BranchExtract(Branch *b, Move *moveSet, Color c) {
       m.moved = b->moved[i];
       if (offset > 0) b->from[i] = BitBoardSetBit(EMPTY_BOARD, m.from); // Injective
       else if (offset < 0) b->to[i] = BitBoardSetBit(EMPTY_BOARD, m.to); // Surjective
-      int promotion = (GET_TYPE(m.moved) == Pawn) && (BitBoardSetBit(EMPTY_BOARD, m.to) & PROMOTING_RANK(c));
+      Color c = GET_COLOR(m.moved);
+      Type t = GET_TYPE(m.moved);
+      int promotion = (t == Pawn) && (BitBoardSetBit(EMPTY_BOARD, m.to) & PROMOTING_RANK(c));
       if (promotion) m.moved = GET_PIECE(Knight, c);
 
-      Move:
-      moveSet[index++] = m;
-
-      if (promotion && GET_TYPE(m.moved) < Queen) {
-        m.moved = GET_PIECE((GET_TYPE(m.moved) + 1), c);
-        goto Move;
+      if (promotion) {
+        for (Type t = Knight; t <= Queen; t++) {
+          m.moved = GET_PIECE(t, c);
+          moveSet[index++] = m;
+        }
+      } else {
+        moveSet[index++] = m;
       }
     }
   }
