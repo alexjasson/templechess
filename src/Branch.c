@@ -115,7 +115,6 @@ Branch BranchNew(LookupTable l, ChessBoard *cb) {
   moves = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & checkMask;
   addBranch(&b, moves, DOUBLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
 
-
   b1 = OUR(Pawn) & pinned;
   int i = b.size - 4;
   while (b1) {
@@ -158,10 +157,6 @@ Branch BranchNew(LookupTable l, ChessBoard *cb) {
   return b;
 }
 
-
-
-
-
 static long treeSearch(LookupTable l, ChessBoard *cb) {
   if (cb->depth == 0) return 1; // Base case
   Branch curr = BranchNew(l, cb);
@@ -169,11 +164,11 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
 
   long nodes = 0;
   ChessBoard new;
-  Move moveSet[218];
+  Move moves[MOVES_SIZE];
 
-  int size = BranchExtract(&curr, moveSet);
+  int size = BranchExtract(&curr, moves);
   for (int i = 0; i < size; i++) {
-    Move m = moveSet[i];
+    Move m = moves[i];
     ChessBoardPlayMove(&new, cb, m);
     nodes += treeSearch(l, &new);
   }
@@ -181,7 +176,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
   return nodes;
 }
 
-int BranchExtract(Branch *b, Move *moveSet) {
+int BranchExtract(Branch *b, Move *moves) {
   Move m;
   int index = 0;
   for (int i = 0; i < b->size; i++) {
@@ -205,10 +200,10 @@ int BranchExtract(Branch *b, Move *moveSet) {
       if (promotion) {
         for (Type t = Knight; t <= Queen; t++) {
           m.moved = GET_PIECE(t, c);
-          moveSet[index++] = m;
+          moves[index++] = m;
         }
       } else {
-        moveSet[index++] = m;
+        moves[index++] = m;
       }
     }
   }

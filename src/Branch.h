@@ -12,7 +12,7 @@ typedef struct {
 
 int BranchCount(Branch *b);
 long BranchTreeSearch(ChessBoard *cb);
-int BranchExtract(Branch *b, Move *moveSet);
+int BranchExtract(Branch *b, Move *moves);
 Branch BranchNew(LookupTable l, ChessBoard *cb);
 
 #endif

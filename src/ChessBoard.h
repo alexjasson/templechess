@@ -1,6 +1,7 @@
 #ifndef CHESSBOARD_H
 #define CHESSBOARD_H
 
+#define MOVES_SIZE 218
 #define PIECE_SIZE 12
 #define EMPTY_PIECE 12
 #define GET_PIECE(t, c) ((t << 1) | c)
