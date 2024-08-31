@@ -131,7 +131,7 @@ static void addPiece(ChessBoard *cb, Square s, Piece replacement) {
   cb->pieces[captured] &= ~b;
 }
 
-void ChessBoardPrint(ChessBoard cb) {
+void ChessBoardPrintBoard(ChessBoard cb) {
   for (int rank = 0; rank < EDGE_SIZE; rank++) {
     for (int file = 0; file < EDGE_SIZE; file++) {
       Square s = rank * EDGE_SIZE + file;
@@ -141,4 +141,8 @@ void ChessBoardPrint(ChessBoard cb) {
     printf("%d\n", EDGE_SIZE - rank);
   }
   printf("a b c d e f g h\n\n");
+}
+
+void ChessBoardPrintMove(Move m, long nodes) {
+  printf("%c%d%c%d: %ld\n", 'a' + (m.from % EDGE_SIZE), EDGE_SIZE - (m.from / EDGE_SIZE), 'a' + (m.to % EDGE_SIZE), EDGE_SIZE - (m.to / EDGE_SIZE), nodes);
 }
