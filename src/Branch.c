@@ -32,25 +32,21 @@
 
 static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
+static void addBranch(Branch *b, BitBoard to, BitBoard from, Piece moved);
 static long treeSearch(LookupTable l, ChessBoard *cb);
 
-void BranchAdd(Branch *b, BitBoard to, BitBoard from, Piece moved) {
+void addBranch(Branch *b, BitBoard to, BitBoard from, Piece moved) {
   b->to[b->size] = to;
   b->from[b->size] = from;
   b->moved[b->size] = moved;
   b->size++;
 }
 
-// Returns whether an element in a branch is empty
-int BranchIsEmpty(Branch *b, int index) {
-  return b->to[index] == EMPTY_BOARD || b->from[index] == EMPTY_BOARD;
-}
-
 int BranchCount(Branch *b) {
   int x, y, offset, nodes = 0;
 
   for (int i = 0; i < b->size; i++) {
-    if (BranchIsEmpty(b, i)) continue;
+    if ((b->to[i] == EMPTY_BOARD || b->from[i] == EMPTY_BOARD)) continue;
     x = BitBoardCountBits(b->to[i]);
     y = BitBoardCountBits(b->from[i]);
     offset = x - y;
@@ -73,7 +69,7 @@ long BranchTreeSearch(ChessBoard *cb) {
   return nodes;
 }
 
-Branch BranchAttacks(LookupTable l, ChessBoard *cb) {
+Branch BranchNew(LookupTable l, ChessBoard *cb) {
   Branch b;
   b.size = 0;
   Square s;
@@ -94,7 +90,7 @@ Branch BranchAttacks(LookupTable l, ChessBoard *cb) {
   b1 = (cb->castling | (attacked & ATTACK_MASK) | (ALL & OCCUPANCY_MASK)) & BACK_RANK(cb->turn);
   if ((b1 & KINGSIDE) == (KINGSIDE_CASTLING & BACK_RANK(cb->turn)) && (~checkMask == EMPTY_BOARD)) moves |= OUR(King) << 2;
   if ((b1 & QUEENSIDE) == (QUEENSIDE_CASTLING & BACK_RANK(cb->turn)) && (~checkMask == EMPTY_BOARD)) moves |= OUR(King) >> 2;
-  BranchAdd(&b, moves, OUR(King), GET_PIECE(King, cb->turn));
+  addBranch(&b, moves, OUR(King), GET_PIECE(King, cb->turn));
 
   // Piece moves
   b1 = us & ~(OUR(Pawn) | OUR(King));
@@ -104,20 +100,20 @@ Branch BranchAttacks(LookupTable l, ChessBoard *cb) {
     if (BitBoardSetBit(EMPTY_BOARD, s) & pinned) {
       moves &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
     }
-    BranchAdd(&b, moves, BitBoardSetBit(EMPTY_BOARD, s), cb->squares[s]);
+    addBranch(&b, moves, BitBoardSetBit(EMPTY_BOARD, s), cb->squares[s]);
   }
 
   // Pawn moves
   b1 = OUR(Pawn);
   moves = PAWN_ATTACKS_LEFT(b1, cb->turn) & them & checkMask;
-  BranchAdd(&b, moves, PAWN_ATTACKS_LEFT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+  addBranch(&b, moves, PAWN_ATTACKS_LEFT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
   moves = PAWN_ATTACKS_RIGHT(b1, cb->turn) & them & checkMask;
-  BranchAdd(&b, moves, PAWN_ATTACKS_RIGHT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+  addBranch(&b, moves, PAWN_ATTACKS_RIGHT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
   b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
   moves = b2 & checkMask;
-  BranchAdd(&b, moves, SINGLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+  addBranch(&b, moves, SINGLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
   moves = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & checkMask;
-  BranchAdd(&b, moves, DOUBLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+  addBranch(&b, moves, DOUBLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
 
 
   b1 = OUR(Pawn) & pinned;
@@ -156,7 +152,7 @@ Branch BranchAttacks(LookupTable l, ChessBoard *cb) {
       b2 |= BitBoardSetBit(EMPTY_BOARD, s);
       if (b2 & pinned) b2 &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), cb->enPassant);
     }
-    BranchAdd(&b, b3, b2, GET_PIECE(Pawn, cb->turn));
+    addBranch(&b, b3, b2, GET_PIECE(Pawn, cb->turn));
   }
 
   return b;
@@ -168,16 +164,12 @@ Branch BranchAttacks(LookupTable l, ChessBoard *cb) {
 
 static long treeSearch(LookupTable l, ChessBoard *cb) {
   if (cb->depth == 0) return 1; // Base case
+  Branch curr = BranchNew(l, cb);
+  if (cb->depth == 1) return BranchCount(&curr);
 
-  Branch curr = BranchAttacks(l, cb);
-
-
-  // ------- BEGIN RECURSIVE PART ----------
   long nodes = 0;
   ChessBoard new;
   Move moveSet[218];
-
-  if (cb->depth == 1) return BranchCount(&curr);
 
   int size = BranchExtract(&curr, moveSet);
   for (int i = 0; i < size; i++) {
@@ -193,7 +185,7 @@ int BranchExtract(Branch *b, Move *moveSet) {
   Move m;
   int index = 0;
   for (int i = 0; i < b->size; i++) {
-    if (BranchIsEmpty(b, i)) continue;
+    if ((b->to[i] == EMPTY_BOARD || b->from[i] == EMPTY_BOARD)) continue;
     int x = BitBoardCountBits(b->to[i]);
     int y = BitBoardCountBits(b->from[i]);
     int offset = x - y;

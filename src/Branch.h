@@ -10,12 +10,9 @@ typedef struct {
   int size;
 } Branch;
 
-// Branch BranchNew();
-void BranchAdd(Branch *b, BitBoard to, BitBoard from, Piece moved);
-int BranchIsEmpty(Branch *b, int index);
 int BranchCount(Branch *b);
 long BranchTreeSearch(ChessBoard *cb);
 int BranchExtract(Branch *b, Move *moveSet);
-Branch BranchAttacks(LookupTable l, ChessBoard *cb);
+Branch BranchNew(LookupTable l, ChessBoard *cb);
 
 #endif
