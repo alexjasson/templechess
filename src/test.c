@@ -1,15 +1,16 @@
 #include "BitBoard.h"
 #include "LookupTable.h"
 #include "ChessBoard.h"
+#include "Branch.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <unistd.h>
-#include <fcntl.h>
 
 #define POSITIONS "data/testPositions.in"
 #define BUFFER_SIZE 128
+
+static long treeSearch(LookupTable l, ChessBoard *cb);
 
 int main() {
   FILE *file = fopen(POSITIONS, "r");
@@ -41,39 +42,12 @@ int main() {
 
     fen = buffer;
 
-    // Save the current stdout
-    fflush(stdout); // Ensure all output is flushed before redirection
-    int savedStdout = dup(STDOUT_FILENO);
-    int devNull = open("/dev/null", O_WRONLY);
-    if (devNull == -1) {
-      perror("open");
-      close(savedStdout);
-      return 1;
-    }
-
-    // Redirect stdout to /dev/null
-    if (dup2(devNull, STDOUT_FILENO) == -1) {
-      perror("dup2");
-      close(savedStdout);
-      close(devNull);
-      return 1;
-    }
-    close(devNull);
-
-    // Call ChessBoardTreeSearch and suppress output
     ChessBoard cb = ChessBoardNew(fen, depth);
-    long result = ChessBoardTreeSearch(cb);
+    LookupTable l = LookupTableNew();
+    long result = treeSearch(l, &cb);
+    LookupTableFree(l);
 
-    // Restore the original stdout
-    fflush(stdout); // Ensure all output is flushed to /dev/null
-    if (dup2(savedStdout, STDOUT_FILENO) == -1) {
-      perror("dup2");
-      close(savedStdout);
-      return 1;
-    }
-    close(savedStdout);
-
-    // Print results after restoring stdout
+    // Print results
     if (result == nodes) {
       printf("\033[0;32mTest PASSED: %s at depth %d\033[0m\n", fen, depth);
     } else {
@@ -83,6 +57,25 @@ int main() {
   }
   fclose(file);
   return 0;
+}
+
+static long treeSearch(LookupTable l, ChessBoard *cb) {
+  if (cb->depth == 0) return 1;
+  Branch br = BranchNew(l, cb);
+  if (cb->depth == 1)return BranchCount(&br);
+
+  long nodes = 0;
+  ChessBoard new;
+  Move moves[MOVES_SIZE];
+
+  int size = BranchExtract(&br, moves);
+  for (int i = 0; i < size; i++) {
+    Move m = moves[i];
+    ChessBoardPlayMove(&new, cb, m);
+    nodes += treeSearch(l, &new);
+  }
+
+  return nodes;
 }
 
 
