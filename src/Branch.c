@@ -33,7 +33,6 @@
 static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
 static void addBranch(Branch *b, BitBoard to, BitBoard from, Piece moved);
-static long treeSearch(LookupTable l, ChessBoard *cb, int startDepth);
 
 void addBranch(Branch *b, BitBoard to, BitBoard from, Piece moved) {
   b->to[b->size] = to;
@@ -58,14 +57,6 @@ int BranchCount(Branch *b) {
     if (offset < 0) nodes++;
     nodes += BitBoardCountBits(b->to[i]) + BitBoardCountBits(promotion) * 3;
   }
-  return nodes;
-}
-
-long BranchTreeSearch(ChessBoard *cb) {
-  long nodes = 0;
-  LookupTable l = LookupTableNew();
-  nodes = treeSearch(l, cb, 1);
-  LookupTableFree(l);
   return nodes;
 }
 
@@ -137,7 +128,7 @@ Branch BranchNew(LookupTable l, ChessBoard *cb) {
     i -= 3;
   }
 
-  // Add enpassant moves and prune it - pin squares
+  // Add enpassant moves
   if (cb->enPassant != EMPTY_SQUARE) {
     b1 = PAWN_ATTACKS(BitBoardSetBit(EMPTY_BOARD, cb->enPassant), (!cb->turn)) & OUR(Pawn);
     b2 = EMPTY_BOARD;
@@ -155,27 +146,6 @@ Branch BranchNew(LookupTable l, ChessBoard *cb) {
   }
 
   return b;
-}
-
-static long treeSearch(LookupTable l, ChessBoard *cb, int base) {
-  if (cb->depth == 0) return 1;
-  Branch curr = BranchNew(l, cb);
-  if ((cb->depth == 1) && (!base)) return BranchCount(&curr);
-
-  long nodes = 0;
-  ChessBoard new;
-  Move moves[MOVES_SIZE];
-
-  int size = BranchExtract(&curr, moves);
-  for (int i = 0; i < size; i++) {
-    Move m = moves[i];
-    ChessBoardPlayMove(&new, cb, m);
-    int subTree = treeSearch(l, &new, 0);
-    if (base) ChessBoardPrintMove(m, subTree);
-    nodes += subTree;
-  }
-
-  return nodes;
 }
 
 int BranchExtract(Branch *b, Move *moves) {

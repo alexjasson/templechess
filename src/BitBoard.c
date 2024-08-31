@@ -3,15 +3,11 @@
 
 #include "BitBoard.h"
 
-Bit BitBoardGetBit(BitBoard b, Square s) {
-  return (Bit)(b >> s) & 1;
-}
-
 void BitBoardPrint(BitBoard b) {
   for (int rank = 0; rank < EDGE_SIZE; rank++) {
     for (int file = 0; file < EDGE_SIZE; file++) {
       Square s = rank * EDGE_SIZE + file;
-      printf("%u ", BitBoardGetBit(b, s));
+      printf("%lu ", (b >> s) & 1);
     }
     printf("%d \n", EDGE_SIZE - rank);
   }
@@ -42,12 +38,12 @@ Square BitBoardPopLSB(BitBoard *b) {
 
 // Note: a8 is rank 0, a1 is rank 7
 int BitBoardGetRank(Square s) {
-  return s >> 0b11;
+  return s >> 0x3;
 }
 
 // Note: a8 is file 0, h8 is file 7
 int BitBoardGetFile(Square s) {
-  return s & 0b111;
+  return s & 0x7;
 }
 
 int BitBoardGetDiagonal(Square s) {

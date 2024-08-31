@@ -14,10 +14,8 @@
 #define EMPTY_SQUARE 64
 
 typedef uint64_t BitBoard;
-typedef uint8_t Bit;
 typedef uint8_t Square; // a8 - h8 = 0 - 7, a1 - h1 = 56 - 63, 64 = Empty Square
 
-Bit BitBoardGetBit(BitBoard b, Square s);
 void BitBoardPrint(BitBoard b);
 BitBoard BitBoardSetBit(BitBoard b, Square s);
 BitBoard BitBoardPopBit(BitBoard b, Square s);

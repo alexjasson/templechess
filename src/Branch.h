@@ -11,8 +11,7 @@ typedef struct {
 } Branch;
 
 int BranchCount(Branch *b);
-long BranchTreeSearch(ChessBoard *cb);
 int BranchExtract(Branch *b, Move *moves);
-Branch BranchNew(LookupTable l, ChessBoard *cb);
+Branch BranchNew(LookupTable l, ChessBoard *cb); // Stack allocated
 
 #endif
