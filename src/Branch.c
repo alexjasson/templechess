@@ -34,32 +34,6 @@ static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them)
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
 static void addBranch(Branch *b, BitBoard to, BitBoard from, Piece moved);
 
-void addBranch(Branch *b, BitBoard to, BitBoard from, Piece moved) {
-  b->to[b->size] = to;
-  b->from[b->size] = from;
-  b->moved[b->size] = moved;
-  b->size++;
-}
-
-int BranchCount(Branch *b) {
-  int x, y, offset, nodes = 0;
-
-  for (int i = 0; i < b->size; i++) {
-    if ((b->to[i] == EMPTY_BOARD || b->from[i] == EMPTY_BOARD)) continue;
-    x = BitBoardCountBits(b->to[i]);
-    y = BitBoardCountBits(b->from[i]);
-    offset = x - y;
-    Type t = GET_TYPE(b->moved[i]);
-    Color c = GET_COLOR(b->moved[i]);
-
-    BitBoard promotion = EMPTY_BOARD;
-    if (t == Pawn) promotion |= (PROMOTING_RANK(c) & b->to[i]);
-    if (offset < 0) nodes++;
-    nodes += BitBoardCountBits(b->to[i]) + BitBoardCountBits(promotion) * 3;
-  }
-  return nodes;
-}
-
 Branch BranchNew(LookupTable l, ChessBoard *cb) {
   Branch b;
   b.size = 0;
@@ -148,6 +122,25 @@ Branch BranchNew(LookupTable l, ChessBoard *cb) {
   return b;
 }
 
+int BranchCount(Branch *b) {
+  int x, y, offset, nodes = 0;
+
+  for (int i = 0; i < b->size; i++) {
+    if ((b->to[i] == EMPTY_BOARD || b->from[i] == EMPTY_BOARD)) continue;
+    x = BitBoardCountBits(b->to[i]);
+    y = BitBoardCountBits(b->from[i]);
+    offset = x - y;
+    Type t = GET_TYPE(b->moved[i]);
+    Color c = GET_COLOR(b->moved[i]);
+
+    BitBoard promotion = EMPTY_BOARD;
+    if (t == Pawn) promotion |= (PROMOTING_RANK(c) & b->to[i]);
+    if (offset < 0) nodes++;
+    nodes += BitBoardCountBits(b->to[i]) + BitBoardCountBits(promotion) * 3;
+  }
+  return nodes;
+}
+
 int BranchExtract(Branch *b, Move *moves) {
   Move m;
   int index = 0;
@@ -180,6 +173,13 @@ int BranchExtract(Branch *b, Move *moves) {
     }
   }
   return index;
+}
+
+void addBranch(Branch *b, BitBoard to, BitBoard from, Piece moved) {
+  b->to[b->size] = to;
+  b->from[b->size] = from;
+  b->moved[b->size] = moved;
+  b->size++;
 }
 
 // Return the checking pieces and simultaneously update the pinned pieces bitboard
