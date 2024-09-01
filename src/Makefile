@@ -1,10 +1,8 @@
 # Detect compiler
 ifneq ($(shell which gcc 2>/dev/null),)
     CC := gcc
-else ifneq ($(shell which clang 2>/dev/null),)
-    CC := clang
 else
-    $(error Compiler not found! Please install gcc or clang)
+    $(error Compiler not found! Please install gcc)
 endif
 
 CFLAGS0 = -Ofast -march=native -flto -fprofile-generate
