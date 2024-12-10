@@ -12,9 +12,11 @@
 
 static long treeSearch(LookupTable l, ChessBoard *cb);
 
-int main() {
+int main()
+{
   FILE *file = fopen(POSITIONS, "r");
-  if (file == NULL) {
+  if (file == NULL)
+  {
     fprintf(stderr, "Could not open file: %s\n", POSITIONS);
     return 1;
   }
@@ -24,12 +26,15 @@ int main() {
   long nodes;
   char *fen;
 
-  while (fgets(buffer, sizeof(buffer), file)) {
+  while (fgets(buffer, sizeof(buffer), file))
+  {
     buffer[strcspn(buffer, "\n")] = 0;
 
     char *ptr = buffer;
-    while (*ptr != '\0' && isspace((unsigned char)*ptr)) ptr++;
-    if (*ptr == '\0') continue;
+    while (*ptr != '\0' && isspace((unsigned char)*ptr))
+      ptr++;
+    if (*ptr == '\0')
+      continue;
 
     char *lastSpace = strrchr(buffer, ' ');
 
@@ -48,9 +53,12 @@ int main() {
     LookupTableFree(l);
 
     // Print results
-    if (result == nodes) {
+    if (result == nodes)
+    {
       printf("\033[0;32mTest PASSED: %s at depth %d\033[0m\n", fen, depth);
-    } else {
+    }
+    else
+    {
       printf("\033[0;31mTest FAILED: %s at depth %d\033[0m\n", fen, depth);
       printf("Expected: %ld, got: %ld\n", nodes, result);
     }
@@ -59,17 +67,24 @@ int main() {
   return 0;
 }
 
-static long treeSearch(LookupTable l, ChessBoard *cb) {
-  if (cb->depth == 0) return 1;
-  Branch br = BranchNew(l, cb);
-  if (cb->depth == 1)return BranchCount(&br);
+static long treeSearch(LookupTable l, ChessBoard *cb)
+{
+  if (cb->depth == 0)
+    return 1;
+
+  Branch br[BRANCH_SIZE];
+  int brSize = BranchFill(l, cb, br);
+
+  if ((cb->depth == 1))
+    return BranchCount(br, brSize);
 
   long nodes = 0;
   ChessBoard new;
   Move moves[MOVES_SIZE];
 
-  int size = BranchExtract(&br, moves);
-  for (int i = 0; i < size; i++) {
+  int moveCount = BranchExtract(br, brSize, moves);
+  for (int i = 0; i < moveCount; i++)
+  {
     Move m = moves[i];
     ChessBoardPlayMove(&new, cb, m);
     nodes += treeSearch(l, &new);
@@ -77,6 +92,3 @@ static long treeSearch(LookupTable l, ChessBoard *cb) {
 
   return nodes;
 }
-
-
-

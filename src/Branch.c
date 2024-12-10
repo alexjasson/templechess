@@ -6,9 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define OUR(t) (cb->pieces[GET_PIECE(t, cb->turn)]) // Bitboard representing our pieces of type t
+#define OUR(t) (cb->pieces[GET_PIECE(t, cb->turn)])    // Bitboard representing our pieces of type t
 #define THEIR(t) (cb->pieces[GET_PIECE(t, !cb->turn)]) // Bitboard representing their pieces of type t
-#define ALL (~cb->pieces[EMPTY_PIECE]) // Bitboard of all the pieces
+#define ALL (~cb->pieces[EMPTY_PIECE])                 // Bitboard of all the pieces
 
 // Masks used for castling
 #define KINGSIDE_CASTLING 0x9000000000000090
@@ -24,19 +24,26 @@
 #define SINGLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(b) : BitBoardShiftS(b))
 #define DOUBLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(BitBoardShiftN(b)) : BitBoardShiftS(BitBoardShiftS(b)))
 
-// Given a square, returns a bitboard representing the rank of that square
 #define GET_RANK(s) (SOUTH_EDGE >> (EDGE_SIZE * (EDGE_SIZE - BitBoardGetRank(s) - 1)))
-#define ENPASSANT_RANK(c) (BitBoard)SOUTH_EDGE >> (EDGE_SIZE * ((c * 3) + 2)) // 6th rank for black, 3rd for white
+#define ENPASSANT_RANK(c) (BitBoard) SOUTH_EDGE >> (EDGE_SIZE * ((c * 3) + 2))
 #define PROMOTING_RANK(c) (BitBoard)((c == White) ? NORTH_EDGE : SOUTH_EDGE)
 #define BACK_RANK(c) (BitBoard)((c == White) ? SOUTH_EDGE : NORTH_EDGE)
 
 static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
 static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
-static void addBranch(Branch *b, BitBoard to, BitBoard from, Piece moved);
 
-Branch BranchNew(LookupTable l, ChessBoard *cb) {
+Branch BranchNew(BitBoard to, BitBoard from, Piece moved)
+{
   Branch b;
-  b.size = 0;
+  b.to = to;
+  b.from = from;
+  b.moved = moved;
+  return b;
+}
+
+int BranchFill(LookupTable l, ChessBoard *cb, Branch *b)
+{
+  int size = 0;
   Square s;
   BitBoard us, them, pinned, checking, attacked, checkMask, moves, b1, b2, b3;
   us = OUR(Pawn) | OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen) | OUR(King);
@@ -45,7 +52,8 @@ Branch BranchNew(LookupTable l, ChessBoard *cb) {
   attacked = getAttackedSquares(l, cb, them);
   checking = getCheckingPieces(l, cb, them, &pinned);
   checkMask = ~EMPTY_BOARD;
-  while (checking) {
+  while (checking)
+  {
     s = BitBoardPopLSB(&checking);
     checkMask &= (BitBoardSetBit(EMPTY_BOARD, s) | LookupTableGetSquaresBetween(l, BitBoardGetLSB(OUR(King)), s));
   }
@@ -53,121 +61,167 @@ Branch BranchNew(LookupTable l, ChessBoard *cb) {
   // King moves
   moves = LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), King, EMPTY_BOARD) & ~us & ~attacked;
   b1 = (cb->castling | (attacked & ATTACK_MASK) | (ALL & OCCUPANCY_MASK)) & BACK_RANK(cb->turn);
-  if ((b1 & KINGSIDE) == (KINGSIDE_CASTLING & BACK_RANK(cb->turn)) && (~checkMask == EMPTY_BOARD)) moves |= OUR(King) << 2;
-  if ((b1 & QUEENSIDE) == (QUEENSIDE_CASTLING & BACK_RANK(cb->turn)) && (~checkMask == EMPTY_BOARD)) moves |= OUR(King) >> 2;
-  addBranch(&b, moves, OUR(King), GET_PIECE(King, cb->turn));
+  if ((b1 & KINGSIDE) == (KINGSIDE_CASTLING & BACK_RANK(cb->turn)) && (~checkMask == EMPTY_BOARD))
+    moves |= OUR(King) << 2;
+  if ((b1 & QUEENSIDE) == (QUEENSIDE_CASTLING & BACK_RANK(cb->turn)) && (~checkMask == EMPTY_BOARD))
+    moves |= OUR(King) >> 2;
+  b[size++] = BranchNew(moves, OUR(King), GET_PIECE(King, cb->turn));
 
   // Piece moves
   b1 = us & ~(OUR(Pawn) | OUR(King));
-  while (b1) {
+  while (b1)
+  {
     s = BitBoardPopLSB(&b1);
     moves = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & ~us & checkMask;
-    if (BitBoardSetBit(EMPTY_BOARD, s) & pinned) {
+    if (BitBoardSetBit(EMPTY_BOARD, s) & pinned)
+    {
       moves &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
     }
-    addBranch(&b, moves, BitBoardSetBit(EMPTY_BOARD, s), cb->squares[s]);
+    b[size++] = BranchNew(moves, BitBoardSetBit(EMPTY_BOARD, s), cb->squares[s]);
   }
 
   // Pawn moves
   b1 = OUR(Pawn);
+
+  // PAWN_ATTACKS_LEFT
   moves = PAWN_ATTACKS_LEFT(b1, cb->turn) & them & checkMask;
-  addBranch(&b, moves, PAWN_ATTACKS_LEFT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+  b[size++] = BranchNew(moves, PAWN_ATTACKS_LEFT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+
+  // PAWN_ATTACKS_RIGHT
   moves = PAWN_ATTACKS_RIGHT(b1, cb->turn) & them & checkMask;
-  addBranch(&b, moves, PAWN_ATTACKS_RIGHT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+  b[size++] = BranchNew(moves, PAWN_ATTACKS_RIGHT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+
+  // SINGLE_PUSH
   b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
   moves = b2 & checkMask;
-  addBranch(&b, moves, SINGLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+  b[size++] = BranchNew(moves, SINGLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+
+  // DOUBLE_PUSH
   moves = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & checkMask;
-  addBranch(&b, moves, DOUBLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+  b[size++] = BranchNew(moves, DOUBLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
 
-  b1 = OUR(Pawn) & pinned;
-  int i = b.size - 4;
-  while (b1) {
-    s = BitBoardPopLSB(&b1);
-    b2 = BitBoardSetBit(EMPTY_BOARD, s); // the pinned pawn
-    b3 = LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s); // pin mask
+  // Adjust pinned pawns
+  // The last four entries correspond to the four pawn moves above:
+  //   [size-4]: PAWN_ATTACKS_LEFT
+  //   [size-3]: PAWN_ATTACKS_RIGHT
+  //   [size-2]: SINGLE_PUSH
+  //   [size-1]: DOUBLE_PUSH
+  {
+    int baseIndex = size - 4;
+    b1 = OUR(Pawn) & pinned;
+    while (b1)
+    {
+      s = BitBoardPopLSB(&b1);
+      b2 = BitBoardSetBit(EMPTY_BOARD, s);
+      b3 = LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
 
-    // Remove any attacks that aren't on the pin mask from the set
-    b.to[i] &= ~(PAWN_ATTACKS_LEFT(b2, cb->turn) & ~b3);
-    b.from[i] = PAWN_ATTACKS_LEFT(b.to[i], (!cb->turn));
-    i++;
-    b.to[i] &= ~(PAWN_ATTACKS_RIGHT(b2, cb->turn) & ~b3);
-    b.from[i] = PAWN_ATTACKS_RIGHT(b.to[i], (!cb->turn));
-    i++;
-    b.to[i] &= ~(SINGLE_PUSH(b2, cb->turn) & ~b3);
-    b.from[i] = SINGLE_PUSH(b.to[i], (!cb->turn));
-    i++;
-    b.to[i] &= ~(DOUBLE_PUSH(b2, cb->turn) & ~b3);
-    b.from[i] = DOUBLE_PUSH(b.to[i], (!cb->turn));
-    i -= 3;
+      // PAWN_ATTACKS_LEFT
+      b[baseIndex + 0].to &= ~(PAWN_ATTACKS_LEFT(b2, cb->turn) & ~b3);
+      b[baseIndex + 0].from = PAWN_ATTACKS_LEFT(b[baseIndex + 0].to, (!cb->turn));
+
+      // PAWN_ATTACKS_RIGHT
+      b[baseIndex + 1].to &= ~(PAWN_ATTACKS_RIGHT(b2, cb->turn) & ~b3);
+      b[baseIndex + 1].from = PAWN_ATTACKS_RIGHT(b[baseIndex + 1].to, (!cb->turn));
+
+      // SINGLE_PUSH
+      b[baseIndex + 2].to &= ~(SINGLE_PUSH(b2, cb->turn) & ~b3);
+      b[baseIndex + 2].from = SINGLE_PUSH(b[baseIndex + 2].to, (!cb->turn));
+
+      // DOUBLE_PUSH
+      b[baseIndex + 3].to &= ~(DOUBLE_PUSH(b2, cb->turn) & ~b3);
+      b[baseIndex + 3].from = DOUBLE_PUSH(b[baseIndex + 3].to, (!cb->turn));
+    }
   }
 
-  // Add enpassant moves
-  if (cb->enPassant != EMPTY_SQUARE) {
+  // En passant
+  if (cb->enPassant != EMPTY_SQUARE)
+  {
     b1 = PAWN_ATTACKS(BitBoardSetBit(EMPTY_BOARD, cb->enPassant), (!cb->turn)) & OUR(Pawn);
     b2 = EMPTY_BOARD;
-    b3 = BitBoardSetBit(EMPTY_BOARD, cb->enPassant); // Enpassant square in bitboard form
-    while (b1) {
+    b3 = BitBoardSetBit(EMPTY_BOARD, cb->enPassant);
+    while (b1)
+    {
       s = BitBoardPopLSB(&b1);
-
-      // Check that the pawn is not "pseudo-pinned"
-      if (LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), Rook, ALL & ~BitBoardSetBit(SINGLE_PUSH(b3, (!cb->turn)), s)) &
-          GET_RANK(BitBoardGetLSB(OUR(King))) & (THEIR(Rook) | THEIR(Queen))) continue;
+      // Check pseudo-pinning for en passant
+      if ((LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), Rook, ALL & ~BitBoardSetBit(SINGLE_PUSH(b3, (!cb->turn)), s)) & GET_RANK(BitBoardGetLSB(OUR(King))) & (THEIR(Rook) | THEIR(Queen))))
+        continue;
       b2 |= BitBoardSetBit(EMPTY_BOARD, s);
-      if (b2 & pinned) b2 &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), cb->enPassant);
+      if (b2 & pinned)
+        b2 &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), cb->enPassant);
     }
-    addBranch(&b, b3, b2, GET_PIECE(Pawn, cb->turn));
+    if (b2 != EMPTY_BOARD)
+    {
+      b[size++] = BranchNew(b3, b2, GET_PIECE(Pawn, cb->turn));
+    }
   }
 
-  return b;
+  return size;
 }
 
-int BranchCount(Branch *b) {
-  int x, y, offset, nodes = 0;
-
-  for (int i = 0; i < b->size; i++) {
-    if ((b->to[i] == EMPTY_BOARD || b->from[i] == EMPTY_BOARD)) continue;
-    x = BitBoardCountBits(b->to[i]);
-    y = BitBoardCountBits(b->from[i]);
-    offset = x - y;
-    Type t = GET_TYPE(b->moved[i]);
-    Color c = GET_COLOR(b->moved[i]);
+int BranchCount(Branch *b, int size)
+{
+  int nodes = 0;
+  for (int i = 0; i < size; i++)
+  {
+    if ((b[i].to == EMPTY_BOARD || b[i].from == EMPTY_BOARD))
+      continue;
+    int x = BitBoardCountBits(b[i].to);
+    int y = BitBoardCountBits(b[i].from);
+    int offset = x - y;
+    Type t = GET_TYPE(b[i].moved);
+    Color c = GET_COLOR(b[i].moved);
 
     BitBoard promotion = EMPTY_BOARD;
-    if (t == Pawn) promotion |= (PROMOTING_RANK(c) & b->to[i]);
-    if (offset < 0) nodes++;
-    nodes += BitBoardCountBits(b->to[i]) + BitBoardCountBits(promotion) * 3;
+    if (t == Pawn)
+      promotion |= (PROMOTING_RANK(c) & b[i].to);
+    if (offset < 0)
+      nodes++;
+    nodes += BitBoardCountBits(b[i].to) + BitBoardCountBits(promotion) * 3;
   }
   return nodes;
 }
 
-int BranchExtract(Branch *b, Move *moves) {
+int BranchExtract(Branch *b, int size, Move *moves)
+{
   Move m;
   int index = 0;
-  for (int i = 0; i < b->size; i++) {
-    if ((b->to[i] == EMPTY_BOARD || b->from[i] == EMPTY_BOARD)) continue;
-    int x = BitBoardCountBits(b->to[i]);
-    int y = BitBoardCountBits(b->from[i]);
+  for (int i = 0; i < size; i++)
+  {
+    if ((b[i].to == EMPTY_BOARD || b[i].from == EMPTY_BOARD))
+      continue;
+    int x = BitBoardCountBits(b[i].to);
+    int y = BitBoardCountBits(b[i].from);
     int offset = x - y;
     int max = (x > y) ? x : y;
 
-    for (int j = 0; j < max; j++) {
-      m.from = BitBoardPopLSB(&b->from[i]);
-      m.to = BitBoardPopLSB(&b->to[i]);
-      m.moved = b->moved[i];
-      if (offset > 0) b->from[i] = BitBoardSetBit(EMPTY_BOARD, m.from); // Injective
-      else if (offset < 0) b->to[i] = BitBoardSetBit(EMPTY_BOARD, m.to); // Surjective
+    BitBoard toCopy = b[i].to;
+    BitBoard fromCopy = b[i].from;
+
+    for (int j = 0; j < max; j++)
+    {
+      m.from = BitBoardPopLSB(&fromCopy);
+      m.to = BitBoardPopLSB(&toCopy);
+      m.moved = b[i].moved;
+      if (offset > 0)
+        fromCopy = BitBoardSetBit(fromCopy, m.from);
+      else if (offset < 0)
+        toCopy = BitBoardSetBit(toCopy, m.to);
       Color c = GET_COLOR(m.moved);
       Type t = GET_TYPE(m.moved);
       int promotion = (t == Pawn) && (BitBoardSetBit(EMPTY_BOARD, m.to) & PROMOTING_RANK(c));
-      if (promotion) m.moved = GET_PIECE(Knight, c);
+      if (promotion)
+        m.moved = GET_PIECE(Knight, c);
 
-      if (promotion) {
-        for (Type t = Knight; t <= Queen; t++) {
-          m.moved = GET_PIECE(t, c);
+      if (promotion)
+      {
+        for (Type tt = Knight; tt <= Queen; tt++)
+        {
+          m.moved = GET_PIECE(tt, c);
           moves[index++] = m;
         }
-      } else {
+      }
+      else
+      {
         moves[index++] = m;
       }
     }
@@ -175,15 +229,50 @@ int BranchExtract(Branch *b, Move *moves) {
   return index;
 }
 
-void addBranch(Branch *b, BitBoard to, BitBoard from, Piece moved) {
-  b->to[b->size] = to;
-  b->from[b->size] = from;
-  b->moved[b->size] = moved;
-  b->size++;
+/*
+ * If we're at depth 2, we only need to play moves that will interfere
+ * with the next move. Otherwise, we can remove these moves from the branch
+ * and calculate how many moves have been "saved" by pruning.
+ *
+ * A move interferes if:
+ * -   the to square intersects with any slider piece/pawn move of opponent (including king)
+ * -   the to square intersects with any piece of the opponent
+ * -   its a double push
+ * -   the move somehow disrupts the king moves of next move ie it either attacks the king,
+ *     attacks a square the king can move, reliquishes an attack to a square the king can move,
+ *     occupies a castling square, or discovered attacks the king - how do we know?
+ *       the king moves of the next move are determined by the relevant squares that are
+ *       attacked... What if we get the number of times each relevant square is attacked
+ *       and then see how this number changes?
+ */
+int BranchPrune(LookupTable l, ChessBoard *cb, Branch *b, int size)
+{
+  // Get an array of branches for the next move
+  Branch next[BRANCH_SIZE];
+  cb->turn = !cb->turn;
+  int nextSize = BranchFill(l, cb, next);
+  cb->turn = !cb->turn;
+  int nextMoves = BranchCount(next, nextSize);
+
+  // Go through all branches of b and start pruning, count how many were pruned
+  int movesPruned = 0;
+  for (int i = 0; i < size; i++)
+  {
+    // If a move in the branch
+  }
+
+  (void)l;
+  (void)cb;
+  (void)b;
+  (void)size;
+  (void)movesPruned;
+  (void)nextMoves;
+  return 0;
 }
 
-// Return the checking pieces and simultaneously update the pinned pieces bitboard
-static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned) {
+// Our pinned pieces and their checking pieces
+static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned)
+{
   Square ourKing = BitBoardGetLSB(OUR(King));
   BitBoard checking = (PAWN_ATTACKS(OUR(King), cb->turn) & THEIR(Pawn)) |
                       (LookupTableAttacks(l, ourKing, Knight, EMPTY_BOARD) & THEIR(Knight));
@@ -193,24 +282,28 @@ static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, 
   BitBoard b;
   Square s;
   *pinned = EMPTY_BOARD;
-  while (candidates) {
+  while (candidates)
+  {
     s = BitBoardPopLSB(&candidates);
     b = LookupTableGetSquaresBetween(l, ourKing, s) & ALL & ~them;
-    if (b == EMPTY_BOARD) checking |= BitBoardSetBit(EMPTY_BOARD, s);
-    else if ((b & (b - 1)) == EMPTY_BOARD) *pinned |= b;
+    if (b == EMPTY_BOARD)
+      checking |= BitBoardSetBit(EMPTY_BOARD, s);
+    else if ((b & (b - 1)) == EMPTY_BOARD)
+      *pinned |= b;
   }
 
   return checking;
 }
 
-// Return the squares attacked by the enemy
-static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them) {
+static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them)
+{
   BitBoard attacked, b;
   BitBoard occupancies = ALL & ~OUR(King);
 
   attacked = PAWN_ATTACKS(THEIR(Pawn), (!cb->turn));
   b = them & ~THEIR(Pawn);
-  while (b) {
+  while (b)
+  {
     Square s = BitBoardPopLSB(&b);
     attacked |= LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), occupancies);
   }

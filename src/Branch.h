@@ -1,17 +1,23 @@
 #ifndef BRANCH_H
 #define BRANCH_H
 
-#define BRANCH_SIZE 20
+#include "BitBoard.h"
+#include "LookupTable.h"
+#include "ChessBoard.h"
 
-typedef struct {
-  BitBoard to[BRANCH_SIZE];
-  BitBoard from[BRANCH_SIZE];
-  Piece moved[BRANCH_SIZE];
-  int size;
+#define BRANCH_SIZE 20 // Assumes only regular chess positions will be given
+
+typedef struct
+{
+  BitBoard to;
+  BitBoard from;
+  Piece moved;
 } Branch;
 
-int BranchCount(Branch *b);
-int BranchExtract(Branch *b, Move *moves);
-Branch BranchNew(LookupTable l, ChessBoard *cb); // Stack allocated
+Branch BranchNew(BitBoard to, BitBoard from, Piece moved);
+int BranchCount(Branch *b, int size);
+int BranchExtract(Branch *b, int size, Move *moves);
+int BranchFill(LookupTable l, ChessBoard *cb, Branch *b);
+int BranchPrune(LookupTable l, ChessBoard *cb, Branch *b, int size);
 
 #endif
