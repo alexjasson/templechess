@@ -24,8 +24,11 @@ int main(int argc, char **argv)
   ChessBoard cb = ChessBoardNew(argv[1], atoi(argv[2]));
   LookupTable l = LookupTableNew();
   long nodes = treeSearch(l, &cb, 1);
-  LookupTableFree(l);
   printf("\nNodes searched: %ld\n", nodes);
+
+  BitBoard hi = ChessBoardDiscovered(l, &cb);
+  BitBoardPrint(hi);
+  LookupTableFree(l);
 }
 
 static long treeSearch(LookupTable l, ChessBoard *cb, int base)

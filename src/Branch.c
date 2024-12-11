@@ -6,9 +6,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define OUR(t) (cb->pieces[GET_PIECE(t, cb->turn)])    // Bitboard representing our pieces of type t
-#define THEIR(t) (cb->pieces[GET_PIECE(t, !cb->turn)]) // Bitboard representing their pieces of type t
-#define ALL (~cb->pieces[EMPTY_PIECE])                 // Bitboard of all the pieces
+#define OUR(t) (cb->pieces[GET_PIECE(t, cb->turn)])                                     // Bitboard representing our pieces of type t
+#define THEIR(t) (cb->pieces[GET_PIECE(t, !cb->turn)])                                  // Bitboard representing their pieces of type t
+#define ALL (~cb->pieces[EMPTY_PIECE])                                                  // Bitboard of all the pieces
+#define US (OUR(Pawn) | OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen) | OUR(King)) // Bitboard of all our pieces
+#define THEM (ALL & ~US)                                                                // Bitboard of all their pieces
 
 // Masks used for castling
 #define KINGSIDE_CASTLING 0x9000000000000090
@@ -29,9 +31,6 @@
 #define PROMOTING_RANK(c) (BitBoard)((c == White) ? NORTH_EDGE : SOUTH_EDGE)
 #define BACK_RANK(c) (BitBoard)((c == White) ? SOUTH_EDGE : NORTH_EDGE)
 
-static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them);
-static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned);
-
 Branch BranchNew(BitBoard to, BitBoard from, Piece moved)
 {
   Branch b;
@@ -45,12 +44,11 @@ int BranchFill(LookupTable l, ChessBoard *cb, Branch *b)
 {
   int size = 0;
   Square s;
-  BitBoard us, them, pinned, checking, attacked, checkMask, moves, b1, b2, b3;
-  us = OUR(Pawn) | OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen) | OUR(King);
-  them = ALL & ~us;
+  BitBoard pinned, checking, attacked, checkMask, moves, b1, b2, b3;
 
-  attacked = getAttackedSquares(l, cb, them);
-  checking = getCheckingPieces(l, cb, them, &pinned);
+  attacked = ChessBoardAttacked(l, cb);
+  checking = ChessBoardChecking(l, cb);
+  pinned = ChessBoardPinned(l, cb);
   checkMask = ~EMPTY_BOARD;
   while (checking)
   {
@@ -59,7 +57,7 @@ int BranchFill(LookupTable l, ChessBoard *cb, Branch *b)
   }
 
   // King moves
-  moves = LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), King, EMPTY_BOARD) & ~us & ~attacked;
+  moves = LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), King, EMPTY_BOARD) & ~US & ~attacked;
   b1 = (cb->castling | (attacked & ATTACK_MASK) | (ALL & OCCUPANCY_MASK)) & BACK_RANK(cb->turn);
   if ((b1 & KINGSIDE) == (KINGSIDE_CASTLING & BACK_RANK(cb->turn)) && (~checkMask == EMPTY_BOARD))
     moves |= OUR(King) << 2;
@@ -68,11 +66,11 @@ int BranchFill(LookupTable l, ChessBoard *cb, Branch *b)
   b[size++] = BranchNew(moves, OUR(King), GET_PIECE(King, cb->turn));
 
   // Piece moves
-  b1 = us & ~(OUR(Pawn) | OUR(King));
+  b1 = US & ~(OUR(Pawn) | OUR(King));
   while (b1)
   {
     s = BitBoardPopLSB(&b1);
-    moves = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & ~us & checkMask;
+    moves = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & ~US & checkMask;
     if (BitBoardSetBit(EMPTY_BOARD, s) & pinned)
     {
       moves &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
@@ -84,11 +82,11 @@ int BranchFill(LookupTable l, ChessBoard *cb, Branch *b)
   b1 = OUR(Pawn);
 
   // PAWN_ATTACKS_LEFT
-  moves = PAWN_ATTACKS_LEFT(b1, cb->turn) & them & checkMask;
+  moves = PAWN_ATTACKS_LEFT(b1, cb->turn) & THEM & checkMask;
   b[size++] = BranchNew(moves, PAWN_ATTACKS_LEFT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
 
   // PAWN_ATTACKS_RIGHT
-  moves = PAWN_ATTACKS_RIGHT(b1, cb->turn) & them & checkMask;
+  moves = PAWN_ATTACKS_RIGHT(b1, cb->turn) & THEM & checkMask;
   b[size++] = BranchNew(moves, PAWN_ATTACKS_RIGHT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
 
   // SINGLE_PUSH
@@ -268,44 +266,4 @@ int BranchPrune(LookupTable l, ChessBoard *cb, Branch *b, int size)
   (void)movesPruned;
   (void)nextMoves;
   return 0;
-}
-
-// Our pinned pieces and their checking pieces
-static BitBoard getCheckingPieces(LookupTable l, ChessBoard *cb, BitBoard them, BitBoard *pinned)
-{
-  Square ourKing = BitBoardGetLSB(OUR(King));
-  BitBoard checking = (PAWN_ATTACKS(OUR(King), cb->turn) & THEIR(Pawn)) |
-                      (LookupTableAttacks(l, ourKing, Knight, EMPTY_BOARD) & THEIR(Knight));
-  BitBoard candidates = (LookupTableAttacks(l, ourKing, Bishop, them) & (THEIR(Bishop) | THEIR(Queen))) |
-                        (LookupTableAttacks(l, ourKing, Rook, them) & (THEIR(Rook) | THEIR(Queen)));
-
-  BitBoard b;
-  Square s;
-  *pinned = EMPTY_BOARD;
-  while (candidates)
-  {
-    s = BitBoardPopLSB(&candidates);
-    b = LookupTableGetSquaresBetween(l, ourKing, s) & ALL & ~them;
-    if (b == EMPTY_BOARD)
-      checking |= BitBoardSetBit(EMPTY_BOARD, s);
-    else if ((b & (b - 1)) == EMPTY_BOARD)
-      *pinned |= b;
-  }
-
-  return checking;
-}
-
-static BitBoard getAttackedSquares(LookupTable l, ChessBoard *cb, BitBoard them)
-{
-  BitBoard attacked, b;
-  BitBoard occupancies = ALL & ~OUR(King);
-
-  attacked = PAWN_ATTACKS(THEIR(Pawn), (!cb->turn));
-  b = them & ~THEIR(Pawn);
-  while (b)
-  {
-    Square s = BitBoardPopLSB(&b);
-    attacked |= LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), occupancies);
-  }
-  return attacked;
 }

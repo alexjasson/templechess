@@ -7,12 +7,20 @@
 #include "LookupTable.h"
 #include "ChessBoard.h"
 
+#define OUR(t) (cb->pieces[GET_PIECE(t, cb->turn)])                                     // Bitboard representing our pieces of type t
+#define THEIR(t) (cb->pieces[GET_PIECE(t, !cb->turn)])                                  // Bitboard representing their pieces of type t
+#define ALL (~cb->pieces[EMPTY_PIECE])                                                  // Bitboard of all the pieces
+#define US (OUR(Pawn) | OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen) | OUR(King)) // Bitboard of all our pieces
+#define THEM (ALL & ~US)                                                                // Bitboard of all their pieces
+
 // Masks used for castling
 #define KINGSIDE_CASTLING 0x9000000000000090
 #define QUEENSIDE_CASTLING 0x1100000000000011
 #define QUEENSIDE 0x1F1F1F1F1F1F1F1F
 #define KINGSIDE 0xF0F0F0F0F0F0F0F0
 #define BACK_RANK(c) (BitBoard)((c == White) ? SOUTH_EDGE : NORTH_EDGE)
+
+#define PAWN_ATTACKS(b, c) ((c == White) ? BitBoardShiftNW(b) | BitBoardShiftNE(b) : BitBoardShiftSW(b) | BitBoardShiftSE(b))
 
 static Color getColorFromASCII(char asciiColor);
 static char getASCIIFromPiece(Piece p);
@@ -177,4 +185,84 @@ void ChessBoardPrintBoard(ChessBoard cb)
 void ChessBoardPrintMove(Move m, long nodes)
 {
   printf("%c%d%c%d: %ld\n", 'a' + (m.from % EDGE_SIZE), EDGE_SIZE - (m.from / EDGE_SIZE), 'a' + (m.to % EDGE_SIZE), EDGE_SIZE - (m.to / EDGE_SIZE), nodes);
+}
+
+// Given a chessboard, return a BitBoard representing their pieces that are giving check
+BitBoard ChessBoardChecking(LookupTable l, ChessBoard *cb)
+{
+  Square ourKing = BitBoardGetLSB(OUR(King));
+  BitBoard checking = (PAWN_ATTACKS(OUR(King), cb->turn) & THEIR(Pawn)) |
+                      (LookupTableAttacks(l, ourKing, Knight, EMPTY_BOARD) & THEIR(Knight));
+  BitBoard candidates = (LookupTableAttacks(l, ourKing, Bishop, THEM) & (THEIR(Bishop) | THEIR(Queen))) |
+                        (LookupTableAttacks(l, ourKing, Rook, THEM) & (THEIR(Rook) | THEIR(Queen)));
+
+  while (candidates)
+  {
+    Square s = BitBoardPopLSB(&candidates);
+    BitBoard b = LookupTableGetSquaresBetween(l, ourKing, s) & ALL & ~THEM;
+    if (b == EMPTY_BOARD)
+    {
+      checking |= BitBoardSetBit(EMPTY_BOARD, s);
+    }
+  }
+
+  return checking;
+}
+
+// Given a chessboard, return a BitBoard representing our pieces that are pinned
+BitBoard ChessBoardPinned(LookupTable l, ChessBoard *cb)
+{
+  Square ourKing = BitBoardGetLSB(OUR(King));
+  BitBoard candidates = (LookupTableAttacks(l, ourKing, Bishop, THEM) & (THEIR(Bishop) | THEIR(Queen))) |
+                        (LookupTableAttacks(l, ourKing, Rook, THEM) & (THEIR(Rook) | THEIR(Queen)));
+  BitBoard pinned = EMPTY_BOARD;
+
+  while (candidates)
+  {
+    Square s = BitBoardPopLSB(&candidates);
+    BitBoard b = LookupTableGetSquaresBetween(l, ourKing, s) & ALL & ~THEM;
+    if (b != EMPTY_BOARD && (b & (b - 1)) == EMPTY_BOARD)
+    {
+      pinned |= b;
+    }
+  }
+
+  return pinned;
+}
+
+// Given a chessboard, return a BitBoard representing our pieces that can give a discovered check
+BitBoard ChessBoardDiscovered(LookupTable l, ChessBoard *cb)
+{
+  Square theirKing = BitBoardGetLSB(THEIR(King));
+  BitBoard candidates = (LookupTableAttacks(l, theirKing, Bishop, THEM) & (OUR(Bishop) | OUR(Queen))) |
+                        (LookupTableAttacks(l, theirKing, Rook, THEM) & (OUR(Rook) | OUR(Queen)));
+  BitBoard discovered = EMPTY_BOARD;
+
+  while (candidates)
+  {
+    Square s = BitBoardPopLSB(&candidates);
+    BitBoard b = LookupTableGetSquaresBetween(l, theirKing, s) & ALL & ~THEM;
+    if (b != EMPTY_BOARD && (b & (b - 1)) == EMPTY_BOARD)
+    {
+      discovered |= b;
+    }
+  }
+
+  return discovered;
+}
+
+// Given a chessboard, return a bitboard representing the squares that are attacked by their pieces
+BitBoard ChessBoardAttacked(LookupTable l, ChessBoard *cb)
+{
+  BitBoard attacked, b;
+  BitBoard occupancies = ALL & ~OUR(King);
+
+  attacked = PAWN_ATTACKS(THEIR(Pawn), (!cb->turn));
+  b = THEM & ~THEIR(Pawn);
+  while (b)
+  {
+    Square s = BitBoardPopLSB(&b);
+    attacked |= LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), occupancies);
+  }
+  return attacked;
 }
