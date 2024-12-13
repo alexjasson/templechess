@@ -41,9 +41,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, int base)
 
   long nodes = 0;
   if (cb->depth == 2)
-  {
     nodes += BranchPrune(l, cb, branches, branchesSize); // Note that this function is not implemented
-  }
 
   ChessBoard new;
   Move moves[MOVES_SIZE];
