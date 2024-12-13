@@ -104,18 +104,31 @@ void initializeLookupTable(LookupTable l)
 
     // Fill bishop and rook attack tables
     l->bishopMagics[s] = getMagic(s, Bishop, fp);
-    l->rookMagics[s] = getMagic(s, Rook, fp);
     for (int i = 0; i < BISHOP_ATTACKS_POWERSET; i++)
     {
       BitBoard occupancies = getBitsSubset(i, l->bishopMagics[s].bits);
       int index = magicHash(l->bishopMagics[s], occupancies);
-      l->bishopAttacks[s][index][0] = getAttacks(s, Bishop, occupancies);
+      attacks = getAttacks(s, Bishop, occupancies);
+      l->bishopAttacks[s][index][0] = attacks;
+      while (attacks)
+      {
+        Square s1 = BitBoardPopLSB(&attacks);
+        l->bishopAttacks[s][index][1] |= getAttacks(s1, Bishop, occupancies);
+      }
     }
+
+    l->rookMagics[s] = getMagic(s, Rook, fp);
     for (int i = 0; i < ROOK_ATTACKS_POWERSET; i++)
     {
       BitBoard occupancies = getBitsSubset(i, l->rookMagics[s].bits);
       int index = magicHash(l->rookMagics[s], occupancies);
-      l->rookAttacks[s][index][0] = getAttacks(s, Rook, occupancies);
+      attacks = getAttacks(s, Rook, occupancies);
+      l->rookAttacks[s][index][0] = attacks;
+      while (attacks)
+      {
+        Square s1 = BitBoardPopLSB(&attacks);
+        l->rookAttacks[s][index][1] |= getAttacks(s1, Rook, occupancies);
+      }
     }
   }
   fclose(fp);
