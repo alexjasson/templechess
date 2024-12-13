@@ -6,31 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define OUR(t) (cb->pieces[GET_PIECE(t, cb->turn)])                                     // Bitboard representing our pieces of type t
-#define THEIR(t) (cb->pieces[GET_PIECE(t, !cb->turn)])                                  // Bitboard representing their pieces of type t
-#define ALL (~cb->pieces[EMPTY_PIECE])                                                  // Bitboard of all the pieces
-#define US (OUR(Pawn) | OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen) | OUR(King)) // Bitboard of all our pieces
-#define THEM (ALL & ~US)                                                                // Bitboard of all their pieces
-
-// Masks used for castling
-#define KINGSIDE_CASTLING 0x9000000000000090
-#define QUEENSIDE_CASTLING 0x1100000000000011
-#define QUEENSIDE 0x1F1F1F1F1F1F1F1F
-#define KINGSIDE 0xF0F0F0F0F0F0F0F0
-#define ATTACK_MASK 0x6c0000000000006c
-#define OCCUPANCY_MASK 0x6e0000000000006e
-
-#define PAWN_ATTACKS(b, c) ((c == White) ? BitBoardShiftNW(b) | BitBoardShiftNE(b) : BitBoardShiftSW(b) | BitBoardShiftSE(b))
-#define PAWN_ATTACKS_LEFT(b, c) ((c == White) ? BitBoardShiftNW(b) : BitBoardShiftSE(b))
-#define PAWN_ATTACKS_RIGHT(b, c) ((c == White) ? BitBoardShiftNE(b) : BitBoardShiftSW(b))
-#define SINGLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(b) : BitBoardShiftS(b))
-#define DOUBLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(BitBoardShiftN(b)) : BitBoardShiftS(BitBoardShiftS(b)))
-
-#define GET_RANK(s) (SOUTH_EDGE >> (EDGE_SIZE * (EDGE_SIZE - BitBoardGetRank(s) - 1)))
-#define ENPASSANT_RANK(c) (BitBoard) SOUTH_EDGE >> (EDGE_SIZE * ((c * 3) + 2))
-#define PROMOTING_RANK(c) (BitBoard)((c == White) ? NORTH_EDGE : SOUTH_EDGE)
-#define BACK_RANK(c) (BitBoard)((c == White) ? SOUTH_EDGE : NORTH_EDGE)
-
 Branch BranchNew(BitBoard to, BitBoard from, Piece moved)
 {
   Branch b;
@@ -56,7 +31,7 @@ int BranchFill(LookupTable l, ChessBoard *cb, Branch *b)
     checkMask &= (BitBoardSetBit(EMPTY_BOARD, s) | LookupTableGetSquaresBetween(l, BitBoardGetLSB(OUR(King)), s));
   }
 
-  // King moves
+  // King branch
   moves = LookupTableAttacks(l, BitBoardGetLSB(OUR(King)), King, EMPTY_BOARD) & ~US & ~attacked;
   b1 = (cb->castling | (attacked & ATTACK_MASK) | (ALL & OCCUPANCY_MASK)) & BACK_RANK(cb->turn);
   if ((b1 & KINGSIDE) == (KINGSIDE_CASTLING & BACK_RANK(cb->turn)) && (~checkMask == EMPTY_BOARD))
@@ -65,7 +40,7 @@ int BranchFill(LookupTable l, ChessBoard *cb, Branch *b)
     moves |= OUR(King) >> 2;
   b[size++] = BranchNew(moves, OUR(King), GET_PIECE(King, cb->turn));
 
-  // Piece moves
+  // Piece branches
   b1 = US & ~(OUR(Pawn) | OUR(King));
   while (b1)
   {
@@ -78,32 +53,18 @@ int BranchFill(LookupTable l, ChessBoard *cb, Branch *b)
     b[size++] = BranchNew(moves, BitBoardSetBit(EMPTY_BOARD, s), cb->squares[s]);
   }
 
-  // Pawn moves
+  // Pawn branches
   b1 = OUR(Pawn);
-
-  // PAWN_ATTACKS_LEFT
   moves = PAWN_ATTACKS_LEFT(b1, cb->turn) & THEM & checkMask;
   b[size++] = BranchNew(moves, PAWN_ATTACKS_LEFT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
-
-  // PAWN_ATTACKS_RIGHT
   moves = PAWN_ATTACKS_RIGHT(b1, cb->turn) & THEM & checkMask;
   b[size++] = BranchNew(moves, PAWN_ATTACKS_RIGHT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
-
-  // SINGLE_PUSH
   b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
   moves = b2 & checkMask;
   b[size++] = BranchNew(moves, SINGLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
-
-  // DOUBLE_PUSH
   moves = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & checkMask;
   b[size++] = BranchNew(moves, DOUBLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
 
-  // Adjust pinned pawns
-  // The last four entries correspond to the four pawn moves above:
-  //   [size-4]: PAWN_ATTACKS_LEFT
-  //   [size-3]: PAWN_ATTACKS_RIGHT
-  //   [size-2]: SINGLE_PUSH
-  //   [size-1]: DOUBLE_PUSH
   {
     int baseIndex = size - 4;
     b1 = OUR(Pawn) & pinned;
@@ -113,25 +74,19 @@ int BranchFill(LookupTable l, ChessBoard *cb, Branch *b)
       b2 = BitBoardSetBit(EMPTY_BOARD, s);
       b3 = LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
 
-      // PAWN_ATTACKS_LEFT
+      // Remove any attacks that aren't on the pin mask from the set
       b[baseIndex + 0].to &= ~(PAWN_ATTACKS_LEFT(b2, cb->turn) & ~b3);
       b[baseIndex + 0].from = PAWN_ATTACKS_LEFT(b[baseIndex + 0].to, (!cb->turn));
-
-      // PAWN_ATTACKS_RIGHT
       b[baseIndex + 1].to &= ~(PAWN_ATTACKS_RIGHT(b2, cb->turn) & ~b3);
       b[baseIndex + 1].from = PAWN_ATTACKS_RIGHT(b[baseIndex + 1].to, (!cb->turn));
-
-      // SINGLE_PUSH
       b[baseIndex + 2].to &= ~(SINGLE_PUSH(b2, cb->turn) & ~b3);
       b[baseIndex + 2].from = SINGLE_PUSH(b[baseIndex + 2].to, (!cb->turn));
-
-      // DOUBLE_PUSH
       b[baseIndex + 3].to &= ~(DOUBLE_PUSH(b2, cb->turn) & ~b3);
       b[baseIndex + 3].from = DOUBLE_PUSH(b[baseIndex + 3].to, (!cb->turn));
     }
   }
 
-  // En passant
+  // En passant branch
   if (cb->enPassant != EMPTY_SQUARE)
   {
     b1 = PAWN_ATTACKS(BitBoardSetBit(EMPTY_BOARD, cb->enPassant), (!cb->turn)) & OUR(Pawn);
@@ -228,42 +183,20 @@ int BranchExtract(Branch *b, int size, Move *moves)
 }
 
 /*
- * If we're at depth 2, we only need to play moves that will interfere
- * with the next move. Otherwise, we can remove these moves from the branch
- * and calculate how many moves have been "saved" by pruning.
- *
- * A move interferes if:
- * -   the to square intersects with any slider piece/pawn move of opponent (including king)
- * -   the to square intersects with any piece of the opponent
- * -   its a double push
- * -   the move somehow disrupts the king moves of next move ie it either attacks the king,
- *     attacks a square the king can move, reliquishes an attack to a square the king can move,
- *     occupies a castling square, or discovered attacks the king - how do we know?
- *       the king moves of the next move are determined by the relevant squares that are
- *       attacked... What if we get the number of times each relevant square is attacked
- *       and then see how this number changes?
+ * Suppose we're two moves before a leaf node, and we have an array of branches for the current
+ * moves that can be played. If any of the moves in a current branch don't interfere with all the
+ * moves in the next branch, we can multiply the total number of moves that don't interfere with
+ * the number of moves in the next branch. This means we wouldn't have to explore the next branch
+ * for these moves at all.
  */
-int BranchPrune(LookupTable l, ChessBoard *cb, Branch *b, int size)
+int BranchPrune(LookupTable l, ChessBoard *cb, Branch *curr, int currSize)
 {
-  // Get an array of branches for the next move
-  Branch next[BRANCH_SIZE];
-  cb->turn = !cb->turn;
-  int nextSize = BranchFill(l, cb, next);
-  cb->turn = !cb->turn;
-  int nextMoves = BranchCount(next, nextSize);
 
-  // Go through all branches of b and start pruning, count how many were pruned
-  int movesPruned = 0;
-  for (int i = 0; i < size; i++)
-  {
-    // If a move in the branch
-  }
+  // Your code here
 
   (void)l;
   (void)cb;
-  (void)b;
-  (void)size;
-  (void)movesPruned;
-  (void)nextMoves;
+  (void)curr;
+  (void)currSize;
   return 0;
 }

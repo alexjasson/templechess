@@ -3,13 +3,54 @@
 
 typedef struct lookupTable *LookupTable;
 
-typedef enum { Pawn, King, Knight, Bishop, Rook, Queen } Type;
-typedef enum { White, Black } Color;
+// Each type of piece on a chess board
+typedef enum
+{
+  Pawn,
+  King,
+  Knight,
+  Bishop,
+  Rook,
+  Queen
+} Type;
 
+// Each color a piece/player can be
+typedef enum
+{
+  White,
+  Black
+} Color;
+
+/*
+ * Creates a new lookup table, roughly 5MB in size on the heap.
+ */
 LookupTable LookupTableNew(void);
+
+/*
+ * Free the lookup table from memory.
+ */
 void LookupTableFree(LookupTable l);
+
+/*
+ * Given a square, type of piece, and a set of occupancies, return a bitboard
+ * representing the squares that the piece could attack.
+ */
 BitBoard LookupTableAttacks(LookupTable l, Square s, Type t, BitBoard o);
+
+/*
+ * As above except if a piece could move twice where would it end up? Return this set of squares
+ */
+BitBoard LookupTableAttacks2D(LookupTable l, Square s, Type t, BitBoard o);
+
+/*
+ * Given two squares, return a bitboard representing the squares between them (exclusive).
+ */
 BitBoard LookupTableGetSquaresBetween(LookupTable l, Square s1, Square s2);
+
+/*
+ * Given two squares, returns all the squares of a rank/file/diagonal/antidiagonal they're on,
+ * if they're not on the same rank/file/diagonal/antidiagonal, return an empty bitboard.
+ */
 BitBoard LookupTableGetLineOfSight(LookupTable l, Square s1, Square s2);
 
 #endif

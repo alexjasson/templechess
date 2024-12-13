@@ -25,9 +25,6 @@ int main(int argc, char **argv)
   LookupTable l = LookupTableNew();
   long nodes = treeSearch(l, &cb, 1);
   printf("\nNodes searched: %ld\n", nodes);
-
-  BitBoard hi = ChessBoardDiscovered(l, &cb);
-  BitBoardPrint(hi);
   LookupTableFree(l);
 }
 
@@ -36,18 +33,23 @@ static long treeSearch(LookupTable l, ChessBoard *cb, int base)
   if (cb->depth == 0)
     return 1;
 
-  Branch br[BRANCH_SIZE];
-  int brSize = BranchFill(l, cb, br);
+  Branch branches[BRANCHES_SIZE];
+  int branchesSize = BranchFill(l, cb, branches);
 
   if ((cb->depth == 1) && (!base))
-    return BranchCount(br, brSize);
+    return BranchCount(branches, branchesSize);
 
   long nodes = 0;
+  if (cb->depth == 2)
+  {
+    nodes += BranchPrune(l, cb, branches, branchesSize); // Note that this function is not implemented
+  }
+
   ChessBoard new;
   Move moves[MOVES_SIZE];
 
-  int moveCount = BranchExtract(br, brSize, moves);
-  for (int i = 0; i < moveCount; i++)
+  int movesSize = BranchExtract(branches, branchesSize, moves);
+  for (int i = 0; i < movesSize; i++)
   {
     Move m = moves[i];
     ChessBoardPlayMove(&new, cb, m);
