@@ -72,11 +72,6 @@ ChessBoard ChessBoardNew(char *fen, int depth); // Stack allocated
 void ChessBoardPlayMove(ChessBoard *new, ChessBoard *old, Move move);
 
 /*
- * Given an old board a new board, copy the old and pass the turn to other player
- */
-void ChessBoardPassMove(ChessBoard *new, ChessBoard *old);
-
-/*
  * Prints a chess board to stdout
  */
 void ChessBoardPrintBoard(ChessBoard cb);

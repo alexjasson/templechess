@@ -142,14 +142,6 @@ void ChessBoardPlayMove(ChessBoard *new, ChessBoard *old, Move m)
   new->depth--;
 }
 
-void ChessBoardPassMove(ChessBoard *new, ChessBoard *old)
-{
-  memcpy(new, old, sizeof(ChessBoard));
-  new->enPassant = EMPTY_SQUARE;
-  new->turn = !new->turn;
-  new->depth--;
-}
-
 // Adds a piece to a chessboard
 static void addPiece(ChessBoard *cb, Square s, Piece replacement)
 {

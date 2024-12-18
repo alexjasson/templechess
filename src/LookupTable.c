@@ -8,7 +8,6 @@
 #define FALSE 0
 #define IS_DIAGONAL(d) (d % 2 == 1)
 #define POWERSET_SIZE(n) (1 << n)
-#define DIMENSION_SIZE 2
 #define BISHOP_ATTACKS_POWERSET 512
 #define ROOK_ATTACKS_POWERSET 4096
 #define MAGIC_NUMBERS "data/magicNumbers.out"
@@ -34,10 +33,10 @@ typedef struct
 
 struct lookupTable
 {
-  BitBoard knightAttacks[BOARD_SIZE][DIMENSION_SIZE];
-  BitBoard kingAttacks[BOARD_SIZE][DIMENSION_SIZE];
-  BitBoard bishopAttacks[BOARD_SIZE][BISHOP_ATTACKS_POWERSET][DIMENSION_SIZE];
-  BitBoard rookAttacks[BOARD_SIZE][ROOK_ATTACKS_POWERSET][DIMENSION_SIZE];
+  BitBoard knightAttacks[BOARD_SIZE];
+  BitBoard kingAttacks[BOARD_SIZE];
+  BitBoard bishopAttacks[BOARD_SIZE][BISHOP_ATTACKS_POWERSET];
+  BitBoard rookAttacks[BOARD_SIZE][ROOK_ATTACKS_POWERSET];
   Magic bishopMagics[BOARD_SIZE]; // Used for bishop attacks
   Magic rookMagics[BOARD_SIZE];   // Used for rook attacks
 
@@ -84,23 +83,9 @@ void initializeLookupTable(LookupTable l)
 
   for (Square s = 0; s < BOARD_SIZE; s++)
   {
-    // Fill both 1d and 2d knight attack tables
-    BitBoard attacks = getAttacks(s, Knight, EMPTY_BOARD);
-    l->knightAttacks[s][0] = attacks;
-    while (attacks)
-    {
-      Square s1 = BitBoardPopLSB(&attacks);
-      l->knightAttacks[s][1] |= getAttacks(s1, Knight, EMPTY_BOARD);
-    }
-
-    // Fill both 1d and 2d king attack tables
-    attacks = getAttacks(s, King, EMPTY_BOARD);
-    l->kingAttacks[s][0] = attacks;
-    while (attacks)
-    {
-      Square s1 = BitBoardPopLSB(&attacks);
-      l->kingAttacks[s][1] |= getAttacks(s1, King, EMPTY_BOARD);
-    }
+    // Fill knight and king attack tables
+    l->knightAttacks[s] = getAttacks(s, Knight, EMPTY_BOARD);
+    l->kingAttacks[s] = getAttacks(s, King, EMPTY_BOARD);
 
     // Fill bishop and rook attack tables
     l->bishopMagics[s] = getMagic(s, Bishop, fp);
@@ -108,13 +93,7 @@ void initializeLookupTable(LookupTable l)
     {
       BitBoard occupancies = getBitsSubset(i, l->bishopMagics[s].bits);
       int index = magicHash(l->bishopMagics[s], occupancies);
-      attacks = getAttacks(s, Bishop, occupancies);
-      l->bishopAttacks[s][index][0] = attacks;
-      while (attacks)
-      {
-        Square s1 = BitBoardPopLSB(&attacks);
-        l->bishopAttacks[s][index][1] |= getAttacks(s1, Bishop, occupancies);
-      }
+      l->bishopAttacks[s][index] = getAttacks(s, Bishop, occupancies);
     }
 
     l->rookMagics[s] = getMagic(s, Rook, fp);
@@ -122,13 +101,7 @@ void initializeLookupTable(LookupTable l)
     {
       BitBoard occupancies = getBitsSubset(i, l->rookMagics[s].bits);
       int index = magicHash(l->rookMagics[s], occupancies);
-      attacks = getAttacks(s, Rook, occupancies);
-      l->rookAttacks[s][index][0] = attacks;
-      while (attacks)
-      {
-        Square s1 = BitBoardPopLSB(&attacks);
-        l->rookAttacks[s][index][1] |= getAttacks(s1, Rook, occupancies);
-      }
+      l->rookAttacks[s][index] = getAttacks(s, Rook, occupancies);
     }
   }
   fclose(fp);
@@ -154,39 +127,18 @@ BitBoard LookupTableAttacks(LookupTable l, Square s, Type t, BitBoard occupancie
   switch (t)
   {
   case Knight:
-    return l->knightAttacks[s][0];
+    return l->knightAttacks[s];
   case King:
-    return l->kingAttacks[s][0];
+    return l->kingAttacks[s];
   case Bishop:
-    return l->bishopAttacks[s][magicHash(l->bishopMagics[s], occupancies)][0];
+    return l->bishopAttacks[s][magicHash(l->bishopMagics[s], occupancies)];
   case Rook:
-    return l->rookAttacks[s][magicHash(l->rookMagics[s], occupancies)][0];
+    return l->rookAttacks[s][magicHash(l->rookMagics[s], occupancies)];
   case Queen:
-    return l->bishopAttacks[s][magicHash(l->bishopMagics[s], occupancies)][0] |
-           l->rookAttacks[s][magicHash(l->rookMagics[s], occupancies)][0];
+    return l->bishopAttacks[s][magicHash(l->bishopMagics[s], occupancies)] |
+           l->rookAttacks[s][magicHash(l->rookMagics[s], occupancies)];
   default:
     printf("Piece: %d\n", t); // "Invalid piece type\n
-    fprintf(stderr, "Invalid piece type\n");
-    exit(EXIT_FAILURE);
-  }
-}
-
-BitBoard LookupTableAttacks2D(LookupTable l, Square s, Type t, BitBoard occupancies)
-{
-  switch (t)
-  {
-  case Knight:
-    return l->knightAttacks[s][1];
-  case King:
-    return l->kingAttacks[s][1];
-  case Bishop:
-    return l->bishopAttacks[s][magicHash(l->bishopMagics[s], occupancies)][1];
-  case Rook:
-    return l->rookAttacks[s][magicHash(l->rookMagics[s], occupancies)][1];
-  case Queen:
-    return l->bishopAttacks[s][magicHash(l->bishopMagics[s], occupancies)][1] |
-           l->rookAttacks[s][magicHash(l->rookMagics[s], occupancies)][1];
-  default:
     fprintf(stderr, "Invalid piece type\n");
     exit(EXIT_FAILURE);
   }

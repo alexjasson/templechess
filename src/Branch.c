@@ -181,22 +181,3 @@ int BranchExtract(Branch *b, int size, Move *moves)
   }
   return index;
 }
-
-/*
- * Suppose we're two moves before a leaf node, and we have an array of branches for the current
- * moves that can be played. If any of the moves in a current branch don't interfere with all the
- * moves in the next branch, we can multiply the total number of moves that don't interfere with
- * the number of moves in the next branch. This means we wouldn't have to explore the next branch
- * for these moves at all.
- */
-int BranchPrune(LookupTable l, ChessBoard *cb, Branch *curr, int currSize)
-{
-
-  // Your code here
-
-  (void)l;
-  (void)cb;
-  (void)curr;
-  (void)currSize;
-  return 0;
-}
