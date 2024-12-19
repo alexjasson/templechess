@@ -22,7 +22,7 @@ typedef enum
 } Color;
 
 /*
- * Creates a new lookup table, roughly 5MB in size on the heap.
+ * Creates a new lookup table, roughly 2MB in size on the heap.
  */
 LookupTable LookupTableNew(void);
 
