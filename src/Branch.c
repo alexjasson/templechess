@@ -6,6 +6,32 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define OUR(t) (cb->pieces[GET_PIECE(t, cb->turn)])                                     // Bitboard representing our pieces of type t
+#define THEIR(t) (cb->pieces[GET_PIECE(t, !cb->turn)])                                  // Bitboard representing their pieces of type t
+#define ALL (~cb->pieces[EMPTY_PIECE])                                                  // Bitboard of all the pieces
+#define US (OUR(Pawn) | OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen) | OUR(King)) // Bitboard of all our pieces
+#define THEM (ALL & ~US)                                                                // Bitboard of all their pieces
+
+#define GET_RANK(s) (SOUTH_EDGE >> (EDGE_SIZE * (EDGE_SIZE - BitBoardGetRank(s) - 1))) // BitBoard representing the rank of a specific square
+#define ENPASSANT_RANK(c) (BitBoard) SOUTH_EDGE >> (EDGE_SIZE * ((c * 3) + 2))         // BitBoard representing the enpassant rank given a color
+#define PROMOTING_RANK(c) (BitBoard)((c == White) ? NORTH_EDGE : SOUTH_EDGE)           // BitBoard representing the promotion rank given a color
+#define BACK_RANK(c) (BitBoard)((c == White) ? SOUTH_EDGE : NORTH_EDGE)                // BitBoard representing the back rank given a color
+
+// Masks used for castling
+#define KINGSIDE_CASTLING 0x9000000000000090
+#define QUEENSIDE_CASTLING 0x1100000000000011
+#define QUEENSIDE 0x1F1F1F1F1F1F1F1F
+#define KINGSIDE 0xF0F0F0F0F0F0F0F0
+#define ATTACK_MASK 0x6c0000000000006c
+#define OCCUPANCY_MASK 0x6e0000000000006e
+
+// Returns a bitboard representing a set of moves given a set of pawns and a color
+#define PAWN_ATTACKS(b, c) ((c == White) ? BitBoardShiftNW(b) | BitBoardShiftNE(b) : BitBoardShiftSW(b) | BitBoardShiftSE(b))
+#define PAWN_ATTACKS_LEFT(b, c) ((c == White) ? BitBoardShiftNW(b) : BitBoardShiftSE(b))
+#define PAWN_ATTACKS_RIGHT(b, c) ((c == White) ? BitBoardShiftNE(b) : BitBoardShiftSW(b))
+#define SINGLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(b) : BitBoardShiftS(b))
+#define DOUBLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(BitBoardShiftN(b)) : BitBoardShiftS(BitBoardShiftS(b)))
+
 Branch BranchNew(BitBoard to, BitBoard from, Piece moved)
 {
   Branch b;
@@ -180,23 +206,4 @@ int BranchExtract(Branch *b, int size, Move *moves)
     }
   }
   return index;
-}
-
-/*
- * Suppose we're two moves before a leaf node, and we have an array of branches for the current
- * moves that can be played. If any of the moves in a current branch don't interfere with all the
- * moves in the next branch, we can multiply the total number of moves that don't interfere with
- * the number of moves in the next branch. This means we wouldn't have to explore the next branch
- * for these moves at all.
- */
-int BranchPrune(LookupTable l, ChessBoard *cb, Branch *curr, int currSize)
-{
-
-  // Your code here
-
-  (void)l;
-  (void)cb;
-  (void)curr;
-  (void)currSize;
-  return 0;
 }

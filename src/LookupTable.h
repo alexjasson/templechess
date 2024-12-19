@@ -22,7 +22,7 @@ typedef enum
 } Color;
 
 /*
- * Creates a new lookup table, roughly 5MB in size on the heap.
+ * Creates a new lookup table, roughly 2MB in size on the heap.
  */
 LookupTable LookupTableNew(void);
 
@@ -36,11 +36,6 @@ void LookupTableFree(LookupTable l);
  * representing the squares that the piece could attack.
  */
 BitBoard LookupTableAttacks(LookupTable l, Square s, Type t, BitBoard o);
-
-/*
- * As above except if a piece could move twice where would it end up? Return this set of squares
- */
-BitBoard LookupTableAttacks2D(LookupTable l, Square s, Type t, BitBoard o);
 
 /*
  * Given two squares, return a bitboard representing the squares between them (exclusive).

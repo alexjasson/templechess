@@ -7,6 +7,22 @@
 #include "LookupTable.h"
 #include "ChessBoard.h"
 
+#define OUR(t) (cb->pieces[GET_PIECE(t, cb->turn)])                                     // Bitboard representing our pieces of type t
+#define THEIR(t) (cb->pieces[GET_PIECE(t, !cb->turn)])                                  // Bitboard representing their pieces of type t
+#define ALL (~cb->pieces[EMPTY_PIECE])                                                  // Bitboard of all the pieces
+#define US (OUR(Pawn) | OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen) | OUR(King)) // Bitboard of all our pieces
+#define THEM (ALL & ~US)                                                                // Bitboard of all their pieces
+
+#define GET_RANK(s) (SOUTH_EDGE >> (EDGE_SIZE * (EDGE_SIZE - BitBoardGetRank(s) - 1))) // BitBoard representing the rank of a specific square
+#define BACK_RANK(c) (BitBoard)((c == White) ? SOUTH_EDGE : NORTH_EDGE)                // BitBoard representing the back rank given a color
+
+// Masks used for castling
+#define KINGSIDE_CASTLING 0x9000000000000090
+#define QUEENSIDE_CASTLING 0x1100000000000011
+
+// Returns a bitboard representing a set of moves given a set of pawns and a color
+#define PAWN_ATTACKS(b, c) ((c == White) ? BitBoardShiftNW(b) | BitBoardShiftNE(b) : BitBoardShiftSW(b) | BitBoardShiftSE(b))
+
 static Color getColorFromASCII(char asciiColor);
 static char getASCIIFromPiece(Piece p);
 static Piece getPieceFromASCII(char asciiPiece);
@@ -138,14 +154,6 @@ void ChessBoardPlayMove(ChessBoard *new, ChessBoard *old, Move m)
     }
   }
 
-  new->turn = !new->turn;
-  new->depth--;
-}
-
-void ChessBoardPassMove(ChessBoard *new, ChessBoard *old)
-{
-  memcpy(new, old, sizeof(ChessBoard));
-  new->enPassant = EMPTY_SQUARE;
   new->turn = !new->turn;
   new->depth--;
 }
