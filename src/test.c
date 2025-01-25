@@ -69,23 +69,20 @@ int main()
 
 static long treeSearch(LookupTable l, ChessBoard *cb)
 {
+  BranchSet bs;
+  BranchFill(l, cb, &bs);
+
   if (cb->depth == 0)
     return 1;
 
-  BranchSet branches;
-  BranchFill(l, cb, &branches);
-
   if ((cb->depth == 1))
-    return BranchCount(&branches);
+    return BranchCount(&bs);
 
   long nodes = 0;
-  ChessBoard new;
-  Move moves[MOVES_SIZE];
+  ChessBoard new; // Do I need to do this? Can I return in fn below?
 
-  int moveCount = BranchExtract(&branches, moves);
-  for (int i = 0; i < moveCount; i++)
-  {
-    Move m = moves[i];
+  while (!BranchIsEmpty(&bs)) {
+    Move m = BranchPop(&bs);
     ChessBoardPlayMove(&new, cb, m);
     nodes += treeSearch(l, &new);
   }

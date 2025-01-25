@@ -22,6 +22,7 @@ int main(int argc, char **argv)
   }
 
   ChessBoard cb = ChessBoardNew(argv[1], atoi(argv[2]));
+  // depth = arg2
   LookupTable l = LookupTableNew();
   long nodes = treeSearch(l, &cb, 1);
   printf("\nNodes searched: %ld\n", nodes);
@@ -30,23 +31,21 @@ int main(int argc, char **argv)
 
 static long treeSearch(LookupTable l, ChessBoard *cb, int base)
 {
-  if (cb->depth == 0)
-    return 1;
-
+  // Test if a BranchNew function is slow or not - slowness might be compiler optimized
   BranchSet bs;
   BranchFill(l, cb, &bs);
+
+  if (cb->depth == 0)
+    return 1;
 
   if ((cb->depth == 1) && (!base))
     return BranchCount(&bs);
 
   long nodes = 0;
-  ChessBoard new;
-  Move moves[MOVES_SIZE];
+  ChessBoard new; // Do I need to do this? Can I return in fn below?
 
-  int movesSize = BranchExtract(&bs, moves);
-  for (int i = 0; i < movesSize; i++)
-  {
-    Move m = moves[i];
+  while (!BranchIsEmpty(&bs)) {
+    Move m = BranchPop(&bs);
     ChessBoardPlayMove(&new, cb, m);
     int subTree = treeSearch(l, &new, 0);
     if (base)

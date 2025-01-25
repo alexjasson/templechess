@@ -22,8 +22,9 @@ typedef struct
 typedef struct
 {
   Branch branches[BRANCHES_SIZE];
-  int size;
-  Piece prev; // The piece type of the previous move extracted
+  int start;
+  int end;
+  Move prev; // The previous move that was removed from the set
 } BranchSet;
 
 
@@ -54,7 +55,7 @@ int BranchCount(BranchSet *bs);
  * from each branch and store them in the given moves array. Returns the number
  * of moves stored.
  */
-int BranchExtract(BranchSet *bs, Move *moves);
+Move BranchPop(BranchSet *bs);
 
 int BranchIsEmpty(BranchSet *bs);
 
