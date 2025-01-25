@@ -33,17 +33,17 @@ static long treeSearch(LookupTable l, ChessBoard *cb, int base)
   if (cb->depth == 0)
     return 1;
 
-  Branch branches[BRANCHES_SIZE];
-  int branchesSize = BranchFill(l, cb, branches);
+  BranchSet bs;
+  BranchFill(l, cb, &bs);
 
   if ((cb->depth == 1) && (!base))
-    return BranchCount(branches, branchesSize);
+    return BranchCount(&bs);
 
   long nodes = 0;
   ChessBoard new;
   Move moves[MOVES_SIZE];
 
-  int movesSize = BranchExtract(branches, branchesSize, moves);
+  int movesSize = BranchExtract(&bs, moves);
   for (int i = 0; i < movesSize; i++)
   {
     Move m = moves[i];

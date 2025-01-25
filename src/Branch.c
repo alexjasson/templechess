@@ -41,9 +41,12 @@ Branch BranchNew(BitBoard to, BitBoard from, Piece moved)
   return b;
 }
 
-int BranchFill(LookupTable l, ChessBoard *cb, Branch *b)
+void BranchFill(LookupTable l, ChessBoard *cb, BranchSet *bs)
 {
-  int size = 0;
+  // Initialize the branch set
+  bs->size = 0;
+  bs->prev = EMPTY_PIECE;
+
   Square s;
   BitBoard pinned, checking, attacked, checkMask, moves, b1, b2, b3;
 
@@ -64,7 +67,7 @@ int BranchFill(LookupTable l, ChessBoard *cb, Branch *b)
     moves |= OUR(King) << 2;
   if ((b1 & QUEENSIDE) == (QUEENSIDE_CASTLING & BACK_RANK(cb->turn)) && (~checkMask == EMPTY_BOARD))
     moves |= OUR(King) >> 2;
-  b[size++] = BranchNew(moves, OUR(King), GET_PIECE(King, cb->turn));
+  bs->branches[bs->size++] = BranchNew(moves, OUR(King), GET_PIECE(King, cb->turn));
 
   // Piece branches
   b1 = US & ~(OUR(Pawn) | OUR(King));
@@ -76,23 +79,23 @@ int BranchFill(LookupTable l, ChessBoard *cb, Branch *b)
     {
       moves &= LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
     }
-    b[size++] = BranchNew(moves, BitBoardSetBit(EMPTY_BOARD, s), cb->squares[s]);
+    bs->branches[bs->size++] = BranchNew(moves, BitBoardSetBit(EMPTY_BOARD, s), cb->squares[s]);
   }
 
   // Pawn branches
   b1 = OUR(Pawn);
   moves = PAWN_ATTACKS_LEFT(b1, cb->turn) & THEM & checkMask;
-  b[size++] = BranchNew(moves, PAWN_ATTACKS_LEFT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+  bs->branches[bs->size++] = BranchNew(moves, PAWN_ATTACKS_LEFT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
   moves = PAWN_ATTACKS_RIGHT(b1, cb->turn) & THEM & checkMask;
-  b[size++] = BranchNew(moves, PAWN_ATTACKS_RIGHT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+  bs->branches[bs->size++] = BranchNew(moves, PAWN_ATTACKS_RIGHT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
   b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
   moves = b2 & checkMask;
-  b[size++] = BranchNew(moves, SINGLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+  bs->branches[bs->size++] = BranchNew(moves, SINGLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
   moves = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & checkMask;
-  b[size++] = BranchNew(moves, DOUBLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+  bs->branches[bs->size++] = BranchNew(moves, DOUBLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
 
   {
-    int baseIndex = size - 4;
+    int baseIndex = bs->size - 4;
     b1 = OUR(Pawn) & pinned;
     while (b1)
     {
@@ -101,14 +104,14 @@ int BranchFill(LookupTable l, ChessBoard *cb, Branch *b)
       b3 = LookupTableGetLineOfSight(l, BitBoardGetLSB(OUR(King)), s);
 
       // Remove any attacks that aren't on the pin mask from the set
-      b[baseIndex + 0].to &= ~(PAWN_ATTACKS_LEFT(b2, cb->turn) & ~b3);
-      b[baseIndex + 0].from = PAWN_ATTACKS_LEFT(b[baseIndex + 0].to, (!cb->turn));
-      b[baseIndex + 1].to &= ~(PAWN_ATTACKS_RIGHT(b2, cb->turn) & ~b3);
-      b[baseIndex + 1].from = PAWN_ATTACKS_RIGHT(b[baseIndex + 1].to, (!cb->turn));
-      b[baseIndex + 2].to &= ~(SINGLE_PUSH(b2, cb->turn) & ~b3);
-      b[baseIndex + 2].from = SINGLE_PUSH(b[baseIndex + 2].to, (!cb->turn));
-      b[baseIndex + 3].to &= ~(DOUBLE_PUSH(b2, cb->turn) & ~b3);
-      b[baseIndex + 3].from = DOUBLE_PUSH(b[baseIndex + 3].to, (!cb->turn));
+      bs->branches[baseIndex + 0].to &= ~(PAWN_ATTACKS_LEFT(b2, cb->turn) & ~b3);
+      bs->branches[baseIndex + 0].from = PAWN_ATTACKS_LEFT(bs->branches[baseIndex + 0].to, (!cb->turn));
+      bs->branches[baseIndex + 1].to &= ~(PAWN_ATTACKS_RIGHT(b2, cb->turn) & ~b3);
+      bs->branches[baseIndex + 1].from = PAWN_ATTACKS_RIGHT(bs->branches[baseIndex + 1].to, (!cb->turn));
+      bs->branches[baseIndex + 2].to &= ~(SINGLE_PUSH(b2, cb->turn) & ~b3);
+      bs->branches[baseIndex + 2].from = SINGLE_PUSH(bs->branches[baseIndex + 2].to, (!cb->turn));
+      bs->branches[baseIndex + 3].to &= ~(DOUBLE_PUSH(b2, cb->turn) & ~b3);
+      bs->branches[baseIndex + 3].from = DOUBLE_PUSH(bs->branches[baseIndex + 3].to, (!cb->turn));
     }
   }
 
@@ -130,57 +133,55 @@ int BranchFill(LookupTable l, ChessBoard *cb, Branch *b)
     }
     if (b2 != EMPTY_BOARD)
     {
-      b[size++] = BranchNew(b3, b2, GET_PIECE(Pawn, cb->turn));
+      bs->branches[bs->size++] = BranchNew(b3, b2, GET_PIECE(Pawn, cb->turn));
     }
   }
-
-  return size;
 }
 
-int BranchCount(Branch *b, int size)
+int BranchCount(BranchSet *bs)
 {
   int nodes = 0;
-  for (int i = 0; i < size; i++)
+  for (int i = 0; i < bs->size; i++)
   {
-    if ((b[i].to == EMPTY_BOARD || b[i].from == EMPTY_BOARD))
+    if ((bs->branches[i].to == EMPTY_BOARD || bs->branches[i].from == EMPTY_BOARD))
       continue;
-    int x = BitBoardCountBits(b[i].to);
-    int y = BitBoardCountBits(b[i].from);
+    int x = BitBoardCountBits(bs->branches[i].to);
+    int y = BitBoardCountBits(bs->branches[i].from);
     int offset = x - y;
-    Type t = GET_TYPE(b[i].moved);
-    Color c = GET_COLOR(b[i].moved);
+    Type t = GET_TYPE(bs->branches[i].moved);
+    Color c = GET_COLOR(bs->branches[i].moved);
 
     BitBoard promotion = EMPTY_BOARD;
     if (t == Pawn)
-      promotion |= (PROMOTING_RANK(c) & b[i].to);
+      promotion |= (PROMOTING_RANK(c) & bs->branches[i].to);
     if (offset < 0)
       nodes++;
-    nodes += BitBoardCountBits(b[i].to) + BitBoardCountBits(promotion) * 3;
+    nodes += BitBoardCountBits(bs->branches[i].to) + BitBoardCountBits(promotion) * 3;
   }
   return nodes;
 }
 
-int BranchExtract(Branch *b, int size, Move *moves)
+int BranchExtract(BranchSet *bs, Move *moves)
 {
-  Move m;
   int index = 0;
-  for (int i = 0; i < size; i++)
+  for (int i = 0; i < bs->size; i++)
   {
-    if ((b[i].to == EMPTY_BOARD || b[i].from == EMPTY_BOARD))
+    if ((bs->branches[i].to == EMPTY_BOARD || bs->branches[i].from == EMPTY_BOARD))
       continue;
-    int x = BitBoardCountBits(b[i].to);
-    int y = BitBoardCountBits(b[i].from);
+    int x = BitBoardCountBits(bs->branches[i].to);
+    int y = BitBoardCountBits(bs->branches[i].from);
     int offset = x - y;
     int max = (x > y) ? x : y;
 
-    BitBoard toCopy = b[i].to;
-    BitBoard fromCopy = b[i].from;
+    BitBoard toCopy = bs->branches[i].to;
+    BitBoard fromCopy = bs->branches[i].from;
 
     for (int j = 0; j < max; j++)
     {
+      Move m;
       m.from = BitBoardPopLSB(&fromCopy);
       m.to = BitBoardPopLSB(&toCopy);
-      m.moved = b[i].moved;
+      m.moved = bs->branches[i].moved;
       if (offset > 0)
         fromCopy = BitBoardSetBit(fromCopy, m.from);
       else if (offset < 0)
@@ -206,4 +207,8 @@ int BranchExtract(Branch *b, int size, Move *moves)
     }
   }
   return index;
+}
+
+int BranchIsEmpty(BranchSet *bs) {
+  return bs->size == 0;
 }

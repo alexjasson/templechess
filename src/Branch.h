@@ -19,6 +19,14 @@ typedef struct
   Piece moved;
 } Branch;
 
+typedef struct
+{
+  Branch branches[BRANCHES_SIZE];
+  int size;
+  Piece prev; // The piece type of the previous move extracted
+} BranchSet;
+
+
 /*
  * Creates a new branch with the given to, from, and moved values
  */
@@ -33,19 +41,21 @@ Branch BranchNew(BitBoard to, BitBoard from, Piece moved);
  * single pawn pushes and double pawn pushes. Finally, the last branch stores a
  * surjective mapping of en passant moves.
  */
-int BranchFill(LookupTable l, ChessBoard *cb, Branch *b);
+void BranchFill(LookupTable l, ChessBoard *cb, BranchSet *b);
 
 /*
- * Given an array of branches and the size of that array, return the toal number
+ * Given an array of branches and the size of that array, return the total number
  * of moves in all the branches.
  */
-int BranchCount(Branch *b, int size);
+int BranchCount(BranchSet *bs);
 
 /*
  * Given an array of branches and the size of that array, extract all the moves
  * from each branch and store them in the given moves array. Returns the number
  * of moves stored.
  */
-int BranchExtract(Branch *b, int size, Move *moves);
+int BranchExtract(BranchSet *bs, Move *moves);
+
+int BranchIsEmpty(BranchSet *bs);
 
 #endif
