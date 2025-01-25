@@ -42,11 +42,9 @@ static long treeSearch(LookupTable l, ChessBoard *cb, int base)
     return BranchCount(&bs);
 
   long nodes = 0;
-  ChessBoard new; // Do I need to do this? Can I return in fn below?
-
   while (!BranchIsEmpty(&bs)) {
     Move m = BranchPop(&bs);
-    ChessBoardPlayMove(&new, cb, m);
+    ChessBoard new = ChessBoardPlayMove(cb, m);
     int subTree = treeSearch(l, &new, 0);
     if (base)
       ChessBoardPrintMove(m, subTree);

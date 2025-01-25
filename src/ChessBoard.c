@@ -120,42 +120,45 @@ static Color getColorFromASCII(char asciiColor)
 }
 
 // Given an old board and a new board, copy the old board and play the move on the new board
-void ChessBoardPlayMove(ChessBoard *new, ChessBoard *old, Move m)
+ChessBoard ChessBoardPlayMove(ChessBoard *old, Move m)
 {
-  memcpy(new, old, sizeof(ChessBoard));
+  ChessBoard new;
+  memcpy(&new, old, sizeof(ChessBoard));
   int offset = m.from - m.to;
-  new->enPassant = EMPTY_SQUARE;
-  new->castling &= ~(BitBoardSetBit(EMPTY_BOARD, m.from) | BitBoardSetBit(EMPTY_BOARD, m.to));
-  addPiece(new, m.to, m.moved);
-  addPiece(new, m.from, EMPTY_PIECE);
+  new.enPassant = EMPTY_SQUARE;
+  new.castling &= ~(BitBoardSetBit(EMPTY_BOARD, m.from) | BitBoardSetBit(EMPTY_BOARD, m.to));
+  addPiece(&new, m.to, m.moved);
+  addPiece(&new, m.from, EMPTY_PIECE);
 
   if (GET_TYPE(m.moved) == Pawn)
   {
     if ((offset == 16) || (offset == -16))
     { // Double push
-      new->enPassant = m.from - (offset / 2);
+      new.enPassant = m.from - (offset / 2);
     }
     else if (m.to == old->enPassant)
     { // Enpassant
-      addPiece(new, m.to + (new->turn ? -8 : 8), EMPTY_PIECE);
+      addPiece(&new, m.to + (new.turn ? -8 : 8), EMPTY_PIECE);
     }
   }
   else if (GET_TYPE(m.moved) == King)
   {
     if (offset == 2)
     { // Queenside castling
-      addPiece(new, m.to - 2, EMPTY_PIECE);
-      addPiece(new, m.to + 1, GET_PIECE(Rook, new->turn));
+      addPiece(&new, m.to - 2, EMPTY_PIECE);
+      addPiece(&new, m.to + 1, GET_PIECE(Rook, new.turn));
     }
     else if (offset == -2)
     { // Kingside castling
-      addPiece(new, m.to + 1, EMPTY_PIECE);
-      addPiece(new, m.to - 1, GET_PIECE(Rook, new->turn));
+      addPiece(&new, m.to + 1, EMPTY_PIECE);
+      addPiece(&new, m.to - 1, GET_PIECE(Rook, new.turn));
     }
   }
 
-  new->turn = !new->turn;
-  new->depth--;
+  new.turn = !new.turn;
+  new.depth--;
+
+  return new;
 }
 
 // Adds a piece to a chessboard

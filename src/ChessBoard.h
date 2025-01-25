@@ -43,7 +43,7 @@ ChessBoard ChessBoardNew(char *fen, int depth); // Stack allocated
 /*
  * Given an old board and a new board, copy the old board and play the move on the new board
  */
-void ChessBoardPlayMove(ChessBoard *new, ChessBoard *old, Move move);
+ChessBoard ChessBoardPlayMove(ChessBoard *old, Move move);
 
 /*
  * Prints a chess board to stdout
