@@ -182,7 +182,7 @@ static BitBoard getAttacks(Square s, Type t, BitBoard occupancies)
 static BitBoard getRelevantBits(Square s, Type t)
 {
   BitBoard relevantBits = getAttacks(s, t, EMPTY_BOARD);
-  BitBoard piece = BitBoardSetBit(EMPTY_BOARD, s);
+  BitBoard piece = BitBoardAdd(EMPTY_BOARD, s);
   if (piece & ~NORTH_EDGE)
     relevantBits &= ~NORTH_EDGE;
   if (piece & ~SOUTH_EDGE)
@@ -202,8 +202,8 @@ static BitBoard getMove(Square s, Type t, Direction d, int steps)
                                                                                                    : 0;
   int fileOffset = (d >= Northeast && d <= Southeast) ? steps : (d >= Southwest && d <= Northwest) ? -steps
                                                                                                    : 0;
-  int rank = BitBoardGetRank(s);
-  int file = BitBoardGetFile(s);
+  int rank = BitBoardRank(s);
+  int file = BitBoardFile(s);
 
   // Check for out-of-bounds conditions
   if ((rank + rankOffset >= EDGE_SIZE || rank + rankOffset < 0) ||
@@ -214,7 +214,7 @@ static BitBoard getMove(Square s, Type t, Direction d, int steps)
 
   if (!(t == Knight && steps == 1))
   {
-    return BitBoardSetBit(EMPTY_BOARD, s + EDGE_SIZE * rankOffset + fileOffset);
+    return BitBoardAdd(EMPTY_BOARD, s + EDGE_SIZE * rankOffset + fileOffset);
   }
 
   // Handle case where the knight hasn't finished its move
@@ -228,14 +228,13 @@ static BitBoard getMove(Square s, Type t, Direction d, int steps)
 
 static BitBoard getBitsSubset(int index, BitBoard bits)
 {
-  int numBits = BitBoardCountBits(bits);
+  int numBits = BitBoardCount(bits);
   BitBoard relevantBitsSubset = EMPTY_BOARD;
   for (int i = 0; i < numBits; i++)
   {
-    Square s = BitBoardGetLSB(bits);
-    bits = BitBoardPopBit(bits, s);
+    Square s = BitBoardPop(&bits);
     if (index & (1 << i))
-      relevantBitsSubset = BitBoardSetBit(relevantBitsSubset, s);
+      relevantBitsSubset = BitBoardAdd(relevantBitsSubset, s);
   }
   return relevantBitsSubset;
 }
@@ -250,7 +249,7 @@ static Magic getMagic(Square s, Type t, FILE *fp)
 {
   Magic m;
   m.bits = getRelevantBits(s, t);
-  m.bitShift = BOARD_SIZE - BitBoardCountBits(m.bits);
+  m.bitShift = BOARD_SIZE - BitBoardCount(m.bits);
   // Attempt to read magic number from file
   int result = fscanf(fp, "%lu", &m.magicNumber);
   if (result == 1)
@@ -335,15 +334,15 @@ static uint32_t xorshift()
 
 static BitBoard getSquaresBetween(LookupTable l, Square s1, Square s2)
 {
-  BitBoard pieces = BitBoardSetBit(EMPTY_BOARD, s1) | BitBoardSetBit(EMPTY_BOARD, s2);
+  BitBoard pieces = BitBoardAdd(EMPTY_BOARD, s1) | BitBoardAdd(EMPTY_BOARD, s2);
   BitBoard squaresBetween = EMPTY_BOARD;
-  if (BitBoardGetFile(s1) == BitBoardGetFile(s2) || BitBoardGetRank(s1) == BitBoardGetRank(s2))
+  if (BitBoardFile(s1) == BitBoardFile(s2) || BitBoardRank(s1) == BitBoardRank(s2))
   {
     squaresBetween = LookupTableAttacks(l, s1, Rook, pieces) &
                      LookupTableAttacks(l, s2, Rook, pieces);
   }
-  else if (BitBoardGetDiagonal(s1) == BitBoardGetDiagonal(s2) ||
-           BitBoardGetAntiDiagonal(s1) == BitBoardGetAntiDiagonal(s2))
+  else if (BitBoardDiagonal(s1) == BitBoardDiagonal(s2) ||
+           BitBoardAntiDiagonal(s1) == BitBoardAntiDiagonal(s2))
   {
     squaresBetween = LookupTableAttacks(l, s1, Bishop, pieces) &
                      LookupTableAttacks(l, s2, Bishop, pieces);
@@ -354,18 +353,18 @@ static BitBoard getSquaresBetween(LookupTable l, Square s1, Square s2)
 static BitBoard getLineOfSight(LookupTable l, Square s1, Square s2)
 {
   BitBoard lineOfSight = EMPTY_BOARD;
-  if (BitBoardGetFile(s1) == BitBoardGetFile(s2) || BitBoardGetRank(s1) == BitBoardGetRank(s2))
+  if (BitBoardFile(s1) == BitBoardFile(s2) || BitBoardRank(s1) == BitBoardRank(s2))
   {
     lineOfSight = (LookupTableAttacks(l, s1, Rook, EMPTY_BOARD) &
                    LookupTableAttacks(l, s2, Rook, EMPTY_BOARD)) |
-                  BitBoardSetBit(EMPTY_BOARD, s2);
+                  BitBoardAdd(EMPTY_BOARD, s2);
   }
-  else if (BitBoardGetDiagonal(s1) == BitBoardGetDiagonal(s2) ||
-           BitBoardGetAntiDiagonal(s1) == BitBoardGetAntiDiagonal(s2))
+  else if (BitBoardDiagonal(s1) == BitBoardDiagonal(s2) ||
+           BitBoardAntiDiagonal(s1) == BitBoardAntiDiagonal(s2))
   {
     lineOfSight = (LookupTableAttacks(l, s1, Bishop, EMPTY_BOARD) &
                    LookupTableAttacks(l, s2, Bishop, EMPTY_BOARD)) |
-                  BitBoardSetBit(EMPTY_BOARD, s2);
+                  BitBoardAdd(EMPTY_BOARD, s2);
   }
   return lineOfSight;
 }
