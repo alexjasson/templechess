@@ -31,7 +31,6 @@ typedef struct
   Color turn;
   Square enPassant;
   BitBoard castling;
-  int depth; // Start from desired depth and decrement until 0
 } ChessBoard;
 
 /*
@@ -45,12 +44,12 @@ typedef struct
 } Move;
 
 /*
- * Creates a new chess board with the given FEN string and depth
+ * Creates a new chess board with the given FEN string
  */
-ChessBoard ChessBoardNew(char *fen, int depth); // Stack allocated
+ChessBoard ChessBoardNew(char *fen); // Stack allocated
 
 /*
- * Given an old board and a new board, copy the old board and play the move on the new board
+ * Given an old board, play the move on the old board and return the new board
  */
 ChessBoard ChessBoardPlayMove(ChessBoard *old, Move move);
 

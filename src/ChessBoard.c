@@ -18,8 +18,8 @@ static char getASCIIFromPiece(Piece p);
 static Piece getPieceFromASCII(char asciiPiece);
 static void addPiece(ChessBoard *cb, Square s, Piece replacement);
 
-// Assumes FEN and depth is valid
-ChessBoard ChessBoardNew(char *fen, int depth)
+// Assumes FEN is valid
+ChessBoard ChessBoardNew(char *fen)
 {
   ChessBoard cb;
   memset(&cb, 0, sizeof(ChessBoard));
@@ -49,9 +49,8 @@ ChessBoard ChessBoardNew(char *fen, int depth)
   }
   fen++;
 
-  // Parse turn and depth
+  // Parse turn
   cb.turn = getColorFromASCII(*fen);
-  cb.depth = depth;
   fen += 2;
 
   // Parse castling
@@ -109,7 +108,6 @@ static Color getColorFromASCII(char asciiColor)
   return (asciiColor == 'w') ? White : Black;
 }
 
-// Given an old board and a new board, copy the old board and play the move on the new board
 ChessBoard ChessBoardPlayMove(ChessBoard *old, Move m)
 {
   ChessBoard new;
@@ -146,7 +144,6 @@ ChessBoard ChessBoardPlayMove(ChessBoard *old, Move m)
   }
 
   new.turn = !new.turn;
-  new.depth--;
 
   return new;
 }

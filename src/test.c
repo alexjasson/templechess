@@ -10,7 +10,7 @@
 #define POSITIONS "data/testPositions.in"
 #define BUFFER_SIZE 128
 
-static long treeSearch(LookupTable l, ChessBoard *cb);
+static long treeSearch(LookupTable l, ChessBoard *cb, int depth);
 
 int main()
 {
@@ -47,9 +47,9 @@ int main()
 
     fen = buffer;
 
-    ChessBoard cb = ChessBoardNew(fen, depth);
+    ChessBoard cb = ChessBoardNew(fen);
     LookupTable l = LookupTableNew();
-    long result = treeSearch(l, &cb);
+    long result = treeSearch(l, &cb, depth);
     LookupTableFree(l);
 
     // Print results
@@ -67,22 +67,22 @@ int main()
   return 0;
 }
 
-static long treeSearch(LookupTable l, ChessBoard *cb)
+static long treeSearch(LookupTable l, ChessBoard *cb, int depth)
 {
   BranchSet bs = BranchSetNew();
   BranchFill(l, cb, &bs);
 
-  if (cb->depth == 0)
+  if (depth == 0)
     return 1;
 
-  if ((cb->depth == 1))
+  if ((depth == 1))
     return BranchCount(&bs);
 
   long nodes = 0;
   while (!BranchIsEmpty(&bs)) {
     Move m = BranchPop(&bs);
     ChessBoard new = ChessBoardPlayMove(cb, m);
-    nodes += treeSearch(l, &new);
+    nodes += treeSearch(l, &new, depth - 1);
   }
 
   return nodes;
