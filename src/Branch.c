@@ -59,7 +59,7 @@ void BranchFill(LookupTable l, ChessBoard *cb, BranchSet *bs)
   while (checking)
   {
     s = BitBoardPop(&checking);
-    checkMask &= (BitBoardAdd(EMPTY_BOARD, s) | LookupTableGetSquaresBetween(l, BitBoardPeek(OUR(King)), s));
+    checkMask &= (BitBoardAdd(EMPTY_BOARD, s) | LookupTableSquaresBetween(l, BitBoardPeek(OUR(King)), s));
   }
 
   // King branch
@@ -79,7 +79,7 @@ void BranchFill(LookupTable l, ChessBoard *cb, BranchSet *bs)
     moves = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & ~US & checkMask;
     if (BitBoardAdd(EMPTY_BOARD, s) & pinned)
     {
-      moves &= LookupTableGetLineOfSight(l, BitBoardPeek(OUR(King)), s);
+      moves &= LookupTableLineOfSight(l, BitBoardPeek(OUR(King)), s);
     }
     bs->branches[bs->end++] = BranchNew(moves, BitBoardAdd(EMPTY_BOARD, s), cb->squares[s]);
   }
@@ -102,7 +102,7 @@ void BranchFill(LookupTable l, ChessBoard *cb, BranchSet *bs)
   {
     s = BitBoardPop(&b1);
     b2 = BitBoardAdd(EMPTY_BOARD, s);
-    b3 = LookupTableGetLineOfSight(l, BitBoardPeek(OUR(King)), s);
+    b3 = LookupTableLineOfSight(l, BitBoardPeek(OUR(King)), s);
 
     // Remove any attacks that aren't on the pin mask from the set
     bs->branches[baseIndex + 0].to &= ~(PAWN_ATTACKS_LEFT(b2, cb->turn) & ~b3);
@@ -129,7 +129,7 @@ void BranchFill(LookupTable l, ChessBoard *cb, BranchSet *bs)
         continue;
       b2 |= BitBoardAdd(EMPTY_BOARD, s);
       if (b2 & pinned)
-        b2 &= LookupTableGetLineOfSight(l, BitBoardPeek(OUR(King)), cb->enPassant);
+        b2 &= LookupTableLineOfSight(l, BitBoardPeek(OUR(King)), cb->enPassant);
     }
     if (b2 != EMPTY_BOARD)
     {

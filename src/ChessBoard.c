@@ -192,7 +192,7 @@ BitBoard ChessBoardChecking(LookupTable l, ChessBoard *cb)
   while (candidates)
   {
     Square s = BitBoardPop(&candidates);
-    BitBoard b = LookupTableGetSquaresBetween(l, ourKing, s) & ALL & ~THEM;
+    BitBoard b = LookupTableSquaresBetween(l, ourKing, s) & ALL & ~THEM;
     if (b == EMPTY_BOARD)
     {
       checking |= BitBoardAdd(EMPTY_BOARD, s);
@@ -212,7 +212,7 @@ BitBoard ChessBoardPinned(LookupTable l, ChessBoard *cb)
   while (candidates)
   {
     Square s = BitBoardPop(&candidates);
-    BitBoard b = LookupTableGetSquaresBetween(l, ourKing, s) & ALL & ~THEM;
+    BitBoard b = LookupTableSquaresBetween(l, ourKing, s) & ALL & ~THEM;
     if (b != EMPTY_BOARD && (b & (b - 1)) == EMPTY_BOARD)
     {
       pinned |= b;

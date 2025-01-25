@@ -144,12 +144,12 @@ BitBoard LookupTableAttacks(LookupTable l, Square s, Type t, BitBoard occupancie
   }
 }
 
-BitBoard LookupTableGetSquaresBetween(LookupTable l, Square s1, Square s2)
+BitBoard LookupTableSquaresBetween(LookupTable l, Square s1, Square s2)
 {
   return l->squaresBetween[s1][s2];
 }
 
-BitBoard LookupTableGetLineOfSight(LookupTable l, Square s1, Square s2)
+BitBoard LookupTableLineOfSight(LookupTable l, Square s1, Square s2)
 {
   return l->lineOfSight[s1][s2];
 }
