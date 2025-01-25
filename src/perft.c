@@ -31,8 +31,7 @@ int main(int argc, char **argv)
 
 static long treeSearch(LookupTable l, ChessBoard *cb, int base)
 {
-  // Test if a BranchNew function is slow or not - slowness might be compiler optimized
-  BranchSet bs;
+  BranchSet bs = BranchSetNew();
   BranchFill(l, cb, &bs);
 
   if (cb->depth == 0)

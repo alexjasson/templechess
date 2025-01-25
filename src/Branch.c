@@ -42,6 +42,17 @@ Branch BranchNew(BitBoard to, BitBoard from, Piece moved)
   return b;
 }
 
+BranchSet BranchSetNew()
+{
+  BranchSet bs;
+  bs.start = 0;
+  bs.end = 0;
+  bs.branches[0].to = EMPTY_BOARD;
+  bs.branches[0].from = EMPTY_BOARD;
+  bs.branches[0].moved = EMPTY_PIECE;
+  return bs;
+}
+
 void BranchFill(LookupTable l, ChessBoard *cb, BranchSet *bs)
 {
   // Initialize branch set

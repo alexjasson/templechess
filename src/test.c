@@ -69,7 +69,7 @@ int main()
 
 static long treeSearch(LookupTable l, ChessBoard *cb)
 {
-  BranchSet bs;
+  BranchSet bs = BranchSetNew();
   BranchFill(l, cb, &bs);
 
   if (cb->depth == 0)

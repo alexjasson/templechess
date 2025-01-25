@@ -27,6 +27,7 @@ typedef struct
   Move prev; // The previous move that was removed from the set
 } BranchSet;
 
+BranchSet BranchSetNew();
 
 /*
  * Creates a new branch with the given to, from, and moved values
