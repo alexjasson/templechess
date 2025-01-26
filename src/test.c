@@ -1,7 +1,7 @@
 #include "BitBoard.h"
 #include "LookupTable.h"
 #include "ChessBoard.h"
-#include "Branch.h"
+#include "MoveSet.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -69,18 +69,16 @@ int main()
 
 static long treeSearch(LookupTable l, ChessBoard *cb, int depth)
 {
-  BranchSet bs = BranchSetNew();
-  BranchFill(l, cb, &bs);
-
-  if (depth == 0)
-    return 1;
+  MoveSet ms = MoveSetNew();
+  MoveSetFill(l, cb, &ms);
 
   if ((depth == 1))
-    return BranchCount(&bs);
+    return MoveSetCount(&ms);
 
   long nodes = 0;
-  while (!BranchIsEmpty(&bs)) {
-    Move m = BranchPop(&bs);
+  while (!MoveSetIsEmpty(&ms))
+  {
+    Move m = MoveSetPop(&ms);
     ChessBoard new = ChessBoardPlayMove(cb, m);
     nodes += treeSearch(l, &new, depth - 1);
   }

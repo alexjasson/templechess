@@ -6,7 +6,7 @@
 #include "BitBoard.h"
 #include "LookupTable.h"
 #include "ChessBoard.h"
-#include "Branch.h"
+#include "MoveSet.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -15,7 +15,8 @@ static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int base);
 int main(int argc, char **argv)
 {
   // Check arguments
-  if (argc != 3) {
+  if (argc != 3)
+  {
     fprintf(stderr, "Usage: %s <fen> <depth>\n", argv[0]);
     return 1;
   }
@@ -31,20 +32,21 @@ int main(int argc, char **argv)
 
 static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int base)
 {
-  BranchSet bs = BranchSetNew();
-  BranchFill(l, cb, &bs);
+  MoveSet ms = MoveSetNew();
+  MoveSetFill(l, cb, &ms);
 
   if (depth == 0)
     return 1;
 
   if ((depth == 1) && (!base))
-    return BranchCount(&bs);
+    return MoveSetCount(&ms);
 
   long nodes = 0;
-  while (!BranchIsEmpty(&bs)) {
-    Move m = BranchPop(&bs);
-    ChessBoard newBoard = ChessBoardPlayMove(cb, m);
-    long subTree = treeSearch(l, &newBoard, depth - 1, 0);
+  while (!MoveSetIsEmpty(&ms))
+  {
+    Move m = MoveSetPop(&ms);
+    ChessBoard new = ChessBoardPlayMove(cb, m);
+    long subTree = treeSearch(l, &new, depth - 1, 0);
     if (base)
       ChessBoardPrintMove(m, subTree);
     nodes += subTree;
