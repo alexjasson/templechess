@@ -1,7 +1,7 @@
 #include "BitBoard.h"
 #include "LookupTable.h"
 #include "ChessBoard.h"
-#include "Branch.h"
+#include "MoveSet.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,7 +10,7 @@
 #define POSITIONS "data/testPositions.in"
 #define BUFFER_SIZE 128
 
-static long treeSearch(LookupTable l, ChessBoard *cb);
+static long treeSearch(LookupTable l, ChessBoard *cb, int depth);
 
 int main()
 {
@@ -47,9 +47,9 @@ int main()
 
     fen = buffer;
 
-    ChessBoard cb = ChessBoardNew(fen, depth);
+    ChessBoard cb = ChessBoardNew(fen);
     LookupTable l = LookupTableNew();
-    long result = treeSearch(l, &cb);
+    long result = treeSearch(l, &cb, depth);
     LookupTableFree(l);
 
     // Print results
@@ -67,27 +67,20 @@ int main()
   return 0;
 }
 
-static long treeSearch(LookupTable l, ChessBoard *cb)
+static long treeSearch(LookupTable l, ChessBoard *cb, int depth)
 {
-  if (cb->depth == 0)
-    return 1;
+  MoveSet ms = MoveSetNew();
+  MoveSetFill(l, cb, &ms);
 
-  Branch branches[BRANCHES_SIZE];
-  int branchesSize = BranchFill(l, cb, branches);
-
-  if ((cb->depth == 1))
-    return BranchCount(branches, branchesSize);
+  if ((depth == 1))
+    return MoveSetCount(&ms);
 
   long nodes = 0;
-  ChessBoard new;
-  Move moves[MOVES_SIZE];
-
-  int moveCount = BranchExtract(branches, branchesSize, moves);
-  for (int i = 0; i < moveCount; i++)
+  while (!MoveSetIsEmpty(&ms))
   {
-    Move m = moves[i];
-    ChessBoardPlayMove(&new, cb, m);
-    nodes += treeSearch(l, &new);
+    Move m = MoveSetPop(&ms);
+    ChessBoard new = ChessBoardPlayMove(cb, m);
+    nodes += treeSearch(l, &new, depth - 1);
   }
 
   return nodes;

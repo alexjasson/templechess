@@ -40,12 +40,12 @@ BitBoard LookupTableAttacks(LookupTable l, Square s, Type t, BitBoard o);
 /*
  * Given two squares, return a bitboard representing the squares between them (exclusive).
  */
-BitBoard LookupTableGetSquaresBetween(LookupTable l, Square s1, Square s2);
+BitBoard LookupTableSquaresBetween(LookupTable l, Square s1, Square s2);
 
 /*
  * Given two squares, returns all the squares of a rank/file/diagonal/antidiagonal they're on,
  * if they're not on the same rank/file/diagonal/antidiagonal, return an empty bitboard.
  */
-BitBoard LookupTableGetLineOfSight(LookupTable l, Square s1, Square s2);
+BitBoard LookupTableLineOfSight(LookupTable l, Square s1, Square s2);
 
 #endif

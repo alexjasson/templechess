@@ -1,14 +1,23 @@
 #ifndef CHESSBOARD_H
 #define CHESSBOARD_H
 
-#define MOVES_SIZE 218
 #define PIECE_SIZE 12
 #define EMPTY_PIECE 12
 #define GET_PIECE(t, c) ((t << 1) | c) // Get the piece given a type and color
 #define GET_TYPE(p) (p >> 1)           // Get the type of a piece
 #define GET_COLOR(p) (p & 1)           // Get the color of a piece
 
-typedef uint8_t Piece; // 0 = White Pawn, 1 = Black Pawn, 2 = White Knight, 3 = Black Knight, etc.
+#define OUR(t) (cb->pieces[GET_PIECE(t, cb->turn)])                                     // Bitboard representing our pieces of type t
+#define THEIR(t) (cb->pieces[GET_PIECE(t, !cb->turn)])                                  // Bitboard representing their pieces of type t
+#define ALL (~cb->pieces[EMPTY_PIECE])                                                  // Bitboard of all the pieces
+#define US (OUR(Pawn) | OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen) | OUR(King)) // Bitboard of all our pieces
+#define THEM (ALL & ~US)                                                                // Bitboard of all their pieces
+
+/*
+ * A piece is a number from 0 to 11 representing a piece on a chess board.
+ * 0 = White Pawn, 1 = Black Pawn, 2 = White Knight, 3 = Black Knight, etc.
+ */
+typedef uint8_t Piece;
 
 /*
  * Representation of a chess board. Note that castling rights are representated as a set of
@@ -22,7 +31,6 @@ typedef struct
   Color turn;
   Square enPassant;
   BitBoard castling;
-  int depth; // Start from desired depth and decrement until 0
 } ChessBoard;
 
 /*
@@ -36,14 +44,14 @@ typedef struct
 } Move;
 
 /*
- * Creates a new chess board with the given FEN string and depth
+ * Creates a new chess board with the given FEN string
  */
-ChessBoard ChessBoardNew(char *fen, int depth); // Stack allocated
+ChessBoard ChessBoardNew(char *fen); // Stack allocated
 
 /*
- * Given an old board and a new board, copy the old board and play the move on the new board
+ * Given an old board, play the move on the old board and return the new board
  */
-void ChessBoardPlayMove(ChessBoard *new, ChessBoard *old, Move move);
+ChessBoard ChessBoardPlayMove(ChessBoard *old, Move move);
 
 /*
  * Prints a chess board to stdout
