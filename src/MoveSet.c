@@ -4,7 +4,6 @@
 #include "MoveSet.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 // BitBoard representing the rank of a specific square
 #define RANK_OF(s) (SOUTH_EDGE >> (EDGE_SIZE * (EDGE_SIZE - BitBoardRank(s) - 1)))
@@ -20,48 +19,32 @@
 #define SINGLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(b) : BitBoardShiftS(b))
 #define DOUBLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(BitBoardShiftN(b)) : BitBoardShiftS(BitBoardShiftS(b)))
 
-static Map newMap(BitBoard to, BitBoard from, Piece moved);
-static int isMapEmpty(Map m);
+static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Piece moved);
 
-static Map newMap(BitBoard to, BitBoard from, Piece moved)
+// Add the map to moveset if it's non empty
+static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Piece moved)
 {
-  Map b;
-  b.to = to;
-  b.from = from;
-  b.moved = moved;
-  return b;
-}
-
-static int isMapEmpty(Map m)
-{
-  return (m.to == EMPTY_BOARD) || (m.from == EMPTY_BOARD);
+  if (to == EMPTY_BOARD || from == EMPTY_BOARD)
+    return;
+  Map m;
+  m.to = to;
+  m.from = from;
+  m.moved = moved;
+  ms->maps[ms->size++] = m;
 }
 
 MoveSet MoveSetNew()
 {
   MoveSet ms;
-  ms.start = 0;
-  ms.end = 0;
-  ms.maps[0].to = EMPTY_BOARD;
-  ms.maps[0].from = EMPTY_BOARD;
-  ms.maps[0].moved = EMPTY_PIECE;
+  ms.size = 0;
+  ms.prev.moved = EMPTY_PIECE;
+  ms.prev.from = EMPTY_SQUARE;
+  ms.prev.to = EMPTY_SQUARE;
   return ms;
 }
 
-/*
- * Fill each map with the legal moves for each piece on the board. The first map stores an
- * injective mapping of all the legal king moves. The following maps store an injective
- * mapping of each of the piece moves. There are then 4 maps which stores a bijective mapping
- * of the left pawn attacks, right pawn attacks, single pawn pushes and double pawn pushes.
- * Finally, the last map stores a surjective mapping of en passant moves.
- */
 void MoveSetFill(LookupTable l, ChessBoard *cb, MoveSet *ms)
 {
-  memset(ms, 0, sizeof(MoveSet));
-  ms->prev.moved = EMPTY_PIECE;
-  ms->prev.from = EMPTY_SQUARE;
-  ms->prev.to = EMPTY_SQUARE;
-
   Square s;
   BitBoard pinned, checking, attacked, checkMask, moves, b1, b2, b3;
 
@@ -82,7 +65,7 @@ void MoveSetFill(LookupTable l, ChessBoard *cb, MoveSet *ms)
     moves |= OUR(King) << 2;
   if ((b1 & QUEENSIDE) == (QUEENSIDE_CASTLING & BACK_RANK(cb->turn)) && (~checkMask == EMPTY_BOARD))
     moves |= OUR(King) >> 2;
-  ms->maps[ms->end++] = newMap(moves, OUR(King), GET_PIECE(King, cb->turn));
+  addMap(ms, moves, OUR(King), GET_PIECE(King, cb->turn));
 
   // Piece maps
   b1 = US & ~(OUR(Pawn) | OUR(King));
@@ -92,38 +75,30 @@ void MoveSetFill(LookupTable l, ChessBoard *cb, MoveSet *ms)
     moves = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & ~US & checkMask;
     if (BitBoardAdd(EMPTY_BOARD, s) & pinned)
       moves &= LookupTableLineOfSight(l, BitBoardPeek(OUR(King)), s);
-    ms->maps[ms->end++] = newMap(moves, BitBoardAdd(EMPTY_BOARD, s), cb->squares[s]);
+    addMap(ms, moves, BitBoardAdd(EMPTY_BOARD, s), cb->squares[s]);
   }
 
   // Pawn maps
-  b1 = OUR(Pawn);
+  b1 = OUR(Pawn) & ~pinned;
   moves = PAWN_ATTACKS_LEFT(b1, cb->turn) & THEM & checkMask;
-  ms->maps[ms->end++] = newMap(moves, PAWN_ATTACKS_LEFT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+  addMap(ms, moves, PAWN_ATTACKS_LEFT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
   moves = PAWN_ATTACKS_RIGHT(b1, cb->turn) & THEM & checkMask;
-  ms->maps[ms->end++] = newMap(moves, PAWN_ATTACKS_RIGHT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+  addMap(ms, moves, PAWN_ATTACKS_RIGHT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
   b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
   moves = b2 & checkMask;
-  ms->maps[ms->end++] = newMap(moves, SINGLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+  addMap(ms, moves, SINGLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
   moves = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & checkMask;
-  ms->maps[ms->end++] = newMap(moves, DOUBLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
-
-  int baseIndex = ms->end - 4;
+  addMap(ms, moves, DOUBLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
   b1 = OUR(Pawn) & pinned;
   while (b1)
   {
     s = BitBoardPop(&b1);
-    b2 = BitBoardAdd(EMPTY_BOARD, s);
     b3 = LookupTableLineOfSight(l, BitBoardPeek(OUR(King)), s);
-
-    // Remove any attacks that aren't on the pin mask from the set of squares
-    ms->maps[baseIndex + 0].to &= ~(PAWN_ATTACKS_LEFT(b2, cb->turn) & ~b3);
-    ms->maps[baseIndex + 0].from = PAWN_ATTACKS_LEFT(ms->maps[baseIndex + 0].to, (!cb->turn));
-    ms->maps[baseIndex + 1].to &= ~(PAWN_ATTACKS_RIGHT(b2, cb->turn) & ~b3);
-    ms->maps[baseIndex + 1].from = PAWN_ATTACKS_RIGHT(ms->maps[baseIndex + 1].to, (!cb->turn));
-    ms->maps[baseIndex + 2].to &= ~(SINGLE_PUSH(b2, cb->turn) & ~b3);
-    ms->maps[baseIndex + 2].from = SINGLE_PUSH(ms->maps[baseIndex + 2].to, (!cb->turn));
-    ms->maps[baseIndex + 3].to &= ~(DOUBLE_PUSH(b2, cb->turn) & ~b3);
-    ms->maps[baseIndex + 3].from = DOUBLE_PUSH(ms->maps[baseIndex + 3].to, (!cb->turn));
+    moves = PAWN_ATTACKS(BitBoardAdd(EMPTY_BOARD, s), cb->turn) & THEM;
+    b2 = SINGLE_PUSH(BitBoardAdd(EMPTY_BOARD, s), cb->turn) & ~ALL;
+    moves |= b2;
+    moves |= SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL;
+    addMap(ms, moves & b3 & checkMask, BitBoardAdd(EMPTY_BOARD, s), GET_PIECE(Pawn, cb->turn));
   }
 
   // En passant map
@@ -144,38 +119,19 @@ void MoveSetFill(LookupTable l, ChessBoard *cb, MoveSet *ms)
         b2 &= LookupTableLineOfSight(l, BitBoardPeek(OUR(King)), cb->enPassant);
     }
     if (b2 != EMPTY_BOARD)
-      ms->maps[ms->end++] = newMap(b3, b2, GET_PIECE(Pawn, cb->turn));
-  }
-
-  // Tighten the start/end bounds
-  while (isMapEmpty(ms->maps[ms->end]) && (ms->end > 0))
-    ms->end--;
-  while (isMapEmpty(ms->maps[ms->end]) && (ms->start < (MAPS_SIZE - 1)))
-    ms->start++;
-
-  if (ms->end < ms->start) // Moveset is empty so set bounds to sensible values
-  {
-    ms->start = 0;
-    ms->end = 0;
+      addMap(ms, b3, b2, GET_PIECE(Pawn, cb->turn));
   }
 }
 
 int MoveSetCount(MoveSet *ms)
 {
   int nodes = 0;
-  for (int i = ms->start; i <= ms->end; i++)
+  for (int i = 0; i < ms->size; i++)
   {
-    if (ms->maps[i].to == EMPTY_BOARD || ms->maps[i].from == EMPTY_BOARD)
-      continue;
-    int x = BitBoardCount(ms->maps[i].to);
-    int y = BitBoardCount(ms->maps[i].from);
-    int offset = x - y;
-    Type t = GET_TYPE(ms->maps[i].moved);
-    Color c = GET_COLOR(ms->maps[i].moved);
-
+    int offset = BitBoardCount(ms->maps[i].to) - BitBoardCount(ms->maps[i].from);
     BitBoard promotion = EMPTY_BOARD;
-    if (t == Pawn)
-      promotion |= (BACK_RANK(!c) & ms->maps[i].to);
+    if (GET_TYPE(ms->maps[i].moved) == Pawn)
+      promotion |= (BACK_RANK(!GET_COLOR(ms->maps[i].moved)) & ms->maps[i].to);
     if (offset < 0)
       nodes++;
     nodes += BitBoardCount(ms->maps[i].to) + BitBoardCount(promotion) * 3;
@@ -186,14 +142,8 @@ int MoveSetCount(MoveSet *ms)
 // Assumes moveset is not empty
 Move MoveSetPop(MoveSet *ms)
 {
-  while (isMapEmpty(ms->maps[ms->start]))
-    ms->start++;
-
-  int i = ms->start;
-  int x = BitBoardCount(ms->maps[i].to);
-  int y = BitBoardCount(ms->maps[i].from);
-  int offset = x - y; // Determines type of mapping
-
+  int i = ms->size - 1;
+  int offset = BitBoardCount(ms->maps[i].to) - BitBoardCount(ms->maps[i].from);
   Move m;
   m.from = BitBoardPop(&ms->maps[i].from);
   m.to = BitBoardPop(&ms->maps[i].to);
@@ -231,11 +181,15 @@ Move MoveSetPop(MoveSet *ms)
     }
   }
 
+  // Check whether the map is now empty
+  if (ms->maps[i].to == EMPTY_BOARD)
+    ms->size--;
+
   ms->prev = m;
   return m;
 }
 
 int MoveSetIsEmpty(MoveSet *ms)
 {
-  return ((ms->start == ms->end) && (ms->maps[ms->start].to == EMPTY_BOARD || ms->maps[ms->start].from == EMPTY_BOARD));
+  return ms->size == 0;
 }
