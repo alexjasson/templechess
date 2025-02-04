@@ -32,11 +32,11 @@ int main(int argc, char **argv)
 
 static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int base)
 {
-  MoveSet ms = MoveSetNew();
-  MoveSetFill(l, cb, &ms);
-
   if (depth == 0)
     return 1;
+
+  MoveSet ms = MoveSetNew();
+  MoveSetFill(l, cb, &ms);
 
   if ((depth == 1) && (!base))
     return MoveSetCount(&ms);
