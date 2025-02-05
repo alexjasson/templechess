@@ -214,32 +214,34 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
   while (kingRelevant)
   {
     Square s1 = BitBoardPop(&kingRelevant);
+    BitBoard accum = EMPTY_BOARD;
     for (int i = 0; i < ms->size; i++)
     {
       Type tt = GET_TYPE(ms->maps[i].moved);
       if (tt == Pawn)
         continue;
+      BitBoard b1 = (tt > Knight) ? LookupTableLineOfSight(l, s1, BitBoardPeek(ms->maps[i].from)) : EMPTY_BOARD;
       BitBoard isAttacking = OUR(tt) & LookupTableAttacks(l, s1, tt, EMPTY_BOARD);
-      BitBoard canAttack = ms->maps[i].to & LookupTableAttacks(l, s1, tt, EMPTY_BOARD);
-
-      while (isAttacking) // Our pieces that are directly attacking the king squares
-      {
-        // printf("-------------------Piece: %d\n", tt);
-        Square s2 = BitBoardPop(&isAttacking);
-        BitBoard b = LookupTableSquaresBetween(l, s1, s2);
-
-        curr.maps[i].to &= b;
-        // Handle bijective pawn moves
-
-        for (int i = 0; i < ms->size; i++)
-        {
-          if (ms->maps[i].from & b) // Our pieces can't move from the pin mask
-            curr.maps[i].to &= b;
-          curr.maps[i].to &= ~b; // Our pieces can't disrupt pin
-        }
-      }
+      BitBoard canAttack = ms->maps[i].to & LookupTableAttacks(l, s1, tt, EMPTY_BOARD) & ~b1;
+      accum |= isAttacking;
 
       curr.maps[i].to &= ~canAttack;
+      if (isAttacking)
+        curr.maps[i].to = EMPTY_BOARD;
+    }
+    while (accum) // Our pieces that are directly attacking the king squares
+    {
+      // printf("-------------------Piece: %d\n", tt);
+      Square s2 = BitBoardPop(&accum);
+      BitBoard b = LookupTableSquaresBetween(l, s1, s2);
+      // Handle bijective pawn moves
+
+      for (int i = 0; i < ms->size; i++)
+      {
+        if (ms->maps[i].from & b) // Our pieces can't move from the pin mask
+          curr.maps[i].to &= b;
+        curr.maps[i].to &= ~b; // Our pieces can't disrupt pin
+      }
     }
   }
 
