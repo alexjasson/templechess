@@ -205,60 +205,68 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
   ChessBoard temp = ChessBoardFlip(cb); // cb is unchanged
   MoveSetFill(l, &temp, &next);
 
+  BitBoard b1;
+  BitBoard canBlock, isBlocking, canCapture;
+  BitBoard isAttacking = EMPTY_BOARD, canAttack = EMPTY_BOARD;
+  BitBoard theirMoves = EMPTY_BOARD;
+
   // If our pieces aren't on the board, what moves king moves could they play?
   // Implies attack set is empty and occupancy is their pieces
-  BitBoard kingActual = (GET_TYPE(next.maps[0].to) == King) ? next.maps[0].to : EMPTY_BOARD;
   BitBoard kingPotential = LookupTableAttacks(l, BitBoardPeek(THEIR(King)), King, THEM);
 
-  BitBoard kingRelevant = kingActual | kingPotential | BitBoardAdd(EMPTY_BOARD, BitBoardPeek(THEIR(King)));
+  for (int i = 0; i < next.size; i++)
+    theirMoves |= next.maps[i].to;
+
+  for (int i = 0; i < curr.size; i++)
+  {
+    isBlocking = curr.maps[i].from & theirMoves; // Our piece(s) that blocks their piece move(s)
+    canBlock = curr.maps[i].to & theirMoves;     // Our piece move(s) that could block their piece move(s)
+    canCapture = curr.maps[i].to & THEM;         // Our piece moves(s) that could capture their piece(s)
+
+    if (canBlock)
+      curr.maps[i].to &= ~canBlock;
+    if (isBlocking)
+      curr.maps[i].to = EMPTY_BOARD;
+    if (canCapture)
+      curr.maps[i].to &= ~canCapture;
+  }
+
+  BitBoard kingRelevant = kingPotential | BitBoardAdd(EMPTY_BOARD, BitBoardPeek(THEIR(King)));
   while (kingRelevant)
   {
     Square s1 = BitBoardPop(&kingRelevant);
-    BitBoard accum = EMPTY_BOARD;
+    // Iterate through maps and remove moves that could attack the king square
     for (int i = 0; i < ms->size; i++)
     {
-      Type tt = GET_TYPE(ms->maps[i].moved);
-      if (tt == Pawn)
+      Type t = GET_TYPE(ms->maps[i].moved);
+      if (t == Pawn)
         continue;
-      BitBoard b1 = (tt > Knight) ? LookupTableLineOfSight(l, s1, BitBoardPeek(ms->maps[i].from)) : EMPTY_BOARD;
-      BitBoard isAttacking = OUR(tt) & LookupTableAttacks(l, s1, tt, EMPTY_BOARD);
-      BitBoard canAttack = ms->maps[i].to & LookupTableAttacks(l, s1, tt, EMPTY_BOARD) & ~b1;
-      accum |= isAttacking;
-
+      b1 = (t > Knight) ? LookupTableLineOfSight(l, s1, BitBoardPeek(ms->maps[i].from)) : EMPTY_BOARD;
+      canAttack = ms->maps[i].to & LookupTableAttacks(l, s1, t, EMPTY_BOARD) & ~b1;
       curr.maps[i].to &= ~canAttack;
-      if (isAttacking)
-        curr.maps[i].to = EMPTY_BOARD;
     }
-    while (accum) // Our pieces that are directly attacking the king squares
+
+    // Iterate through pieces and find all pieces that are directly attacking the king square
+    for (Type t = Pawn; t <= Queen; t++)
     {
-      // printf("-------------------Piece: %d\n", tt);
-      Square s2 = BitBoardPop(&accum);
+      if (t == Pawn)
+        continue;
+      isAttacking |= OUR(t) & LookupTableAttacks(l, s1, t, EMPTY_BOARD);
+    }
+    while (isAttacking)
+    {
+      Square s2 = BitBoardPop(&isAttacking);
       BitBoard b = LookupTableSquaresBetween(l, s1, s2);
-      // Handle bijective pawn moves
 
       for (int i = 0; i < ms->size; i++)
       {
         if (ms->maps[i].from & b) // Our pieces can't move from the pin mask
           curr.maps[i].to &= b;
         curr.maps[i].to &= ~b; // Our pieces can't disrupt pin
+
+        if (curr.maps[i].from == BitBoardAdd(EMPTY_BOARD, s2))
+          curr.maps[i].to &= b; // Pinning piece can't move away from pin
       }
-    }
-  }
-
-  for (int i = 0; i <= curr.size; i++)
-  {
-    for (int j = 0; j <= next.size; j++)
-    {
-      BitBoard isBlocking = curr.maps[i].from & next.maps[j].to; // Our piece(s) that blocks their piece move(s)
-      BitBoard canBlock = curr.maps[i].to & next.maps[j].to;     // Our piece move(s) that could block their piece move(s)
-      BitBoard canCapture = curr.maps[i].to & THEM;              // Our piece moves(s) that could capture their piece(s)
-
-      if (canBlock)
-        curr.maps[i].to &= ~canBlock;
-      if (isBlocking)
-        curr.maps[i].to = EMPTY_BOARD;
-      if (canCapture)
-        curr.maps[i].to &= ~canCapture;
     }
   }
 
