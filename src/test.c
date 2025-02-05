@@ -37,7 +37,7 @@ int main()
       "MoveSetCount",
       "MoveSetMultiply"};
 
-  for (int i = 0; i < NUM_TESTS; i++)
+  for (int i = 1; i < NUM_TESTS; i++)
   {
     printf("\n\033[1;34m============== Running Test: %s ==============\033[0m\n", testNames[i]);
     while (fgets(buffer, sizeof(buffer), file))

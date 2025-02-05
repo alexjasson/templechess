@@ -207,17 +207,13 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
 
   // If our pieces aren't on the board, what moves king moves could they play?
   // Implies attack set is empty and occupancy is their pieces
-  Square kingSquare = BitBoardPeek(THEIR(King));
-  BitBoard kingActual = EMPTY_BOARD;
-  if (kingActual)
-    kingActual = next.maps[0].to;
-  BitBoard kingPotential = LookupTableAttacks(l, kingSquare, King, THEM);
+  BitBoard kingActual = (GET_TYPE(next.maps[0].to) == King) ? next.maps[0].to : EMPTY_BOARD;
+  BitBoard kingPotential = LookupTableAttacks(l, BitBoardPeek(THEIR(King)), King, THEM);
 
-  BitBoard king = kingActual | kingPotential | BitBoardAdd(EMPTY_BOARD, kingSquare);
-
-  while (king)
+  BitBoard kingRelevant = kingActual | kingPotential | BitBoardAdd(EMPTY_BOARD, BitBoardPeek(THEIR(King)));
+  while (kingRelevant)
   {
-    Square s1 = BitBoardPop(&king);
+    Square s1 = BitBoardPop(&kingRelevant);
     for (int i = 0; i < ms->size; i++)
     {
       Type tt = GET_TYPE(ms->maps[i].moved);
@@ -232,41 +228,18 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
         Square s2 = BitBoardPop(&isAttacking);
         BitBoard b = LookupTableSquaresBetween(l, s1, s2);
 
-        // Count the pieces between the king squares and our attacking piece
-        int piecesBetween = BitBoardCount(b & ALL);
-        if (piecesBetween > 2)
-          continue;
-        if (piecesBetween <= 1)
-        { // Attacking piece can't move away from pin
-          curr.maps[i].to &= b;
-          // Handle bijective pawn moves
-        }
+        curr.maps[i].to &= b;
+        // Handle bijective pawn moves
 
         for (int i = 0; i < ms->size; i++)
         {
           if (ms->maps[i].from & b) // Our pieces can't move from the pin mask
             curr.maps[i].to &= b;
-          if (piecesBetween <= 1)
-          {
-            curr.maps[i].to &= ~b; // Our pieces can't disrupt pin
-          }
+          curr.maps[i].to &= ~b; // Our pieces can't disrupt pin
         }
       }
 
-      while (canAttack)
-      {
-        Square s2 = BitBoardPop(&canAttack);
-        BitBoard b = LookupTableSquaresBetween(l, s1, s2);
-
-        // Count the squares between the king and our piece moves
-        int piecesBetween = BitBoardCount(b & ALL);
-        if (piecesBetween > 1)
-          continue;
-        // It's a check or a pin, don't play it
-        curr.maps[i].to &= ~BitBoardAdd(EMPTY_BOARD, s2);
-
-        // Need to also remove the from square if it's a pawn move
-      }
+      curr.maps[i].to &= ~canAttack;
     }
   }
 
