@@ -56,4 +56,6 @@ Move MoveSetPop(MoveSet *ms);
  */
 int MoveSetIsEmpty(MoveSet *ms);
 
+int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms);
+
 #endif

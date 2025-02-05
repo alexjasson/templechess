@@ -4,6 +4,7 @@
 #include "MoveSet.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // BitBoard representing the rank of a specific square
 #define RANK_OF(s) (SOUTH_EDGE >> (EDGE_SIZE * (EDGE_SIZE - BitBoardRank(s) - 1)))
@@ -192,4 +193,144 @@ Move MoveSetPop(MoveSet *ms)
 int MoveSetIsEmpty(MoveSet *ms)
 {
   return ms->size == 0;
+}
+
+int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
+{
+  int moveDelta = 0;
+
+  MoveSet curr; // Copy of ms
+  memcpy(&curr, ms, sizeof(MoveSet));
+  MoveSet next = MoveSetNew();
+  ChessBoard temp = ChessBoardFlip(cb); // cb is unchanged
+  MoveSetFill(l, &temp, &next);
+
+  // If our pieces aren't on the board, what moves king moves could they play?
+  // Implies attack set is empty and occupancy is their pieces
+  Square kingSquare = BitBoardPeek(THEIR(King));
+  BitBoard kingActual = EMPTY_BOARD;
+  if (kingActual)
+    kingActual = next.maps[0].to;
+  BitBoard kingPotential = LookupTableAttacks(l, kingSquare, King, THEM);
+
+  BitBoard king = kingActual | kingPotential | BitBoardAdd(EMPTY_BOARD, kingSquare);
+
+  while (king)
+  {
+    Square s1 = BitBoardPop(&king);
+    for (int i = 0; i < ms->size; i++)
+    {
+      Type tt = GET_TYPE(ms->maps[i].moved);
+      if (tt == Pawn)
+        continue;
+      BitBoard isAttacking = OUR(tt) & LookupTableAttacks(l, s1, tt, EMPTY_BOARD);
+      BitBoard canAttack = ms->maps[i].to & LookupTableAttacks(l, s1, tt, EMPTY_BOARD);
+
+      while (isAttacking) // Our pieces that are directly attacking the king squares
+      {
+        // printf("-------------------Piece: %d\n", tt);
+        Square s2 = BitBoardPop(&isAttacking);
+        BitBoard b = LookupTableSquaresBetween(l, s1, s2);
+
+        // Count the pieces between the king squares and our attacking piece
+        int piecesBetween = BitBoardCount(b & ALL);
+        if (piecesBetween > 2)
+          continue;
+        if (piecesBetween <= 1)
+        { // Attacking piece can't move away from pin
+          curr.maps[i].to &= b;
+          // Handle bijective pawn moves
+        }
+
+        for (int i = 0; i < ms->size; i++)
+        {
+          if (ms->maps[i].from & b) // Our pieces can't move from the pin mask
+            curr.maps[i].to &= b;
+          if (piecesBetween <= 1)
+          {
+            curr.maps[i].to &= ~b; // Our pieces can't disrupt pin
+          }
+        }
+      }
+
+      while (canAttack)
+      {
+        Square s2 = BitBoardPop(&canAttack);
+        BitBoard b = LookupTableSquaresBetween(l, s1, s2);
+
+        // Count the squares between the king and our piece moves
+        int piecesBetween = BitBoardCount(b & ALL);
+        if (piecesBetween > 1)
+          continue;
+        // It's a check or a pin, don't play it
+        curr.maps[i].to &= ~BitBoardAdd(EMPTY_BOARD, s2);
+
+        // Need to also remove the from square if it's a pawn move
+      }
+    }
+  }
+
+  for (int i = 0; i <= curr.size; i++)
+  {
+    for (int j = 0; j <= next.size; j++)
+    {
+      BitBoard isBlocking = curr.maps[i].from & next.maps[j].to; // Our piece(s) that blocks their piece move(s)
+      BitBoard canBlock = curr.maps[i].to & next.maps[j].to;     // Our piece move(s) that could block their piece move(s)
+      BitBoard canCapture = curr.maps[i].to & THEM;              // Our piece moves(s) that could capture their piece(s)
+
+      if (canBlock)
+        curr.maps[i].to &= ~canBlock;
+      if (isBlocking)
+        curr.maps[i].to = EMPTY_BOARD;
+      if (canCapture)
+        curr.maps[i].to &= ~canCapture;
+    }
+  }
+
+  // Remove curr from ms - wont work for pawns
+  for (int i = 0; i < ms->size; i++)
+    ms->maps[i].to &= ~curr.maps[i].to;
+
+  // Remove any empty maps from ms
+  int i = 0;
+  while (i < ms->size)
+  {
+    if ((ms->maps[i].to == EMPTY_BOARD) || (ms->maps[i].from == EMPTY_BOARD))
+    {
+      ms->maps[i] = ms->maps[ms->size - 1];
+      ms->size--;
+    }
+    else
+    {
+      i++;
+    }
+  }
+
+  // Remove any empty maps from curr
+  i = 0;
+  while (i < curr.size)
+  {
+    if ((curr.maps[i].to == EMPTY_BOARD) || (curr.maps[i].from == EMPTY_BOARD))
+    {
+      curr.maps[i] = curr.maps[curr.size - 1]; // Move last element to current index
+      curr.size--;                             // Reduce the size
+    }
+    else
+    {
+      i++; // Only increment if no removal happened
+    }
+  }
+
+  // Print curr
+  // printf("Curr\n");
+  // for (int i = 0; i < curr.size; i++)
+  // {
+  //   printf("Map %d\n", i);
+  //   BitBoardPrint(curr.maps[i].to);
+  //   BitBoardPrint(curr.maps[i].from);
+  //   printf("Moved: %d\n", curr.maps[i].moved);
+  // }
+  // printf("We claim that %d moves would've been played\n", MoveSetCount(&curr) * MoveSetCount(&next) + moveDelta);
+
+  return MoveSetCount(&curr) * MoveSetCount(&next) + moveDelta;
 }

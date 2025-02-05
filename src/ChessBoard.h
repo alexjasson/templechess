@@ -78,4 +78,11 @@ BitBoard ChessBoardPinned(LookupTable l, ChessBoard *cb);
  */
 BitBoard ChessBoardAttacked(LookupTable l, ChessBoard *cb);
 
+/*
+ * Given a chess board, return a new chess board where the turn is passed to the other color
+ */
+ChessBoard ChessBoardFlip(ChessBoard *cb);
+
+char *ChessBoardToFEN(ChessBoard *cb);
+
 #endif
