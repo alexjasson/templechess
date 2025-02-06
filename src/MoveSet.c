@@ -205,14 +205,11 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
   ChessBoard temp = ChessBoardFlip(cb); // cb is unchanged
   MoveSetFill(l, &temp, &next);
 
-  BitBoard b1;
+  Square s1, s2;
+  BitBoard b;
   BitBoard canBlock, isBlocking, canCapture;
   BitBoard isAttacking = EMPTY_BOARD, canAttack = EMPTY_BOARD;
   BitBoard theirMoves = EMPTY_BOARD;
-
-  // If our pieces aren't on the board, what moves king moves could they play?
-  // Implies attack set is empty and occupancy is their pieces
-  BitBoard kingPotential = LookupTableAttacks(l, BitBoardPeek(THEIR(King)), King, THEM);
 
   for (int i = 0; i < next.size; i++)
     theirMoves |= next.maps[i].to;
@@ -231,18 +228,19 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
       curr.maps[i].to &= ~canCapture;
   }
 
-  BitBoard kingRelevant = kingPotential | BitBoardAdd(EMPTY_BOARD, BitBoardPeek(THEIR(King)));
+  BitBoard kingRelevant = LookupTableAttacks(l, BitBoardPeek(THEIR(King)), King, THEM) |
+                          BitBoardAdd(EMPTY_BOARD, BitBoardPeek(THEIR(King)));
   while (kingRelevant)
   {
-    Square s1 = BitBoardPop(&kingRelevant);
+    s1 = BitBoardPop(&kingRelevant);
     // Iterate through maps and remove moves that could attack the king square
     for (int i = 0; i < ms->size; i++)
     {
       Type t = GET_TYPE(ms->maps[i].moved);
       if (t == Pawn)
         continue;
-      b1 = (t > Knight) ? LookupTableLineOfSight(l, s1, BitBoardPeek(ms->maps[i].from)) : EMPTY_BOARD;
-      canAttack = ms->maps[i].to & LookupTableAttacks(l, s1, t, EMPTY_BOARD) & ~b1;
+      b = (t > Knight) ? LookupTableLineOfSight(l, s1, BitBoardPeek(ms->maps[i].from)) : EMPTY_BOARD;
+      canAttack = ms->maps[i].to & LookupTableAttacks(l, s1, t, EMPTY_BOARD) & ~b;
       curr.maps[i].to &= ~canAttack;
     }
 
@@ -255,8 +253,8 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
     }
     while (isAttacking)
     {
-      Square s2 = BitBoardPop(&isAttacking);
-      BitBoard b = LookupTableSquaresBetween(l, s1, s2);
+      s2 = BitBoardPop(&isAttacking);
+      b = LookupTableSquaresBetween(l, s1, s2);
 
       for (int i = 0; i < ms->size; i++)
       {
