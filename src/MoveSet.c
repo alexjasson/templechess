@@ -211,6 +211,7 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
   BitBoard theirMoves = EMPTY_BOARD;
   BitBoard ourPieces;
   BitBoard canAttack[TYPE_SIZE];
+  BitBoard isAttacking = EMPTY_BOARD;
   memset(canAttack, EMPTY_BOARD, sizeof(canAttack));
 
   for (int i = 0; i < next.size; i++)
@@ -228,10 +229,14 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
       Type t = GET_TYPE(cb->squares[s2]);
       if (t == Pawn)
         continue;
+      BitBoard piece = BitBoardAdd(EMPTY_BOARD, s2);
       BitBoard attacks = LookupTableAttacks(l, s1, t, EMPTY_BOARD); // Attacks from their king squares
       b = LookupTableSquaresBetween(l, s1, s2);
-      if (BitBoardAdd(EMPTY_BOARD, s2) & attacks)
-        pinned |= (b | BitBoardAdd(EMPTY_BOARD, s2));
+      if (piece & attacks)
+      {
+        pinned |= b;
+        isAttacking |= piece;
+      }
       canAttack[t] |= (LookupTableAttacks(l, s2, t, EMPTY_BOARD) & attacks) & ~b;
     }
   }
@@ -242,6 +247,8 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
     if (ms->maps[i].from & pinned) // Our pieces can't move from the pin mask
       curr.maps[i].to &= pinned;
     curr.maps[i].to &= ~pinned; // Our pieces can't disrupt pin
+    if (curr.maps[i].from & isAttacking)
+      curr.maps[i].to &= pinned;
     curr.maps[i].to &= ~canAttack[t];
     curr.maps[i].to &= ~theirMoves;
     curr.maps[i].to &= ~THEM;
