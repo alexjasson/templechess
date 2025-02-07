@@ -198,18 +198,16 @@ int MoveSetIsEmpty(MoveSet *ms)
 int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
 {
   int moveDelta = 0;
-
-  MoveSet curr; // Copy of ms
-  memcpy(&curr, ms, sizeof(MoveSet));
+  int prevCount = MoveSetCount(ms);
   MoveSet next = MoveSetNew();
   ChessBoard temp = ChessBoardFlip(cb); // cb is unchanged
   MoveSetFill(l, &temp, &next);
 
   Square s1, s2;
   BitBoard b;
-  BitBoard pinned = EMPTY_BOARD; // Squares that are pinned
-  BitBoard theirMoves = EMPTY_BOARD;
-  BitBoard ourPieces;
+  BitBoard pinned = EMPTY_BOARD;     // Squares that are pinned
+  BitBoard theirMoves = EMPTY_BOARD; // Their slider moves
+  BitBoard ourPieces = US;
   BitBoard canAttack[TYPE_SIZE];
   BitBoard isAttacking = EMPTY_BOARD;
   memset(canAttack, EMPTY_BOARD, sizeof(canAttack));
@@ -230,7 +228,7 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
       if (t == Pawn)
         continue;
       BitBoard piece = BitBoardAdd(EMPTY_BOARD, s2);
-      BitBoard attacks = LookupTableAttacks(l, s1, t, EMPTY_BOARD); // Attacks from their king squares
+      BitBoard attacks = LookupTableAttacks(l, s1, t, EMPTY_BOARD); // Attacks from their king square
       b = LookupTableSquaresBetween(l, s1, s2);
       if (piece & attacks)
       {
@@ -244,27 +242,19 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
   for (int i = 0; i < ms->size; i++)
   {
     Type t = GET_TYPE(ms->maps[i].moved);
-    if (ms->maps[i].from & pinned) // Our pieces can't move from the pin mask
-      curr.maps[i].to &= pinned;
-    curr.maps[i].to &= ~pinned; // Our pieces can't disrupt pin
-    if (curr.maps[i].from & isAttacking)
-      curr.maps[i].to &= pinned;
-    curr.maps[i].to &= ~canAttack[t];
-    curr.maps[i].to &= ~theirMoves;
-    curr.maps[i].to &= ~THEM;
-    if (curr.maps[i].from & theirMoves)
-      curr.maps[i].to = EMPTY_BOARD;
-  }
+    b = ms->maps[i].to & ~(pinned | canAttack[t] | theirMoves | THEM);
 
-  // Remove curr from ms - wont work for pawns
-  for (int i = 0; i < ms->size; i++)
-    ms->maps[i].to &= ~curr.maps[i].to;
+    if (ms->maps[i].from & (pinned | isAttacking | theirMoves))
+      b = EMPTY_BOARD;
+
+    ms->maps[i].to &= ~b;
+  }
 
   // Remove any empty maps from ms
   int i = 0;
   while (i < ms->size)
   {
-    if ((ms->maps[i].to == EMPTY_BOARD) || (ms->maps[i].from == EMPTY_BOARD))
+    if (ms->maps[i].to == EMPTY_BOARD)
     {
       ms->maps[i] = ms->maps[ms->size - 1];
       ms->size--;
@@ -275,31 +265,5 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
     }
   }
 
-  // Remove any empty maps from curr
-  i = 0;
-  while (i < curr.size)
-  {
-    if ((curr.maps[i].to == EMPTY_BOARD) || (curr.maps[i].from == EMPTY_BOARD))
-    {
-      curr.maps[i] = curr.maps[curr.size - 1]; // Move last element to current index
-      curr.size--;                             // Reduce the size
-    }
-    else
-    {
-      i++; // Only increment if no removal happened
-    }
-  }
-
-  // Print curr
-  // printf("Curr\n");
-  // for (int i = 0; i < curr.size; i++)
-  // {
-  //   printf("Map %d\n", i);
-  //   BitBoardPrint(curr.maps[i].to);
-  //   BitBoardPrint(curr.maps[i].from);
-  //   printf("Moved: %d\n", curr.maps[i].moved);
-  // }
-  // printf("We claim that %d moves would've been played\n", MoveSetCount(&curr) * MoveSetCount(&next) + moveDelta);
-
-  return MoveSetCount(&curr) * MoveSetCount(&next) + moveDelta;
+  return (prevCount - MoveSetCount(ms)) * MoveSetCount(&next) + moveDelta;
 }
