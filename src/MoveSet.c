@@ -21,6 +21,7 @@
 #define DOUBLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(BitBoardShiftN(b)) : BitBoardShiftS(BitBoardShiftS(b)))
 
 static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Piece moved);
+static void filterMaps(MoveSet *ms);
 
 // Add the map to moveset if it's non empty
 static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Piece moved)
@@ -199,8 +200,8 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
 {
   int moveDelta = 0;
   int prevCount = MoveSetCount(ms);
-  MoveSet next = MoveSetNew();
   ChessBoard temp = ChessBoardFlip(cb); // cb is unchanged
+  MoveSet next = MoveSetNew();
   MoveSetFill(l, &temp, &next);
 
   Square s1, s2;
@@ -208,12 +209,13 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
   BitBoard pinned = EMPTY_BOARD;     // Squares that are pinned
   BitBoard theirMoves = EMPTY_BOARD; // Their slider moves
   BitBoard ourPieces = US;
-  BitBoard canAttack[TYPE_SIZE];
   BitBoard isAttacking = EMPTY_BOARD;
+  BitBoard canAttack[TYPE_SIZE];
   memset(canAttack, EMPTY_BOARD, sizeof(canAttack));
 
   for (int i = 0; i < next.size; i++)
     theirMoves |= next.maps[i].to;
+  theirMoves |= (PAWN_ATTACKS(THEIR(Pawn), !cb->turn) | SINGLE_PUSH(THEIR(Pawn), !cb->turn) | DOUBLE_PUSH(THEIR(Pawn), !cb->turn)); // Double push upper bounds
 
   BitBoard kingRelevant = LookupTableAttacks(l, BitBoardPeek(THEIR(King)), King, THEM) |
                           BitBoardAdd(EMPTY_BOARD, BitBoardPeek(THEIR(King)));
@@ -225,45 +227,74 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
     {
       s2 = BitBoardPop(&ourPieces);
       Type t = GET_TYPE(cb->squares[s2]);
-      if (t == Pawn)
-        continue;
+      BitBoard king = BitBoardAdd(EMPTY_BOARD, s1);
       BitBoard piece = BitBoardAdd(EMPTY_BOARD, s2);
-      BitBoard attacks = LookupTableAttacks(l, s1, t, EMPTY_BOARD); // Attacks from their king square
-      b = LookupTableSquaresBetween(l, s1, s2);
-      if (piece & attacks)
+      BitBoard projection = (t == Pawn) ? PAWN_ATTACKS(king, !cb->turn) : LookupTableAttacks(l, s1, t, EMPTY_BOARD);
+      BitBoard moves = (t == Pawn) ? (PAWN_ATTACKS(piece, cb->turn) | SINGLE_PUSH(piece, cb->turn) | DOUBLE_PUSH(piece, cb->turn)) // Double push upper bounds
+                                   : LookupTableAttacks(l, s2, t, EMPTY_BOARD);
+      canAttack[t] |= moves & projection;
+      if (piece & projection)
       {
+        // Loop over king squares in here after king projection implemented
+        b = LookupTableSquaresBetween(l, s1, s2);
         pinned |= b;
         isAttacking |= piece;
       }
-      canAttack[t] |= (LookupTableAttacks(l, s2, t, EMPTY_BOARD) & attacks) & ~b;
     }
   }
 
   for (int i = 0; i < ms->size; i++)
   {
     Type t = GET_TYPE(ms->maps[i].moved);
-    b = ms->maps[i].to & ~(pinned | canAttack[t] | theirMoves | THEM);
+    int mapOffset = BitBoardCount(ms->maps[i].to) - BitBoardCount(ms->maps[i].from);
 
-    if (ms->maps[i].from & (pinned | isAttacking | theirMoves))
-      b = EMPTY_BOARD;
-
-    ms->maps[i].to &= ~b;
+    if (mapOffset > 0) // Injective
+    {
+      if (!(ms->maps[i].from & (pinned | isAttacking | theirMoves)))
+        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | THEM;
+    }
+    else // Bijective
+    {
+      int squareOffset = BitBoardPeek(ms->maps[i].to) - BitBoardPeek(ms->maps[i].from);
+      if (squareOffset > 0)
+      {
+        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | THEM | ((pinned | isAttacking | theirMoves) << squareOffset);
+        ms->maps[i].from = ms->maps[i].to >> squareOffset;
+      }
+      else // squareOffset < 0
+      {
+        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | THEM | ((pinned | isAttacking | theirMoves) >> -squareOffset);
+        ms->maps[i].from = ms->maps[i].to << -squareOffset;
+      }
+    }
   }
 
-  // Remove any empty maps from ms
-  int i = 0;
-  while (i < ms->size)
+  filterMaps(ms);
+
+  // Print maps - ie moves that couldn't be multiplied
+  // for (int i = 0; i < ms->size; i++)
+  // {
+  //   printf("Map %d\n", i);
+  //   printf("From: \n");
+  //   BitBoardPrint(ms->maps[i].from);
+  //   printf("To: \n");
+  //   BitBoardPrint(ms->maps[i].to);
+  // }
+
+  return (prevCount - MoveSetCount(ms)) * MoveSetCount(&next) + moveDelta;
+}
+
+// Remove empty maps from the moveset
+static void filterMaps(MoveSet *ms)
+{
+  for (int i = 0; i < ms->size;)
   {
-    if (ms->maps[i].to == EMPTY_BOARD)
+    if ((ms->maps[i].to == EMPTY_BOARD) || (ms->maps[i].from == EMPTY_BOARD))
     {
       ms->maps[i] = ms->maps[ms->size - 1];
       ms->size--;
     }
     else
-    {
       i++;
-    }
   }
-
-  return (prevCount - MoveSetCount(ms)) * MoveSetCount(&next) + moveDelta;
 }
