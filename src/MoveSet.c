@@ -21,7 +21,6 @@
 #define DOUBLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(BitBoardShiftN(b)) : BitBoardShiftS(BitBoardShiftS(b)))
 
 static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Piece moved);
-static void filterMaps(MoveSet *ms);
 
 // Add the map to moveset if it's non empty
 static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Piece moved)
@@ -269,7 +268,14 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
     }
   }
 
-  filterMaps(ms);
+  // Remove empty maps from the moveset
+  for (int i = 0; i < ms->size;)
+  {
+    if ((ms->maps[i].to == EMPTY_BOARD) || (ms->maps[i].from == EMPTY_BOARD))
+      ms->maps[i] = ms->maps[--ms->size];
+    else
+      i++;
+  }
 
   // Print maps - ie moves that couldn't be multiplied
   // for (int i = 0; i < ms->size; i++)
@@ -282,19 +288,4 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
   // }
 
   return (prevCount - MoveSetCount(ms)) * MoveSetCount(&next) + moveDelta;
-}
-
-// Remove empty maps from the moveset
-static void filterMaps(MoveSet *ms)
-{
-  for (int i = 0; i < ms->size;)
-  {
-    if ((ms->maps[i].to == EMPTY_BOARD) || (ms->maps[i].from == EMPTY_BOARD))
-    {
-      ms->maps[i] = ms->maps[ms->size - 1];
-      ms->size--;
-    }
-    else
-      i++;
-  }
 }
