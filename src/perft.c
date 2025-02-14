@@ -27,15 +27,13 @@ int main(int argc, char **argv)
 
   long multiplied = 0;
   long nodes = treeSearch(l, &cb, depth, &multiplied, 1);
-  printf("\nNodes searched: %ld\n", nodes + multiplied);
-  printf("Edges multiplied: %.2f%%\n", (double)multiplied / (nodes + multiplied) * 100);
+  printf("\nNodes searched: %ld\n", nodes);
+  printf("Edges multiplied: %.2f%%\n", (double)multiplied / nodes * 100);
   LookupTableFree(l);
   return 0;
 }
 
 // Recursively search the tree.
-// The extra parameter `isRoot` indicates if this is the top-level call.
-// When true, we print each move and its subtree count.
 static long treeSearch(LookupTable l, ChessBoard *cb, int depth, long *multiplied, int isRoot)
 {
   if (depth == 0)
@@ -43,14 +41,25 @@ static long treeSearch(LookupTable l, ChessBoard *cb, int depth, long *multiplie
 
   MoveSet ms = MoveSetNew();
   MoveSetFill(l, cb, &ms);
+  long nodes = 0;
 
   // Base cases
-  if (depth == 1)
+  if (depth == 1 && !isRoot)
     return MoveSetCount(&ms);
   if (depth == 2)
-    *multiplied += MoveSetMultiply(l, cb, &ms);
+  {
+    if (isRoot)
+    {
+      MoveSet msCopy = ms;
+      *multiplied += MoveSetMultiply(l, cb, &msCopy);
+    }
+    else
+    {
+      nodes += MoveSetMultiply(l, cb, &ms);
+      *multiplied += nodes;
+    }
+  }
 
-  long nodes = 0;
   while (!MoveSetIsEmpty(&ms))
   {
     Move m = MoveSetPop(&ms);

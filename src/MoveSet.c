@@ -293,7 +293,7 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
   }
 
   // Print maps - ie moves that couldn't be multiplied
-  // MoveSetPrint(*ms);
+  // /MoveSetPrint(*ms);
 
   return (prevCount - MoveSetCount(ms)) * MoveSetCount(&next) + moveDelta;
 }
