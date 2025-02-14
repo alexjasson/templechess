@@ -61,7 +61,7 @@ void ChessBoardPrintBoard(ChessBoard cb);
 /*
  * Prints a move to stdout
  */
-void ChessBoardPrintMove(Move m, long nodes);
+void ChessBoardPrintMove(Move m);
 
 /*
  * Given a chess board, returns a set of squares representing their pieces that are giving check

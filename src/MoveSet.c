@@ -195,6 +195,21 @@ int MoveSetIsEmpty(MoveSet *ms)
   return ms->size == 0;
 }
 
+void MoveSetPrint(MoveSet ms)
+{
+  printf("{");
+  int first = 1;
+  while (!MoveSetIsEmpty(&ms))
+  {
+    if (!first)
+      printf(", ");
+    first = 0;
+    Move m = MoveSetPop(&ms);
+    ChessBoardPrintMove(m);
+  }
+  printf("}\n");
+}
+
 int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
 {
   int moveDelta = 0;
@@ -205,9 +220,9 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
 
   Square s1, s2;
   BitBoard b;
+  BitBoard ourPieces = US;
   BitBoard pinned = EMPTY_BOARD;     // Squares that are pinned
   BitBoard theirMoves = EMPTY_BOARD; // Their slider moves
-  BitBoard ourPieces = US;
   BitBoard isAttacking = EMPTY_BOARD;
   BitBoard canAttack[TYPE_SIZE];
   memset(canAttack, EMPTY_BOARD, sizeof(canAttack));
@@ -278,14 +293,7 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
   }
 
   // Print maps - ie moves that couldn't be multiplied
-  // for (int i = 0; i < ms->size; i++)
-  // {
-  //   printf("Map %d\n", i);
-  //   printf("From: \n");
-  //   BitBoardPrint(ms->maps[i].from);
-  //   printf("To: \n");
-  //   BitBoardPrint(ms->maps[i].to);
-  // }
+  // MoveSetPrint(*ms);
 
   return (prevCount - MoveSetCount(ms)) * MoveSetCount(&next) + moveDelta;
 }

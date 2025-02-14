@@ -175,9 +175,9 @@ void ChessBoardPrintBoard(ChessBoard cb)
   printf("a b c d e f g h\n\n");
 }
 
-void ChessBoardPrintMove(Move m, long nodes)
+void ChessBoardPrintMove(Move m)
 {
-  printf("%c%d%c%d: %ld\n", 'a' + (m.from % EDGE_SIZE), EDGE_SIZE - (m.from / EDGE_SIZE), 'a' + (m.to % EDGE_SIZE), EDGE_SIZE - (m.to / EDGE_SIZE), nodes);
+  printf("%c%d%c%d", 'a' + (m.from % EDGE_SIZE), EDGE_SIZE - (m.from / EDGE_SIZE), 'a' + (m.to % EDGE_SIZE), EDGE_SIZE - (m.to / EDGE_SIZE));
 }
 
 BitBoard ChessBoardChecking(LookupTable l, ChessBoard *cb)
