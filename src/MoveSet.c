@@ -212,14 +212,12 @@ void MoveSetPrint(MoveSet ms)
 
 int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
 {
-  int moveDelta = 0;
   int prevCount = MoveSetCount(ms);
   ChessBoard temp = ChessBoardFlip(cb); // cb is unchanged
   MoveSet next = MoveSetNew();
   MoveSetFill(l, &temp, &next);
 
   Square s1, s2;
-  BitBoard b;
   BitBoard ourPieces = US;
   BitBoard pinned = EMPTY_BOARD;     // Squares that are pinned
   BitBoard theirMoves = EMPTY_BOARD; // Their slider moves
@@ -249,11 +247,29 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
       canAttack[t] |= moves & projection;
       if (piece & projection)
       {
-        // Loop over king squares in here after king projection implemented
-        b = LookupTableSquaresBetween(l, s1, s2);
-        pinned |= b;
+        pinned |= LookupTableSquaresBetween(l, s1, s2);
         isAttacking |= piece;
       }
+    }
+  }
+
+  BitBoard enpassant = EMPTY_BOARD;
+  BitBoard castling = EMPTY_BOARD;
+
+  // Add enpassant back
+  for (int i = 0; i < ms->size; i++)
+  {
+    Type t = GET_TYPE(ms->maps[i].moved);
+    int squareOffset = BitBoardPeek(ms->maps[i].to) - BitBoardPeek(ms->maps[i].from);
+    if ((t == Pawn) && (squareOffset == 16 || squareOffset == -16))
+    {
+      // enPassant from square
+      BitBoard left = SINGLE_PUSH(ms->maps[i].from, cb->turn) & PAWN_ATTACKS(THEIR(Pawn), !cb->turn);
+      enpassant = SINGLE_PUSH(left, !cb->turn);
+    }
+    if (t == King)
+    {
+      // castling = ms->maps[i].to & ~LookupTableAttacks(l, BitBoardPeek(OUR(King)), King, EMPTY_BOARD);
     }
   }
 
@@ -265,19 +281,19 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
     if (mapOffset > 0) // Injective
     {
       if (!(ms->maps[i].from & (pinned | isAttacking | theirMoves)))
-        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | THEM;
+        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | THEM | castling;
     }
     else // Bijective
     {
       int squareOffset = BitBoardPeek(ms->maps[i].to) - BitBoardPeek(ms->maps[i].from);
       if (squareOffset > 0)
       {
-        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | THEM | ((pinned | isAttacking | theirMoves) << squareOffset);
+        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | THEM | ((pinned | isAttacking | theirMoves | enpassant) << squareOffset);
         ms->maps[i].from = ms->maps[i].to >> squareOffset;
       }
       else // squareOffset < 0
       {
-        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | THEM | ((pinned | isAttacking | theirMoves) >> -squareOffset);
+        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | THEM | ((pinned | isAttacking | theirMoves | enpassant) >> -squareOffset);
         ms->maps[i].from = ms->maps[i].to << -squareOffset;
       }
     }
@@ -293,7 +309,7 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
   }
 
   // Print maps - ie moves that couldn't be multiplied
-  // /MoveSetPrint(*ms);
+  // MoveSetPrint(*ms);
 
-  return (prevCount - MoveSetCount(ms)) * MoveSetCount(&next) + moveDelta;
+  return (prevCount - MoveSetCount(ms)) * MoveSetCount(&next);
 }

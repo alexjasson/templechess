@@ -1,5 +1,5 @@
 /*
- * TempleChess v0
+ * TempleChess v1
  * © 2025 Alex Jasson
  */
 
@@ -41,31 +41,24 @@ static long treeSearch(LookupTable l, ChessBoard *cb, int depth, long *multiplie
 
   MoveSet ms = MoveSetNew();
   MoveSetFill(l, cb, &ms);
-  long nodes = 0;
+  if (isRoot && depth <= 2)
+    MoveSetPrint(ms);
 
-  // Base cases
-  if (depth == 1 && !isRoot)
+  long nodes = 0;
+  if (depth == 1)
     return MoveSetCount(&ms);
-  if (depth == 2)
-  {
-    if (isRoot)
-    {
-      MoveSet msCopy = ms;
-      *multiplied += MoveSetMultiply(l, cb, &msCopy);
-    }
-    else
-    {
-      nodes += MoveSetMultiply(l, cb, &ms);
-      *multiplied += nodes;
-    }
-  }
+  // if (depth == 2)
+  // {
+  //   nodes += MoveSetMultiply(l, cb, &ms);
+  //   *multiplied += nodes;
+  // }
 
   while (!MoveSetIsEmpty(&ms))
   {
     Move m = MoveSetPop(&ms);
     ChessBoard new = ChessBoardPlayMove(cb, m);
     long subTree = treeSearch(l, &new, depth - 1, multiplied, 0);
-    if (isRoot)
+    if (isRoot && depth > 2)
     {
       ChessBoardPrintMove(m);
       printf(": %ld\n", subTree);

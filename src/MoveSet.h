@@ -64,7 +64,7 @@ int MoveSetIsEmpty(MoveSet *ms);
 int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms);
 
 /*
- * Print a set of moves to stdout, useful for debugging
+ * Print a set of moves to stdout
  */
 void MoveSetPrint(MoveSet ms);
 
