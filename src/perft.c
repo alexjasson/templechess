@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int isRoot);
+static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int isRoot, long *multiplied);
 
 int main(int argc, char **argv)
 {
@@ -24,14 +24,16 @@ int main(int argc, char **argv)
   LookupTable l = LookupTableNew();
   ChessBoard cb = ChessBoardNew(argv[1]);
   int depth = atoi(argv[2]);
-  long nodes = treeSearch(l, &cb, depth, 1);
+  long multiplied = 0;
+  long nodes = treeSearch(l, &cb, depth, 1, &multiplied);
   printf("\nNodes searched: %ld\n", nodes);
+  printf("Edges multiplied: %.2f%%\n", (double)multiplied / nodes * 100);
   LookupTableFree(l);
   return 0;
 }
 
 // Recursively search the tree.
-static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int isRoot)
+static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int isRoot, long *multiplied)
 {
   if (depth == 0)
     return 1;
@@ -43,13 +45,16 @@ static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int isRoot)
 
   long nodes = 0;
   if (depth == 2 && !isRoot)
+  {
     nodes += MoveSetMultiply(l, cb, &ms);
+    *multiplied += nodes;
+  }
 
   while (!MoveSetIsEmpty(&ms))
   {
     Move m = MoveSetPop(&ms);
     ChessBoard new = ChessBoardPlayMove(cb, m);
-    long subTree = treeSearch(l, &new, depth - 1, 0);
+    long subTree = treeSearch(l, &new, depth - 1, 0, multiplied);
     if (isRoot)
     {
       ChessBoardPrintMove(m);
