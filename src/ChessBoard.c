@@ -13,6 +13,8 @@
 // Bitboards representing the ranks from the perspective of the given color c
 #define BACK_RANK(c) (BitBoard)((c == White) ? SOUTH_EDGE : NORTH_EDGE)
 
+#define FEN_SIZE 128
+
 static Color getColorFromASCII(char asciiColor);
 static char getASCIIFromPiece(Piece p);
 static Piece getPieceFromASCII(char asciiPiece);
@@ -173,9 +175,9 @@ void ChessBoardPrintBoard(ChessBoard cb)
   printf("a b c d e f g h\n\n");
 }
 
-void ChessBoardPrintMove(Move m, long nodes)
+void ChessBoardPrintMove(Move m)
 {
-  printf("%c%d%c%d: %ld\n", 'a' + (m.from % EDGE_SIZE), EDGE_SIZE - (m.from / EDGE_SIZE), 'a' + (m.to % EDGE_SIZE), EDGE_SIZE - (m.to / EDGE_SIZE), nodes);
+  printf("%c%d%c%d", 'a' + (m.from % EDGE_SIZE), EDGE_SIZE - (m.from / EDGE_SIZE), 'a' + (m.to % EDGE_SIZE), EDGE_SIZE - (m.to / EDGE_SIZE));
 }
 
 BitBoard ChessBoardChecking(LookupTable l, ChessBoard *cb)
@@ -232,4 +234,123 @@ BitBoard ChessBoardAttacked(LookupTable l, ChessBoard *cb)
     attacked |= LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), occupancies);
   }
   return attacked;
+}
+
+ChessBoard ChessBoardFlip(ChessBoard *cb)
+{
+  ChessBoard new;
+  memcpy(&new, cb, sizeof(ChessBoard));
+  new.turn = !new.turn;
+  new.enPassant = EMPTY_SQUARE;
+  return new;
+}
+
+char *ChessBoardToFEN(ChessBoard *cb)
+{
+  static char fen[FEN_SIZE];
+  int index = 0;
+
+  // 1) Piece placement from rank 8 down to rank 1 (which in your indexing is rank=0..7)
+  for (int rank = 0; rank < EDGE_SIZE; rank++)
+  {
+    int emptyCount = 0;
+
+    for (int file = 0; file < EDGE_SIZE; file++)
+    {
+      Square s = rank * EDGE_SIZE + file;
+      Piece p = cb->squares[s];
+
+      if (p == EMPTY_PIECE)
+      {
+        // If empty, just count up
+        emptyCount++;
+      }
+      else
+      {
+        // If we reach a non-empty square and have some empties counted, flush them
+        if (emptyCount > 0)
+        {
+          fen[index++] = '0' + emptyCount;
+          emptyCount = 0;
+        }
+        // Convert piece to FEN char (uppercase for White, lowercase for Black)
+        fen[index++] = getASCIIFromPiece(p);
+      }
+    }
+
+    // Flush remaining empty squares in this rank
+    if (emptyCount > 0)
+    {
+      fen[index++] = '0' + emptyCount;
+    }
+
+    // Add the rank separator if it's not the last rank
+    if (rank < EDGE_SIZE - 1)
+    {
+      fen[index++] = '/';
+    }
+  }
+
+  // 2) Space + Active color: 'w' or 'b'
+  fen[index++] = ' ';
+  fen[index++] = (cb->turn == White) ? 'w' : 'b';
+  fen[index++] = ' ';
+
+  // We track whether we have found any castling rights
+  int castlingCount = 0;
+
+  // White kingside
+  if ((cb->castling & (KINGSIDE_CASTLING & BACK_RANK(White))) == (KINGSIDE_CASTLING & BACK_RANK(White)))
+  {
+    fen[index++] = 'K';
+    castlingCount++;
+  }
+
+  // White queenside
+  if ((cb->castling & (QUEENSIDE_CASTLING & BACK_RANK(White))) == (QUEENSIDE_CASTLING & BACK_RANK(White)))
+  {
+    fen[index++] = 'Q';
+    castlingCount++;
+  }
+
+  // Black kingside
+  if ((cb->castling & (KINGSIDE_CASTLING & BACK_RANK(Black))) == (KINGSIDE_CASTLING & BACK_RANK(Black)))
+  {
+    fen[index++] = 'k';
+    castlingCount++;
+  }
+
+  // Black queenside
+  if ((cb->castling & (QUEENSIDE_CASTLING & BACK_RANK(Black))) == (QUEENSIDE_CASTLING & BACK_RANK(Black)))
+  {
+    fen[index++] = 'q';
+    castlingCount++;
+  }
+
+  if (castlingCount == 0)
+  {
+    fen[index++] = '-';
+  }
+
+  fen[index++] = ' ';
+
+  // 4) En passant target square (if any)
+  if (cb->enPassant == EMPTY_SQUARE)
+  {
+    fen[index++] = '-';
+  }
+  else
+  {
+    int epFile = cb->enPassant % EDGE_SIZE; // 0..7
+    int epRank = cb->enPassant / EDGE_SIZE; // 0..7, top row=0 => '8', bottom row=7 => '1'
+
+    fen[index++] = 'a' + epFile;               // file letter
+    fen[index++] = '0' + (EDGE_SIZE - epRank); // rank in FEN is (8 - epRank)
+  }
+
+  // 5) Null-terminate the string
+  fen[index] = '\0';
+
+  // Return pointer to our static buffer
+  return fen;
 }

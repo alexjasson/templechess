@@ -1,6 +1,8 @@
 #ifndef LOOKUP_TABLE_H
 #define LOOKUP_TABLE_H
 
+#define TYPE_SIZE 6
+
 typedef struct lookupTable *LookupTable;
 
 // Each type of piece on a chess board

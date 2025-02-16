@@ -49,6 +49,11 @@ typedef struct
 ChessBoard ChessBoardNew(char *fen); // Stack allocated
 
 /*
+ * Given a chess board, return it's FEN string representation
+ */
+char *ChessBoardToFEN(ChessBoard *cb);
+
+/*
  * Given an old board, play the move on the old board and return the new board
  */
 ChessBoard ChessBoardPlayMove(ChessBoard *old, Move move);
@@ -61,7 +66,7 @@ void ChessBoardPrintBoard(ChessBoard cb);
 /*
  * Prints a move to stdout
  */
-void ChessBoardPrintMove(Move m, long nodes);
+void ChessBoardPrintMove(Move m);
 
 /*
  * Given a chess board, returns a set of squares representing their pieces that are giving check
@@ -77,5 +82,10 @@ BitBoard ChessBoardPinned(LookupTable l, ChessBoard *cb);
  * Given a chess board, returns a set of squares representing the squares that are attacked by their pieces
  */
 BitBoard ChessBoardAttacked(LookupTable l, ChessBoard *cb);
+
+/*
+ * Given a chess board, return a new chess board where the turn is passed to the other color
+ */
+ChessBoard ChessBoardFlip(ChessBoard *cb);
 
 #endif

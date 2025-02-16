@@ -1,5 +1,5 @@
 /*
- * TempleChess v0
+ * TempleChess v1
  * © 2025 Alex Jasson
  */
 
@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int base);
+static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int isRoot);
 
 int main(int argc, char **argv)
 {
@@ -30,25 +30,31 @@ int main(int argc, char **argv)
   return 0;
 }
 
-static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int base)
+// Recursively search the tree.
+static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int isRoot)
 {
   if (depth == 0)
     return 1;
 
   MoveSet ms = MoveSetNew();
   MoveSetFill(l, cb, &ms);
-
-  if ((depth == 1) && (!base))
+  if (depth == 1 && !isRoot)
     return MoveSetCount(&ms);
 
   long nodes = 0;
+  if (depth == 2 && !isRoot)
+    nodes += MoveSetMultiply(l, cb, &ms);
+
   while (!MoveSetIsEmpty(&ms))
   {
     Move m = MoveSetPop(&ms);
     ChessBoard new = ChessBoardPlayMove(cb, m);
     long subTree = treeSearch(l, &new, depth - 1, 0);
-    if (base)
-      ChessBoardPrintMove(m, subTree);
+    if (isRoot)
+    {
+      ChessBoardPrintMove(m);
+      printf(": %ld\n", subTree);
+    }
     nodes += subTree;
   }
 

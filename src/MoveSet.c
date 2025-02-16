@@ -4,12 +4,14 @@
 #include "MoveSet.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // BitBoard representing the rank of a specific square
 #define RANK_OF(s) (SOUTH_EDGE >> (EDGE_SIZE * (EDGE_SIZE - BitBoardRank(s) - 1)))
 
 // Bitboards representing the ranks from the perspective of the given color c
-#define ENPASSANT_RANK(c) (BitBoard) SOUTH_EDGE >> (EDGE_SIZE * ((c * 3) + 2)) // En
+#define ENPASSANT_RANK(c) (BitBoard) SOUTH_EDGE >> (EDGE_SIZE * ((c * 3) + 2))
+#define PROMOTION_RANK(c) (BitBoard) SOUTH_EDGE >> (EDGE_SIZE * ((!c * 5) + 1))
 #define BACK_RANK(c) (BitBoard)((c == White) ? SOUTH_EDGE : NORTH_EDGE)
 
 // Returns a bitboard representing a set of moves given a set of pawns and a color
@@ -20,6 +22,7 @@
 #define DOUBLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(BitBoardShiftN(b)) : BitBoardShiftS(BitBoardShiftS(b)))
 
 static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Piece moved);
+static BitBoard pawnMoves(BitBoard p, Color c);
 
 // Add the map to moveset if it's non empty
 static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Piece moved)
@@ -31,6 +34,14 @@ static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Piece moved)
   m.from = from;
   m.moved = moved;
   ms->maps[ms->size++] = m;
+}
+
+static BitBoard pawnMoves(BitBoard p, Color c)
+{
+  BitBoard moves = SINGLE_PUSH(p, c);
+  moves |= SINGLE_PUSH(moves & ENPASSANT_RANK(c), c);
+  moves |= PAWN_ATTACKS(p, c);
+  return moves;
 }
 
 MoveSet MoveSetNew()
@@ -192,4 +203,125 @@ Move MoveSetPop(MoveSet *ms)
 int MoveSetIsEmpty(MoveSet *ms)
 {
   return ms->size == 0;
+}
+
+void MoveSetPrint(MoveSet ms)
+{
+  printf("{");
+  int first = 1;
+  while (!MoveSetIsEmpty(&ms))
+  {
+    if (!first)
+      printf(", ");
+    first = 0;
+    Move m = MoveSetPop(&ms);
+    ChessBoardPrintMove(m);
+  }
+  printf("}\n");
+}
+
+int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
+{
+  int prevCount = MoveSetCount(ms);
+  ChessBoard temp = ChessBoardFlip(cb); // cb is unchanged
+  MoveSet next = MoveSetNew();
+  MoveSetFill(l, &temp, &next);
+
+  Square s1, s2;
+  BitBoard ourPieces;
+  BitBoard theirMoves;
+  BitBoard special = EMPTY_BOARD;     // From squares of special pawn moves - en passant, promotion
+  BitBoard castling = EMPTY_BOARD;    // To squares of castling moves
+  BitBoard pinned = EMPTY_BOARD;      // Squares that are pinned
+  BitBoard isAttacking = EMPTY_BOARD; // From squares that are attacking relevant king squares
+  BitBoard canAttack[TYPE_SIZE];      // To squares that would attack relevant king squares for each piece type
+  memset(canAttack, EMPTY_BOARD, sizeof(canAttack));
+
+  // Consider their moves that could be disrupted by our moves
+  theirMoves = pawnMoves(THEIR(Pawn), !cb->turn);
+  for (int i = 0; i < next.size; i++)
+  {
+    if (GET_TYPE(next.maps[i].moved) > Knight)
+      theirMoves |= next.maps[i].to;
+  }
+
+  // Consider our moves that could disrupt their king moves
+  BitBoard kingRelevant = LookupTableAttacks(l, BitBoardPeek(THEIR(King)), King, THEM) |
+                          BitBoardAdd(EMPTY_BOARD, BitBoardPeek(THEIR(King)));
+  while (kingRelevant)
+  {
+    s1 = BitBoardPop(&kingRelevant);
+    ourPieces = US;
+    while (ourPieces)
+    {
+      s2 = BitBoardPop(&ourPieces);
+      Type t = GET_TYPE(cb->squares[s2]);
+      BitBoard king = BitBoardAdd(EMPTY_BOARD, s1);
+      BitBoard piece = BitBoardAdd(EMPTY_BOARD, s2);
+      BitBoard projection = (t == Pawn) ? PAWN_ATTACKS(king, !cb->turn) : LookupTableAttacks(l, s1, t, EMPTY_BOARD);
+      BitBoard moves = (t == Pawn) ? pawnMoves(piece, cb->turn) : LookupTableAttacks(l, s2, t, EMPTY_BOARD);
+      canAttack[t] |= moves & projection;
+      if (piece & projection)
+      {
+        pinned |= LookupTableSquaresBetween(l, s1, s2);
+        isAttacking |= piece;
+      }
+    }
+  }
+
+  // Consider special moves that are annoying to calculate
+  for (int i = 0; i < ms->size; i++)
+  {
+    Type t = GET_TYPE(ms->maps[i].moved);
+    int squareOffset = BitBoardPeek(ms->maps[i].to) - BitBoardPeek(ms->maps[i].from);
+
+    if (t == Pawn)
+    {
+      if (squareOffset == 16 || squareOffset == -16) // Double pushes causing en passant
+        special |= SINGLE_PUSH(SINGLE_PUSH(ms->maps[i].from, cb->turn) & PAWN_ATTACKS(THEIR(Pawn), !cb->turn), !cb->turn);
+      if (cb->enPassant != EMPTY_SQUARE) // En passant
+        special |= PAWN_ATTACKS(BitBoardAdd(EMPTY_BOARD, cb->enPassant), !cb->turn) & ms->maps[i].from;
+      special |= ms->maps[i].from & PROMOTION_RANK(cb->turn); // Promotion
+    }
+    else if (t == King) // Castling
+      castling = ms->maps[i].to & ~LookupTableAttacks(l, BitBoardPeek(OUR(King)), King, EMPTY_BOARD);
+  }
+
+  // Remove moves from ms that can be easily multiplied by the next moveset
+  for (int i = 0; i < ms->size; i++)
+  {
+    Type t = GET_TYPE(ms->maps[i].moved);
+    int mapOffset = BitBoardCount(ms->maps[i].to) - BitBoardCount(ms->maps[i].from);
+
+    if (mapOffset > 0) // Injective
+    {
+      if (!(ms->maps[i].from & (pinned | isAttacking | theirMoves)))
+        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | THEM | castling;
+    }
+    else if (mapOffset == 0) // Bijective
+    {
+      int squareOffset = BitBoardPeek(ms->maps[i].to) - BitBoardPeek(ms->maps[i].from);
+      if (squareOffset > 0)
+      {
+        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | THEM | ((pinned | isAttacking | theirMoves | special) << squareOffset);
+        ms->maps[i].from = ms->maps[i].to >> squareOffset;
+      }
+      else // squareOffset < 0
+      {
+        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | THEM | ((pinned | isAttacking | theirMoves | special) >> -squareOffset);
+        ms->maps[i].from = ms->maps[i].to << -squareOffset;
+      }
+    }
+  }
+
+  // Remove empty maps from ms
+  for (int i = 0; i < ms->size;)
+  {
+    if ((ms->maps[i].to == EMPTY_BOARD) || (ms->maps[i].from == EMPTY_BOARD))
+      ms->maps[i] = ms->maps[--ms->size];
+    else
+      i++;
+  }
+
+  return (prevCount - MoveSetCount(ms)) * MoveSetCount(&next);
 }

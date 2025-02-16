@@ -9,8 +9,13 @@
 
 #define POSITIONS "data/testPositions.in"
 #define BUFFER_SIZE 128
+#define NUM_TESTS 2
 
-static long treeSearch(LookupTable l, ChessBoard *cb, int depth);
+typedef int (*TestFunction)(LookupTable, ChessBoard *, int, long);
+
+static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int count);
+static int testMoveSetCount(LookupTable l, ChessBoard *cb, int depth, long nodes);
+static int testMoveSetMultiply(LookupTable l, ChessBoard *cb, int depth, long nodes);
 
 int main()
 {
@@ -25,63 +30,119 @@ int main()
   int depth;
   long nodes;
   char *fen;
+  LookupTable l = LookupTableNew();
 
-  while (fgets(buffer, sizeof(buffer), file))
+  TestFunction testFns[NUM_TESTS] = {testMoveSetCount, testMoveSetMultiply};
+  const char *testNames[NUM_TESTS] = {
+      "MoveSetCount",
+      "MoveSetMultiply"};
+
+  for (int i = 0; i < NUM_TESTS; i++)
   {
-    buffer[strcspn(buffer, "\n")] = 0;
-
-    char *ptr = buffer;
-    while (*ptr != '\0' && isspace((unsigned char)*ptr))
-      ptr++;
-    if (*ptr == '\0')
-      continue;
-
-    char *lastSpace = strrchr(buffer, ' ');
-
-    sscanf(lastSpace, " %ld", &nodes);
-    *lastSpace = '\0';
-
-    lastSpace = strrchr(buffer, ' ');
-    sscanf(lastSpace, " %d", &depth);
-    *lastSpace = '\0';
-
-    fen = buffer;
-
-    ChessBoard cb = ChessBoardNew(fen);
-    LookupTable l = LookupTableNew();
-    long result = treeSearch(l, &cb, depth);
-    LookupTableFree(l);
-
-    // Print results
-    if (result == nodes)
+    printf("\n\033[1;34m============== Running Test: %s ==============\033[0m\n", testNames[i]);
+    while (fgets(buffer, sizeof(buffer), file))
     {
-      printf("\033[0;32mTest PASSED: %s at depth %d\033[0m\n", fen, depth);
+      buffer[strcspn(buffer, "\n")] = 0;
+
+      char *ptr = buffer;
+      while (*ptr != '\0' && isspace((unsigned char)*ptr))
+        ptr++;
+      if (*ptr == '\0')
+        continue;
+
+      char *lastSpace = strrchr(buffer, ' ');
+
+      sscanf(lastSpace, " %ld", &nodes);
+      *lastSpace = '\0';
+
+      lastSpace = strrchr(buffer, ' ');
+      sscanf(lastSpace, " %d", &depth);
+      *lastSpace = '\0';
+
+      fen = buffer;
+
+      ChessBoard cb = ChessBoardNew(fen);
+
+      // Call the appropriate test function
+      int result = testFns[i](l, &cb, depth, nodes);
+
+      if (result)
+        printf("\033[0;32mTest PASSED: %s at depth %d\033[0m\n", fen, depth);
     }
-    else
-    {
-      printf("\033[0;31mTest FAILED: %s at depth %d\033[0m\n", fen, depth);
-      printf("Expected: %ld, got: %ld\n", nodes, result);
-    }
+    rewind(file);
   }
+  LookupTableFree(l);
   fclose(file);
   return 0;
 }
 
-static long treeSearch(LookupTable l, ChessBoard *cb, int depth)
+static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int count)
 {
+  (void)count;
+  long nodes = 0;
   MoveSet ms = MoveSetNew();
   MoveSetFill(l, cb, &ms);
 
-  if ((depth == 1))
+  if (depth == 1)
     return MoveSetCount(&ms);
 
-  long nodes = 0;
+  if ((depth == 2) && (!count))
+    nodes += MoveSetMultiply(l, cb, &ms);
+
   while (!MoveSetIsEmpty(&ms))
   {
     Move m = MoveSetPop(&ms);
     ChessBoard new = ChessBoardPlayMove(cb, m);
-    nodes += treeSearch(l, &new, depth - 1);
+    nodes += treeSearch(l, &new, depth - 1, count);
   }
 
   return nodes;
+}
+
+static int testMoveSetCount(LookupTable l, ChessBoard *cb, int depth, long nodes)
+{
+  long result = treeSearch(l, cb, depth, 1);
+
+  // Print results
+  if (result != nodes)
+  {
+    printf("\033[0;31mTest FAILED: %s at depth %d\033[0m\n", ChessBoardToFEN(cb), depth);
+    printf("Expected: %ld, got: %ld\n", nodes, result);
+    return 0; // Failure
+  }
+  else
+  {
+    return 1; // Success
+  }
+}
+
+// Traverses the tree and at each node compares MoveSetCount to MoveSetMultiply
+// If they're not equal, print the chessboard that failed, assume depth > 1
+static int testMoveSetMultiply(LookupTable l, ChessBoard *cb, int depth, long nodes)
+{
+  (void)nodes;
+  if (depth == 1)
+    return 1; // Success
+  long count = treeSearch(l, cb, 2, 1);
+  long multiply = treeSearch(l, cb, 2, 0);
+
+  if (count != multiply)
+  {
+    printf("\033[0;31mTest FAILED: %s at depth %d\033[0m\n", ChessBoardToFEN(cb), depth);
+    printf("Expected: %ld, got: %ld\n", count, multiply);
+    return 0; // Failure
+  }
+
+  MoveSet ms = MoveSetNew();
+  MoveSetFill(l, cb, &ms);
+
+  while (!MoveSetIsEmpty(&ms))
+  {
+    Move m = MoveSetPop(&ms);
+    ChessBoard new = ChessBoardPlayMove(cb, m);
+    if (!testMoveSetMultiply(l, &new, depth - 1, nodes))
+      return 0; // Failure
+  }
+
+  return 1; // Success
 }
