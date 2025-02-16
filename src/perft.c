@@ -47,11 +47,11 @@ static long treeSearch(LookupTable l, ChessBoard *cb, int depth, long *multiplie
   long nodes = 0;
   if (depth == 1)
     return MoveSetCount(&ms);
-  // if (depth == 2)
-  // {
-  //   nodes += MoveSetMultiply(l, cb, &ms);
-  //   *multiplied += nodes;
-  // }
+  if (depth == 2)
+  {
+    nodes += MoveSetMultiply(l, cb, &ms);
+    *multiplied += nodes;
+  }
 
   while (!MoveSetIsEmpty(&ms))
   {

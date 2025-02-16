@@ -10,7 +10,8 @@
 #define RANK_OF(s) (SOUTH_EDGE >> (EDGE_SIZE * (EDGE_SIZE - BitBoardRank(s) - 1)))
 
 // Bitboards representing the ranks from the perspective of the given color c
-#define ENPASSANT_RANK(c) (BitBoard) SOUTH_EDGE >> (EDGE_SIZE * ((c * 3) + 2)) // En
+#define ENPASSANT_RANK(c) (BitBoard) SOUTH_EDGE >> (EDGE_SIZE * ((c * 3) + 2))
+#define PROMOTION_RANK(c) (BitBoard) SOUTH_EDGE >> (EDGE_SIZE * ((!c * 5) + 1))
 #define BACK_RANK(c) (BitBoard)((c == White) ? SOUTH_EDGE : NORTH_EDGE)
 
 // Returns a bitboard representing a set of moves given a set of pawns and a color
@@ -226,7 +227,11 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
   memset(canAttack, EMPTY_BOARD, sizeof(canAttack));
 
   for (int i = 0; i < next.size; i++)
+  {
+    if (GET_TYPE(next.maps[i].moved) <= Knight)
+      continue;
     theirMoves |= next.maps[i].to;
+  }
   theirMoves |= (PAWN_ATTACKS(THEIR(Pawn), !cb->turn) | SINGLE_PUSH(THEIR(Pawn), !cb->turn) | DOUBLE_PUSH(THEIR(Pawn), !cb->turn)); // Double push upper bounds
 
   BitBoard kingRelevant = LookupTableAttacks(l, BitBoardPeek(THEIR(King)), King, THEM) |
@@ -265,11 +270,20 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
     {
       // enPassant from square
       BitBoard left = SINGLE_PUSH(ms->maps[i].from, cb->turn) & PAWN_ATTACKS(THEIR(Pawn), !cb->turn);
-      enpassant = SINGLE_PUSH(left, !cb->turn);
+      enpassant |= SINGLE_PUSH(left, !cb->turn);
+    }
+    if ((t == Pawn) && (cb->enPassant != EMPTY_SQUARE))
+    {
+      // BitBoardPrint(PAWN_ATTACKS(BitBoardAdd(EMPTY_BOARD, cb->enPassant), !cb->turn) & ms->maps[i].from);
+      enpassant |= PAWN_ATTACKS(BitBoardAdd(EMPTY_BOARD, cb->enPassant), !cb->turn) & ms->maps[i].from;
+    }
+    if (t == Pawn)
+    {
+      enpassant |= ms->maps[i].from & PROMOTION_RANK(cb->turn);
     }
     if (t == King)
     {
-      // castling = ms->maps[i].to & ~LookupTableAttacks(l, BitBoardPeek(OUR(King)), King, EMPTY_BOARD);
+      castling = ms->maps[i].to & ~LookupTableAttacks(l, BitBoardPeek(OUR(King)), King, EMPTY_BOARD);
     }
   }
 
@@ -283,7 +297,7 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
       if (!(ms->maps[i].from & (pinned | isAttacking | theirMoves)))
         ms->maps[i].to &= pinned | canAttack[t] | theirMoves | THEM | castling;
     }
-    else // Bijective
+    else if (mapOffset == 0) // Bijective
     {
       int squareOffset = BitBoardPeek(ms->maps[i].to) - BitBoardPeek(ms->maps[i].from);
       if (squareOffset > 0)
