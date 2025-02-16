@@ -41,13 +41,11 @@ static long treeSearch(LookupTable l, ChessBoard *cb, int depth, long *multiplie
 
   MoveSet ms = MoveSetNew();
   MoveSetFill(l, cb, &ms);
-  if (isRoot && depth <= 2)
-    MoveSetPrint(ms);
+  if (depth == 1 && !isRoot)
+    return MoveSetCount(&ms);
 
   long nodes = 0;
-  if (depth == 1)
-    return MoveSetCount(&ms);
-  if (depth == 2)
+  if (depth == 2 && !isRoot)
   {
     nodes += MoveSetMultiply(l, cb, &ms);
     *multiplied += nodes;
@@ -58,7 +56,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, int depth, long *multiplie
     Move m = MoveSetPop(&ms);
     ChessBoard new = ChessBoardPlayMove(cb, m);
     long subTree = treeSearch(l, &new, depth - 1, multiplied, 0);
-    if (isRoot && depth > 2)
+    if (isRoot)
     {
       ChessBoardPrintMove(m);
       printf(": %ld\n", subTree);
