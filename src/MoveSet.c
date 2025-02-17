@@ -246,7 +246,7 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
   }
 
   // Consider our moves that could disrupt their king moves
-  BitBoard kingRelevant = LookupTableAttacks(l, BitBoardPeek(THEIR(King)), King, THEM) |
+  BitBoard kingRelevant = (LookupTableAttacks(l, BitBoardPeek(THEIR(King)), King, EMPTY_BOARD) & ~THEM) |
                           BitBoardAdd(EMPTY_BOARD, BitBoardPeek(THEIR(King)));
   while (kingRelevant)
   {
