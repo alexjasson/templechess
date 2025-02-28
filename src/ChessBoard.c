@@ -261,10 +261,7 @@ char *ChessBoardToFEN(ChessBoard *cb)
       Piece p = cb->squares[s];
 
       if (p == EMPTY_PIECE)
-      {
-        // If empty, just count up
-        emptyCount++;
-      }
+        emptyCount++; // If empty, just count up
       else
       {
         // If we reach a non-empty square and have some empties counted, flush them
@@ -280,15 +277,11 @@ char *ChessBoardToFEN(ChessBoard *cb)
 
     // Flush remaining empty squares in this rank
     if (emptyCount > 0)
-    {
       fen[index++] = '0' + emptyCount;
-    }
 
     // Add the rank separator if it's not the last rank
     if (rank < EDGE_SIZE - 1)
-    {
       fen[index++] = '/';
-    }
   }
 
   // 2) Space + Active color: 'w' or 'b'
@@ -328,17 +321,12 @@ char *ChessBoardToFEN(ChessBoard *cb)
   }
 
   if (castlingCount == 0)
-  {
     fen[index++] = '-';
-  }
-
   fen[index++] = ' ';
 
   // 4) En passant target square (if any)
   if (cb->enPassant == EMPTY_SQUARE)
-  {
     fen[index++] = '-';
-  }
   else
   {
     int epFile = cb->enPassant % EDGE_SIZE; // 0..7
@@ -350,7 +338,5 @@ char *ChessBoardToFEN(ChessBoard *cb)
 
   // 5) Null-terminate the string
   fen[index] = '\0';
-
-  // Return pointer to our static buffer
   return fen;
 }
