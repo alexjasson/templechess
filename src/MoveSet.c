@@ -227,9 +227,7 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
   MoveSet next = MoveSetNew();
   MoveSetFill(l, &temp, &next);
 
-  Square s1, s2;
-  BitBoard ourPieces;
-  BitBoard theirMoves;
+  BitBoard theirMoves = EMPTY_BOARD;  // To squares of their moves
   BitBoard special = EMPTY_BOARD;     // From squares of special pawn moves - en passant, promotion
   BitBoard castling = EMPTY_BOARD;    // To squares of castling moves
   BitBoard pinned = EMPTY_BOARD;      // Squares that are pinned
@@ -238,7 +236,7 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
   memset(canAttack, EMPTY_BOARD, sizeof(canAttack));
 
   // Consider their moves that could be disrupted by our moves
-  theirMoves = pawnMoves(THEIR(Pawn), !cb->turn);
+  theirMoves |= pawnMoves(THEIR(Pawn), !cb->turn);
   for (int i = 0; i < next.size; i++)
   {
     if (GET_TYPE(next.maps[i].moved) > Knight)
@@ -250,23 +248,25 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
                           BitBoardAdd(EMPTY_BOARD, BitBoardPeek(THEIR(King)));
   while (kingRelevant)
   {
-    s1 = BitBoardPop(&kingRelevant);
-    ourPieces = US;
+    Square s1 = BitBoardPop(&kingRelevant);
+    BitBoard ourPieces = US & ~OUR(Pawn);
     while (ourPieces)
     {
-      s2 = BitBoardPop(&ourPieces);
+      Square s2 = BitBoardPop(&ourPieces);
       Type t = GET_TYPE(cb->squares[s2]);
-      BitBoard king = BitBoardAdd(EMPTY_BOARD, s1);
       BitBoard piece = BitBoardAdd(EMPTY_BOARD, s2);
-      BitBoard projection = (t == Pawn) ? PAWN_ATTACKS(king, !cb->turn) : LookupTableAttacks(l, s1, t, EMPTY_BOARD);
-      BitBoard moves = (t == Pawn) ? pawnMoves(piece, cb->turn) : LookupTableAttacks(l, s2, t, EMPTY_BOARD);
+      BitBoard projection = LookupTableAttacks(l, s1, t, EMPTY_BOARD);
+      BitBoard moves = LookupTableAttacks(l, s2, t, EMPTY_BOARD);
       canAttack[t] |= moves & projection;
+      isAttacking |= piece & projection;
       if (piece & projection)
-      {
         pinned |= LookupTableSquaresBetween(l, s1, s2);
-        isAttacking |= piece;
-      }
     }
+    BitBoard king = BitBoardAdd(EMPTY_BOARD, s1);
+    BitBoard projection = PAWN_ATTACKS(king, !cb->turn);
+    BitBoard moves = pawnMoves(OUR(Pawn), cb->turn);
+    canAttack[Pawn] |= moves & projection;
+    isAttacking |= OUR(Pawn) & projection;
   }
 
   // Consider special moves that are annoying to calculate
