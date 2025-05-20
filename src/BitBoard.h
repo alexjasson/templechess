@@ -39,44 +39,21 @@ typedef uint64_t BitBoard;
 void BitBoardPrint(BitBoard b);
 
 /*
- * Add a square to a bitboard and return the new bitboard, if the square was already present,
- * it won't make a difference.
+ * Bitboard operations
  */
-BitBoard BitBoardAdd(BitBoard b, Square s);
-
-/*
- * If we think of a bitboard as a set of squares, this will return the cardinality of the set
- */
-int BitBoardCount(BitBoard b);
-
-/*
- * Given a bitboard, returns the least significant square.
- */
-Square BitBoardPeek(BitBoard b);
-
-/*
- * Given a bitboard, returns the least significant square and removes it from the set.
- */
-Square BitBoardPop(BitBoard *b);
-
-/*
- * Given a square, returns what rank/file/diagonal/anti diagional it is on. Note that a8 is rank 0,
- * a1 is rank 7 and a8 is file 0, h8 is file 7
- */
-int BitBoardRank(Square s);
-int BitBoardFile(Square s);
-int BitBoardDiagonal(Square s);
-int BitBoardAntiDiagonal(Square s);
-
-/*
- * Shifts all the squares on a bitboard in a specific direction, there is no wrap around so
- * any squares that are pushed out of bounds are gone.
- */
-BitBoard BitBoardShiftNE(BitBoard b);
-BitBoard BitBoardShiftNW(BitBoard b);
-BitBoard BitBoardShiftN(BitBoard b);
-BitBoard BitBoardShiftS(BitBoard b);
-BitBoard BitBoardShiftSE(BitBoard b);
-BitBoard BitBoardShiftSW(BitBoard b);
+static inline BitBoard BitBoardAdd(BitBoard b, Square s)   { return b | ((BitBoard)1 << s); }
+static inline int      BitBoardCount(BitBoard b)           { return __builtin_popcountll(b); }
+static inline Square   BitBoardPeek(BitBoard b)            { return __builtin_ctzll(b); }
+static inline Square   BitBoardPop(BitBoard *b)            { Square s = BitBoardPeek(*b); *b &= *b - 1; return s; }
+static inline int      BitBoardRank(Square s)              { return s >> 3; }
+static inline int      BitBoardFile(Square s)              { return s & 7; }
+static inline int      BitBoardDiagonal(Square s)          { return BitBoardRank(s) + BitBoardFile(s); }
+static inline int      BitBoardAntiDiagonal(Square s)      { return (EDGE_SIZE - 1) + BitBoardRank(s) - BitBoardFile(s); }
+static inline BitBoard BitBoardShiftNE(BitBoard b)         { return (b & ~EAST_EDGE) >> 7; }
+static inline BitBoard BitBoardShiftNW(BitBoard b)         { return (b & ~WEST_EDGE) >> 9; }
+static inline BitBoard BitBoardShiftN(BitBoard b)          { return b >> EDGE_SIZE; }
+static inline BitBoard BitBoardShiftS(BitBoard b)          { return b << EDGE_SIZE; }
+static inline BitBoard BitBoardShiftSE(BitBoard b)         { return (b & ~EAST_EDGE) << 9; }
+static inline BitBoard BitBoardShiftSW(BitBoard b)         { return (b & ~WEST_EDGE) << 7; }
 
 #endif
