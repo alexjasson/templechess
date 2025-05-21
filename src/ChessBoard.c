@@ -36,7 +36,6 @@ ChessBoard ChessBoardNew(char *fen)
     {
       for (int numSquares = *fen - '0'; numSquares > 0; numSquares--)
       {
-        cb.pieces[EMPTY_PIECE] |= BitBoardAdd(EMPTY_BOARD, s);
         cb.squares[s] = EMPTY_PIECE;
         s++;
       }
@@ -44,7 +43,9 @@ ChessBoard ChessBoardNew(char *fen)
     else
     {
       Piece p = getPieceFromASCII(*fen);
-      cb.pieces[p] |= BitBoardAdd(EMPTY_BOARD, s);
+      BitBoard b = BitBoardAdd(EMPTY_BOARD, s);
+      cb.pieceTypeBB[GET_TYPE(p)] |= b;
+      cb.colorBB[GET_COLOR(p)] |= b;
       cb.squares[s] = p;
       s++;
     }
@@ -167,9 +168,17 @@ static void addPiece(ChessBoard *cb, Square s, Piece replacement)
 {
   BitBoard b = BitBoardAdd(EMPTY_BOARD, s);
   Piece captured = cb->squares[s];
+  /* Remove captured piece from type and color bitboards */
+  if (captured != EMPTY_PIECE) {
+    cb->pieceTypeBB[GET_TYPE(captured)] &= ~b;
+    cb->colorBB[GET_COLOR(captured)] &= ~b;
+  }
+  /* Add replacement piece to type and color bitboards */
+  if (replacement != EMPTY_PIECE) {
+    cb->pieceTypeBB[GET_TYPE(replacement)] |= b;
+    cb->colorBB[GET_COLOR(replacement)] |= b;
+  }
   cb->squares[s] = replacement;
-  cb->pieces[replacement] |= b;
-  cb->pieces[captured] &= ~b;
 }
 
 void ChessBoardPrintBoard(ChessBoard cb)

@@ -2,6 +2,7 @@
 #define LOOKUP_TABLE_H
 
 #define TYPE_SIZE 6
+#define COLOR_SIZE 2
 
 typedef struct lookupTable *LookupTable;
 

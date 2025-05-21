@@ -1,17 +1,16 @@
 #ifndef CHESSBOARD_H
 #define CHESSBOARD_H
 
-#define PIECE_SIZE 12
 #define EMPTY_PIECE 12
 #define GET_PIECE(t, c) ((t << 1) | c) // Get the piece given a type and color
 #define GET_TYPE(p) (p >> 1)           // Get the type of a piece
 #define GET_COLOR(p) (p & 1)           // Get the color of a piece
 
-#define OUR(t) (ChessBoardPieces(cb, GET_PIECE(t, ChessBoardColor(cb))))
-#define THEIR(t) (ChessBoardPieces(cb, GET_PIECE(t, !ChessBoardColor(cb))))
-#define ALL (~ChessBoardPieces(cb, EMPTY_PIECE))
-#define US (OUR(Pawn) | OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen) | OUR(King))
-#define THEM (ALL & ~US)
+#define OUR(t) ((cb)->pieceTypeBB[t] & (cb)->colorBB[ChessBoardColor(cb)])
+#define THEIR(t) ((cb)->pieceTypeBB[t] & (cb)->colorBB[!ChessBoardColor(cb)])
+#define ALL ((cb)->colorBB[White] | (cb)->colorBB[Black])
+#define US ((cb)->colorBB[ChessBoardColor(cb)])
+#define THEM ((cb)->colorBB[!ChessBoardColor(cb)])
 
 /*
  * A piece is a number from 0 to 11 representing a piece on a chess board.
@@ -26,7 +25,8 @@ typedef uint8_t Piece;
  */
 typedef struct
 {
-  BitBoard pieces[PIECE_SIZE + 1]; // A set of squares for each piece, including empty pieces
+  BitBoard pieceTypeBB[TYPE_SIZE]; // A set of squares for each piece type (Pawn, King, Knight, Bishop, Rook, Queen)
+  BitBoard colorBB[COLOR_SIZE];            // A set of squares for each color (White, Black)
   Piece squares[BOARD_SIZE];       // A piece for each square, including empty pieces
   Color turn;
   Square enPassant;
@@ -93,6 +93,10 @@ int ChessBoardQueenSide(ChessBoard *cb); // Returns 1 if the side to move has qu
 static inline Color ChessBoardColor(ChessBoard *cb) { return cb->turn; } // Returns the color of the side to move
 static inline Square ChessBoardEnPassant(ChessBoard *cb) { return cb->enPassant; } // Returns the square of the en passant
 static inline Piece ChessBoardSquare(ChessBoard *cb, Square s) { return cb->squares[s]; } // Returns the piece on the given square
-static inline BitBoard ChessBoardPieces(ChessBoard *cb, Piece p) { return cb->pieces[p]; } // Returns the bitboard of the given piece
+/* Returns the bitboard of the given piece (type and color combined) */
+static inline BitBoard ChessBoardPieces(ChessBoard *cb, Piece p)
+{
+  return (cb->pieceTypeBB[GET_TYPE(p)] & cb->colorBB[GET_COLOR(p)]);
+}
 
 #endif
