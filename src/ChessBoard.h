@@ -88,4 +88,11 @@ BitBoard ChessBoardAttacked(LookupTable l, ChessBoard *cb);
  */
 ChessBoard ChessBoardFlip(ChessBoard *cb);
 
+int ChessBoardKingSide(ChessBoard *cb);  // Returns 1 if the side to move has king-side castling rights, 0 otherwise
+int ChessBoardQueenSide(ChessBoard *cb); // Returns 1 if the side to move has queen-side castling rights, 0 otherwise
+static inline Color ChessBoardColor(ChessBoard *cb) { return cb->turn; } // Returns the color of the side to move
+static inline Square ChessBoardEnPassant(ChessBoard *cb) { return cb->enPassant; } // Returns the square of the en passant
+static inline Piece ChessBoardSquare(ChessBoard *cb, Square s) { return cb->squares[s]; } // Returns the piece on the given square
+static inline BitBoard ChessBoardPieces(ChessBoard *cb, Piece p) { return cb->pieces[p]; } // Returns the bitboard of the given piece
+
 #endif

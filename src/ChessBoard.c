@@ -83,6 +83,18 @@ ChessBoard ChessBoardNew(char *fen)
 
   return cb;
 }
+// Returns 1 if the side to move has king-side castling rights, 0 otherwise
+int ChessBoardKingSide(ChessBoard *cb)
+{
+  BitBoard mask = KINGSIDE_CASTLING & BACK_RANK(cb->turn);
+  return ((cb->castling & mask) == mask) ? 1 : 0;
+}
+// Returns 1 if the side to move has queen-side castling rights, 0 otherwise
+int ChessBoardQueenSide(ChessBoard *cb)
+{
+  BitBoard mask = QUEENSIDE_CASTLING & BACK_RANK(cb->turn);
+  return ((cb->castling & mask) == mask) ? 1 : 0;
+}
 
 // Assumes that asciiPiece is valid
 static Piece getPieceFromASCII(char asciiPiece)

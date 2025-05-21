@@ -71,11 +71,16 @@ void MoveSetFill(LookupTable l, ChessBoard *cb, MoveSet *ms)
 
   // King map
   moves = LookupTableAttacks(l, BitBoardPeek(OUR(King)), King, EMPTY_BOARD) & ~US & ~attacked;
-  b1 = (cb->castling | (attacked & ATTACK_MASK) | (ALL & OCCUPANCY_MASK)) & BACK_RANK(cb->turn);
-  if ((b1 & KINGSIDE) == (KINGSIDE_CASTLING & BACK_RANK(cb->turn)) && (~checkMask == EMPTY_BOARD))
-    moves |= OUR(King) << 2;
-  if ((b1 & QUEENSIDE) == (QUEENSIDE_CASTLING & BACK_RANK(cb->turn)) && (~checkMask == EMPTY_BOARD))
-    moves |= OUR(King) >> 2;
+  if ((~checkMask) == EMPTY_BOARD) {
+    // Kingside: check rights and interior squares f/g
+    int clear = (((attacked & ATTACK_MASK) | (ALL & OCCUPANCY_MASK)) & (KINGSIDE & ~KINGSIDE_CASTLING) & BACK_RANK(cb->turn)) == EMPTY_BOARD;
+    if (ChessBoardKingSide(cb) && clear)
+      moves |= OUR(King) << 2;
+    // Queenside: check rights and interior squares b/c/d
+    clear = (((attacked & ATTACK_MASK) | (ALL & OCCUPANCY_MASK)) & (QUEENSIDE & ~QUEENSIDE_CASTLING) & BACK_RANK(cb->turn)) == EMPTY_BOARD;
+    if (ChessBoardQueenSide(cb) && clear)
+      moves |= OUR(King) >> 2;
+  }
   addMap(ms, moves, OUR(King), GET_PIECE(King, cb->turn));
 
   // Piece maps
