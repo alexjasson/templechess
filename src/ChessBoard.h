@@ -7,11 +7,11 @@
 #define GET_TYPE(p) (p >> 1)           // Get the type of a piece
 #define GET_COLOR(p) (p & 1)           // Get the color of a piece
 
-#define OUR(t) (cb->pieces[GET_PIECE(t, cb->turn)])                                     // Bitboard representing our pieces of type t
-#define THEIR(t) (cb->pieces[GET_PIECE(t, !cb->turn)])                                  // Bitboard representing their pieces of type t
-#define ALL (~cb->pieces[EMPTY_PIECE])                                                  // Bitboard of all the pieces
-#define US (OUR(Pawn) | OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen) | OUR(King)) // Bitboard of all our pieces
-#define THEM (ALL & ~US)                                                                // Bitboard of all their pieces
+#define OUR(t) (ChessBoardPieces(cb, GET_PIECE(t, ChessBoardColor(cb))))
+#define THEIR(t) (ChessBoardPieces(cb, GET_PIECE(t, !ChessBoardColor(cb))))
+#define ALL (~ChessBoardPieces(cb, EMPTY_PIECE))
+#define US (OUR(Pawn) | OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen) | OUR(King))
+#define THEM (ALL & ~US)
 
 /*
  * A piece is a number from 0 to 11 representing a piece on a chess board.

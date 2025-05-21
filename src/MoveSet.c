@@ -73,69 +73,69 @@ void MoveSetFill(LookupTable l, ChessBoard *cb, MoveSet *ms)
   moves = LookupTableAttacks(l, BitBoardPeek(OUR(King)), King, EMPTY_BOARD) & ~US & ~attacked;
   if ((~checkMask) == EMPTY_BOARD) {
     // Kingside: check rights and interior squares f/g
-    int clear = (((attacked & ATTACK_MASK) | (ALL & OCCUPANCY_MASK)) & (KINGSIDE & ~KINGSIDE_CASTLING) & BACK_RANK(cb->turn)) == EMPTY_BOARD;
+    int clear = (((attacked & ATTACK_MASK) | (ALL & OCCUPANCY_MASK)) & (KINGSIDE & ~KINGSIDE_CASTLING) & BACK_RANK(ChessBoardColor(cb))) == EMPTY_BOARD;
     if (ChessBoardKingSide(cb) && clear)
       moves |= OUR(King) << 2;
     // Queenside: check rights and interior squares b/c/d
-    clear = (((attacked & ATTACK_MASK) | (ALL & OCCUPANCY_MASK)) & (QUEENSIDE & ~QUEENSIDE_CASTLING) & BACK_RANK(cb->turn)) == EMPTY_BOARD;
+    clear = (((attacked & ATTACK_MASK) | (ALL & OCCUPANCY_MASK)) & (QUEENSIDE & ~QUEENSIDE_CASTLING) & BACK_RANK(ChessBoardColor(cb))) == EMPTY_BOARD;
     if (ChessBoardQueenSide(cb) && clear)
       moves |= OUR(King) >> 2;
   }
-  addMap(ms, moves, OUR(King), GET_PIECE(King, cb->turn));
+  addMap(ms, moves, OUR(King), GET_PIECE(King, ChessBoardColor(cb)));
 
   // Piece maps
   b1 = US & ~(OUR(Pawn) | OUR(King));
   while (b1)
   {
     s = BitBoardPop(&b1);
-    moves = LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), ALL) & ~US & checkMask;
+    moves = LookupTableAttacks(l, s, GET_TYPE(ChessBoardSquare(cb, s)), ALL) & ~US & checkMask;
     if (BitBoardAdd(EMPTY_BOARD, s) & pinned)
       moves &= LookupTableLineOfSight(l, BitBoardPeek(OUR(King)), s);
-    addMap(ms, moves, BitBoardAdd(EMPTY_BOARD, s), cb->squares[s]);
+    addMap(ms, moves, BitBoardAdd(EMPTY_BOARD, s), ChessBoardSquare(cb, s));
   }
 
   // Pawn maps
   b1 = OUR(Pawn) & ~pinned;
-  moves = PAWN_ATTACKS_LEFT(b1, cb->turn) & THEM & checkMask;
-  addMap(ms, moves, PAWN_ATTACKS_LEFT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
-  moves = PAWN_ATTACKS_RIGHT(b1, cb->turn) & THEM & checkMask;
-  addMap(ms, moves, PAWN_ATTACKS_RIGHT(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
-  b2 = SINGLE_PUSH(b1, cb->turn) & ~ALL;
+  moves = PAWN_ATTACKS_LEFT(b1, ChessBoardColor(cb)) & THEM & checkMask;
+  addMap(ms, moves, PAWN_ATTACKS_LEFT(moves, (!ChessBoardColor(cb))), GET_PIECE(Pawn, ChessBoardColor(cb)));
+  moves = PAWN_ATTACKS_RIGHT(b1, ChessBoardColor(cb)) & THEM & checkMask;
+  addMap(ms, moves, PAWN_ATTACKS_RIGHT(moves, (!ChessBoardColor(cb))), GET_PIECE(Pawn, ChessBoardColor(cb)));
+  b2 = SINGLE_PUSH(b1, ChessBoardColor(cb)) & ~ALL;
   moves = b2 & checkMask;
-  addMap(ms, moves, SINGLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
-  moves = SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL & checkMask;
-  addMap(ms, moves, DOUBLE_PUSH(moves, (!cb->turn)), GET_PIECE(Pawn, cb->turn));
+  addMap(ms, moves, SINGLE_PUSH(moves, (!ChessBoardColor(cb))), GET_PIECE(Pawn, ChessBoardColor(cb)));
+  moves = SINGLE_PUSH(b2 & ENPASSANT_RANK(ChessBoardColor(cb)), ChessBoardColor(cb)) & ~ALL & checkMask;
+  addMap(ms, moves, DOUBLE_PUSH(moves, (!ChessBoardColor(cb))), GET_PIECE(Pawn, ChessBoardColor(cb)));
   b1 = OUR(Pawn) & pinned;
   while (b1)
   {
     s = BitBoardPop(&b1);
     b3 = LookupTableLineOfSight(l, BitBoardPeek(OUR(King)), s);
-    moves = PAWN_ATTACKS(BitBoardAdd(EMPTY_BOARD, s), cb->turn) & THEM;
-    b2 = SINGLE_PUSH(BitBoardAdd(EMPTY_BOARD, s), cb->turn) & ~ALL;
+    moves = PAWN_ATTACKS(BitBoardAdd(EMPTY_BOARD, s), ChessBoardColor(cb)) & THEM;
+    b2 = SINGLE_PUSH(BitBoardAdd(EMPTY_BOARD, s), ChessBoardColor(cb)) & ~ALL;
     moves |= b2;
-    moves |= SINGLE_PUSH(b2 & ENPASSANT_RANK(cb->turn), cb->turn) & ~ALL;
-    addMap(ms, moves & b3 & checkMask, BitBoardAdd(EMPTY_BOARD, s), GET_PIECE(Pawn, cb->turn));
+    moves |= SINGLE_PUSH(b2 & ENPASSANT_RANK(ChessBoardColor(cb)), ChessBoardColor(cb)) & ~ALL;
+    addMap(ms, moves & b3 & checkMask, BitBoardAdd(EMPTY_BOARD, s), GET_PIECE(Pawn, ChessBoardColor(cb)));
   }
 
   // En passant map
-  if (cb->enPassant != EMPTY_SQUARE)
+  if (ChessBoardEnPassant(cb) != EMPTY_SQUARE)
   {
-    b1 = PAWN_ATTACKS(BitBoardAdd(EMPTY_BOARD, cb->enPassant), (!cb->turn)) & OUR(Pawn);
+    b1 = PAWN_ATTACKS(BitBoardAdd(EMPTY_BOARD, ChessBoardEnPassant(cb)), (!ChessBoardColor(cb))) & OUR(Pawn);
     b2 = EMPTY_BOARD;
-    b3 = BitBoardAdd(EMPTY_BOARD, cb->enPassant);
+    b3 = BitBoardAdd(EMPTY_BOARD, ChessBoardEnPassant(cb));
     while (b1)
     {
       s = BitBoardPop(&b1);
       // Check pseudo-pinning for en passant
-      if (LookupTableAttacks(l, BitBoardPeek(OUR(King)), Rook, ALL & ~BitBoardAdd(SINGLE_PUSH(b3, (!cb->turn)), s)) &
+      if (LookupTableAttacks(l, BitBoardPeek(OUR(King)), Rook, ALL & ~BitBoardAdd(SINGLE_PUSH(b3, (!ChessBoardColor(cb))), s)) &
           RANK_OF(BitBoardPeek(OUR(King))) & (THEIR(Rook) | THEIR(Queen)))
         continue;
       b2 |= BitBoardAdd(EMPTY_BOARD, s);
       if (b2 & pinned)
-        b2 &= LookupTableLineOfSight(l, BitBoardPeek(OUR(King)), cb->enPassant);
+        b2 &= LookupTableLineOfSight(l, BitBoardPeek(OUR(King)), ChessBoardEnPassant(cb));
     }
     if (b2 != EMPTY_BOARD)
-      addMap(ms, b3, b2, GET_PIECE(Pawn, cb->turn));
+      addMap(ms, b3, b2, GET_PIECE(Pawn, ChessBoardColor(cb)));
   }
 }
 
@@ -241,7 +241,7 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
   memset(canAttack, EMPTY_BOARD, sizeof(canAttack));
 
   // Consider their moves that could be disrupted by our moves
-  theirMoves |= pawnMoves(THEIR(Pawn), !cb->turn);
+  theirMoves |= pawnMoves(THEIR(Pawn), !ChessBoardColor(cb));
   for (int i = 0; i < next.size; i++)
   {
     if (GET_TYPE(next.maps[i].moved) > Knight)
@@ -258,7 +258,7 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
     while (ourPieces)
     {
       Square s2 = BitBoardPop(&ourPieces);
-      Type t = GET_TYPE(cb->squares[s2]);
+      Type t = GET_TYPE(ChessBoardSquare(cb, s2));
       BitBoard piece = BitBoardAdd(EMPTY_BOARD, s2);
       BitBoard projection = LookupTableAttacks(l, s1, t, EMPTY_BOARD);
       BitBoard moves = LookupTableAttacks(l, s2, t, EMPTY_BOARD);
@@ -268,8 +268,8 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
         pinned |= LookupTableSquaresBetween(l, s1, s2);
     }
     BitBoard king = BitBoardAdd(EMPTY_BOARD, s1);
-    BitBoard projection = PAWN_ATTACKS(king, !cb->turn);
-    BitBoard moves = pawnMoves(OUR(Pawn), cb->turn);
+    BitBoard projection = PAWN_ATTACKS(king, !ChessBoardColor(cb));
+    BitBoard moves = pawnMoves(OUR(Pawn), ChessBoardColor(cb));
     canAttack[Pawn] |= moves & projection;
     isAttacking |= OUR(Pawn) & projection;
   }
@@ -283,10 +283,10 @@ int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
     if (t == Pawn)
     {
       if (squareOffset == 16 || squareOffset == -16) // Double pushes causing en passant
-        special |= SINGLE_PUSH(SINGLE_PUSH(ms->maps[i].from, cb->turn) & PAWN_ATTACKS(THEIR(Pawn), !cb->turn), !cb->turn);
-      if (cb->enPassant != EMPTY_SQUARE) // En passant
-        special |= PAWN_ATTACKS(BitBoardAdd(EMPTY_BOARD, cb->enPassant), !cb->turn) & ms->maps[i].from;
-      special |= ms->maps[i].from & PROMOTION_RANK(cb->turn); // Promotion
+        special |= SINGLE_PUSH(SINGLE_PUSH(ms->maps[i].from, ChessBoardColor(cb)) & PAWN_ATTACKS(THEIR(Pawn), !ChessBoardColor(cb)), !ChessBoardColor(cb));
+      if (ChessBoardEnPassant(cb) != EMPTY_SQUARE) // En passant
+        special |= PAWN_ATTACKS(BitBoardAdd(EMPTY_BOARD, ChessBoardEnPassant(cb)), !ChessBoardColor(cb)) & ms->maps[i].from;
+      special |= ms->maps[i].from & PROMOTION_RANK(ChessBoardColor(cb)); // Promotion
     }
     else if (t == King) // Castling
       castling = ms->maps[i].to & ~LookupTableAttacks(l, BitBoardPeek(OUR(King)), King, EMPTY_BOARD);
