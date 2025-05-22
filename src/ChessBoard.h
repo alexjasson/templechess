@@ -1,12 +1,6 @@
 #ifndef CHESSBOARD_H
 #define CHESSBOARD_H
 
-#define OUR(t) ((cb)->pieceTypeBB[t] & (cb)->colorBB[ChessBoardColor(cb)])
-#define THEIR(t) ((cb)->pieceTypeBB[t] & (cb)->colorBB[!ChessBoardColor(cb)])
-#define ALL ((cb)->colorBB[White] | (cb)->colorBB[Black])
-#define US ((cb)->colorBB[ChessBoardColor(cb)])
-#define THEM ((cb)->colorBB[!ChessBoardColor(cb)])
-
 /*
  * Representation of a chess board. Note that castling rights are representated as a set of
  * squares where if the original square of a king and the original square of a rook is present,
@@ -14,8 +8,8 @@
  */
 typedef struct
 {
-  BitBoard pieceTypeBB[TYPE_SIZE]; // A set of squares for each piece type (Pawn, King, Knight, Bishop, Rook, Queen)
-  BitBoard colorBB[COLOR_SIZE];    // A set of squares for each color (White, Black)
+  BitBoard types[TYPE_SIZE];       // A set of squares for each piece type (Pawn, King, Knight, Bishop, Rook, Queen)
+  BitBoard colors[COLOR_SIZE];     // A set of squares for each color (White, Black)
   Type squares[BOARD_SIZE];        // A piece type for each square, Empty if no piece
   Color turn;
   Square enPassant;
@@ -77,10 +71,23 @@ BitBoard ChessBoardAttacked(LookupTable l, ChessBoard *cb);
  */
 ChessBoard ChessBoardFlip(ChessBoard *cb);
 
-int ChessBoardKingSide(ChessBoard *cb);  // Returns 1 if the side to move has king-side castling rights, 0 otherwise
-int ChessBoardQueenSide(ChessBoard *cb); // Returns 1 if the side to move has queen-side castling rights, 0 otherwise
-static inline Color ChessBoardColor(ChessBoard *cb) { return cb->turn; } // Returns the color of the side to move
-static inline Square ChessBoardEnPassant(ChessBoard *cb) { return cb->enPassant; } // Returns the square of the en passant
-static inline Type ChessBoardSquare(ChessBoard *cb, Square s) { return cb->squares[s]; } // Returns the piece type on the given square
+/*
+ * Returns 1 if the side to move has king-side castling rights, 0 otherwise
+ */
+int ChessBoardKingSide(ChessBoard *cb);
+
+/*
+ * Returns 1 if the side to move has queen-side castling rights, 0 otherwise
+ */
+int ChessBoardQueenSide(ChessBoard *cb);
+
+static inline Color ChessBoardColor(ChessBoard *cb)            { return cb->turn; }
+static inline Square ChessBoardEnPassant(ChessBoard *cb)       { return cb->enPassant; }
+static inline Type ChessBoardSquare(ChessBoard *cb, Square s)  { return cb->squares[s]; }
+static inline BitBoard ChessBoardOur(ChessBoard *cb, Type t)   { return cb->types[t] & cb->colors[cb->turn]; }
+static inline BitBoard ChessBoardTheir(ChessBoard *cb, Type t) { return cb->types[t] & cb->colors[!cb->turn]; }
+static inline BitBoard ChessBoardAll(ChessBoard *cb)           { return cb->colors[White] | cb->colors[Black]; }
+static inline BitBoard ChessBoardUs(ChessBoard *cb)            { return cb->colors[cb->turn]; }
+static inline BitBoard ChessBoardThem(ChessBoard *cb)          { return cb->colors[!cb->turn]; }
 
 #endif

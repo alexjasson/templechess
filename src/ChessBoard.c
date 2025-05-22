@@ -45,8 +45,8 @@ ChessBoard ChessBoardNew(char *fen)
       Type t = getTypeFromASCII(*fen);
       Color c = isupper(*fen) ? White : Black;
       BitBoard b = BitBoardAdd(EMPTY_BOARD, s);
-      cb.pieceTypeBB[t] |= b;
-      cb.colorBB[c] |= b;
+      cb.types[t] |= b;
+      cb.colors[c] |= b;
       cb.squares[s] = t;
       s++;
     }
@@ -85,19 +85,17 @@ ChessBoard ChessBoardNew(char *fen)
 
   return cb;
 }
+
 // Returns 1 if the side to move has king-side castling rights, 0 otherwise
-int ChessBoardKingSide(ChessBoard *cb)
-{
-  BitBoard mask = KINGSIDE_CASTLING & BACK_RANK(cb->turn);
-  return ((cb->castling & mask) == mask) ? 1 : 0;
+int ChessBoardKingSide(ChessBoard *cb) {
+  return !(~cb->castling & (KINGSIDE_CASTLING & BACK_RANK(cb->turn)));
 }
+
 // Returns 1 if the side to move has queen-side castling rights, 0 otherwise
 int ChessBoardQueenSide(ChessBoard *cb)
 {
-  BitBoard mask = QUEENSIDE_CASTLING & BACK_RANK(cb->turn);
-  return ((cb->castling & mask) == mask) ? 1 : 0;
+  return !(~cb->castling & (QUEENSIDE_CASTLING & BACK_RANK(cb->turn)));
 }
-
 
 static Color getColorFromASCII(char asciiColor)
 {
@@ -170,13 +168,13 @@ static void addPiece(ChessBoard *cb, Square s, Type type)
   BitBoard b = BitBoardAdd(EMPTY_BOARD, s);
   Type captured = cb->squares[s];
   if (captured != Empty) {
-    cb->pieceTypeBB[captured] &= ~b;
-    cb->colorBB[White] &= ~b;
-    cb->colorBB[Black] &= ~b;
+    cb->types[captured] &= ~b;
+    cb->colors[White] &= ~b;
+    cb->colors[Black] &= ~b;
   }
   if (type != Empty) {
-    cb->pieceTypeBB[type] |= b;
-    cb->colorBB[cb->turn] |= b;
+    cb->types[type] |= b;
+    cb->colors[cb->turn] |= b;
   }
   cb->squares[s] = type;
 }
@@ -190,7 +188,7 @@ void ChessBoardPrintBoard(ChessBoard cb)
       Square s = rank * EDGE_SIZE + file;
       Type t = cb.squares[s];
       BitBoard b = BitBoardAdd(EMPTY_BOARD, s);
-      Color c = (cb.colorBB[White] & b) ? White : Black;
+      Color c = (cb.colors[White] & b) ? White : Black;
       printf("%c ", getASCIIFromType(t, c));
     }
     printf("%d\n", EDGE_SIZE - rank);
@@ -205,16 +203,16 @@ void ChessBoardPrintMove(Move m)
 
 BitBoard ChessBoardChecking(LookupTable l, ChessBoard *cb)
 {
-  Square ourKing = BitBoardPeek(OUR(King));
-  BitBoard checking = (PAWN_ATTACKS(OUR(King), cb->turn) & THEIR(Pawn)) |
-                      (LookupTableAttacks(l, ourKing, Knight, EMPTY_BOARD) & THEIR(Knight));
-  BitBoard candidates = (LookupTableAttacks(l, ourKing, Bishop, THEM) & (THEIR(Bishop) | THEIR(Queen))) |
-                        (LookupTableAttacks(l, ourKing, Rook, THEM) & (THEIR(Rook) | THEIR(Queen)));
+  Square ourKing = BitBoardPeek(ChessBoardOur(cb, King));
+  BitBoard checking = (PAWN_ATTACKS(ChessBoardOur(cb, King), cb->turn) & ChessBoardTheir(cb, Pawn)) |
+                      (LookupTableAttacks(l, ourKing, Knight, EMPTY_BOARD) & ChessBoardTheir(cb, Knight));
+  BitBoard candidates = (LookupTableAttacks(l, ourKing, Bishop, ChessBoardThem(cb)) & (ChessBoardTheir(cb, Bishop) | ChessBoardTheir(cb, Queen))) |
+                        (LookupTableAttacks(l, ourKing, Rook, ChessBoardThem(cb)) & (ChessBoardTheir(cb, Rook) | ChessBoardTheir(cb, Queen)));
 
   while (candidates)
   {
     Square s = BitBoardPop(&candidates);
-    BitBoard b = LookupTableSquaresBetween(l, ourKing, s) & ALL & ~THEM;
+    BitBoard b = LookupTableSquaresBetween(l, ourKing, s) & ChessBoardAll(cb) & ~ChessBoardThem(cb);
     if (b == EMPTY_BOARD)
     {
       checking |= BitBoardAdd(EMPTY_BOARD, s);
@@ -226,15 +224,15 @@ BitBoard ChessBoardChecking(LookupTable l, ChessBoard *cb)
 
 BitBoard ChessBoardPinned(LookupTable l, ChessBoard *cb)
 {
-  Square ourKing = BitBoardPeek(OUR(King));
-  BitBoard candidates = (LookupTableAttacks(l, ourKing, Bishop, THEM) & (THEIR(Bishop) | THEIR(Queen))) |
-                        (LookupTableAttacks(l, ourKing, Rook, THEM) & (THEIR(Rook) | THEIR(Queen)));
+  Square ourKing = BitBoardPeek(ChessBoardOur(cb, King));
+  BitBoard candidates = (LookupTableAttacks(l, ourKing, Bishop, ChessBoardThem(cb)) & (ChessBoardTheir(cb, Bishop) | ChessBoardTheir(cb, Queen))) |
+                        (LookupTableAttacks(l, ourKing, Rook, ChessBoardThem(cb)) & (ChessBoardTheir(cb, Rook) | ChessBoardTheir(cb, Queen)));
   BitBoard pinned = EMPTY_BOARD;
 
   while (candidates)
   {
     Square s = BitBoardPop(&candidates);
-    BitBoard b = LookupTableSquaresBetween(l, ourKing, s) & ALL & ~THEM;
+    BitBoard b = LookupTableSquaresBetween(l, ourKing, s) & ChessBoardAll(cb) & ~ChessBoardThem(cb);
     if (b != EMPTY_BOARD && (b & (b - 1)) == EMPTY_BOARD)
     {
       pinned |= b;
@@ -247,10 +245,10 @@ BitBoard ChessBoardPinned(LookupTable l, ChessBoard *cb)
 BitBoard ChessBoardAttacked(LookupTable l, ChessBoard *cb)
 {
   BitBoard attacked, b;
-  BitBoard occupancies = ALL & ~OUR(King);
+  BitBoard occupancies = ChessBoardAll(cb) & ~ChessBoardOur(cb, King);
 
-  attacked = PAWN_ATTACKS(THEIR(Pawn), (!cb->turn));
-  b = THEM & ~THEIR(Pawn);
+  attacked = PAWN_ATTACKS(ChessBoardTheir(cb, Pawn), (!cb->turn));
+  b = ChessBoardThem(cb) & ~ChessBoardTheir(cb, Pawn);
   while (b)
   {
     Square s = BitBoardPop(&b);
@@ -293,7 +291,7 @@ char *ChessBoardToFEN(ChessBoard *cb)
           emptyCount = 0;
         }
         BitBoard b = BitBoardAdd(EMPTY_BOARD, s);
-        Color c = (cb->colorBB[White] & b) ? White : Black;
+        Color c = (cb->colors[White] & b) ? White : Black;
         fen[index++] = getASCIIFromType(t, c);
       }
     }
