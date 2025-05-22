@@ -1,7 +1,7 @@
 #ifndef LOOKUP_TABLE_H
 #define LOOKUP_TABLE_H
 
-#define TYPE_SIZE 6
+#define TYPE_SIZE 7
 #define COLOR_SIZE 2
 
 typedef struct lookupTable *LookupTable;
@@ -14,7 +14,8 @@ typedef enum
   Knight,
   Bishop,
   Rook,
-  Queen
+  Queen,
+  Empty
 } Type;
 
 // Each color a piece/player can be

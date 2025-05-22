@@ -16,7 +16,8 @@ typedef struct
 {
   BitBoard to;
   BitBoard from;
-  Piece moved;
+  Type type;
+  Color color;
 } Map;
 
 /*

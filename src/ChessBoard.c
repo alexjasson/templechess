@@ -16,9 +16,9 @@
 #define FEN_SIZE 128
 
 static Color getColorFromASCII(char asciiColor);
-static char getASCIIFromPiece(Piece p);
-static Piece getPieceFromASCII(char asciiPiece);
-static void addPiece(ChessBoard *cb, Square s, Piece replacement);
+static char getASCIIFromType(Type t, Color c);
+static Type getTypeFromASCII(char asciiPiece);
+static void addPiece(ChessBoard *cb, Square s, Type type);
 
 // Assumes FEN is valid
 ChessBoard ChessBoardNew(char *fen)
@@ -36,17 +36,18 @@ ChessBoard ChessBoardNew(char *fen)
     {
       for (int numSquares = *fen - '0'; numSquares > 0; numSquares--)
       {
-        cb.squares[s] = EMPTY_PIECE;
+        cb.squares[s] = Empty;
         s++;
       }
     }
     else
     {
-      Piece p = getPieceFromASCII(*fen);
+      Type t = getTypeFromASCII(*fen);
+      Color c = isupper(*fen) ? White : Black;
       BitBoard b = BitBoardAdd(EMPTY_BOARD, s);
-      cb.pieceTypeBB[GET_TYPE(p)] |= b;
-      cb.colorBB[GET_COLOR(p)] |= b;
-      cb.squares[s] = p;
+      cb.pieceTypeBB[t] |= b;
+      cb.colorBB[c] |= b;
+      cb.squares[s] = t;
       s++;
     }
   }
@@ -97,30 +98,30 @@ int ChessBoardQueenSide(ChessBoard *cb)
   return ((cb->castling & mask) == mask) ? 1 : 0;
 }
 
-// Assumes that asciiPiece is valid
-static Piece getPieceFromASCII(char asciiPiece)
-{
-  if (asciiPiece == '-')
-    return EMPTY_PIECE;
-  char *pieces = "PKNBRQ";
-  Type t = (Type)(strchr(pieces, toupper(asciiPiece)) - pieces);
-  Color c = isupper(asciiPiece) ? White : Black;
-  return GET_PIECE(t, c);
-}
-
-// Assumes that piece is valid
-static char getASCIIFromPiece(Piece p)
-{
-  if (p == EMPTY_PIECE)
-    return '-';
-  char *pieces = "PKNBRQ";
-  char asciiPiece = pieces[GET_TYPE(p)];
-  return GET_COLOR(p) == Black ? tolower(asciiPiece) : asciiPiece;
-}
 
 static Color getColorFromASCII(char asciiColor)
 {
   return (asciiColor == 'w') ? White : Black;
+}
+// Returns the piece type represented by the FEN character (or Empty for '-')
+static Type getTypeFromASCII(char asciiPiece)
+{
+  if (asciiPiece == '-')
+    return Empty;
+  static const char *pieces = "PKNBRQ";
+  char *ptr = strchr(pieces, toupper(asciiPiece));
+  if (ptr)
+    return (Type)(ptr - pieces);
+  return Empty;
+}
+// Returns the ASCII representation of a piece type given its color
+static char getASCIIFromType(Type t, Color c)
+{
+  if (t == Empty)
+    return '-';
+  static const char *pieces = "PKNBRQ";
+  char ch = pieces[t];
+  return (c == Black) ? tolower(ch) : ch;
 }
 
 ChessBoard ChessBoardPlayMove(ChessBoard *old, Move m)
@@ -130,31 +131,31 @@ ChessBoard ChessBoardPlayMove(ChessBoard *old, Move m)
   int offset = m.from - m.to;
   new.enPassant = EMPTY_SQUARE;
   new.castling &= ~(BitBoardAdd(EMPTY_BOARD, m.from) | BitBoardAdd(EMPTY_BOARD, m.to));
-  addPiece(&new, m.to, m.moved);
-  addPiece(&new, m.from, EMPTY_PIECE);
+  addPiece(&new, m.to, m.type);
+  addPiece(&new, m.from, Empty);
 
-  if (GET_TYPE(m.moved) == Pawn)
+  if (m.type == Pawn)
   {
     if ((offset == 16) || (offset == -16))
     { // Double push
       new.enPassant = m.from - (offset / 2);
     }
     else if (m.to == old->enPassant)
-    { // Enpassant
-      addPiece(&new, m.to + (new.turn ? -8 : 8), EMPTY_PIECE);
+    { // En passant capture
+      addPiece(&new, m.to + (new.turn ? -8 : 8), Empty);
     }
   }
-  else if (GET_TYPE(m.moved) == King)
+  else if (m.type == King)
   {
     if (offset == 2)
     { // Queenside castling
-      addPiece(&new, m.to - 2, EMPTY_PIECE);
-      addPiece(&new, m.to + 1, GET_PIECE(Rook, new.turn));
+      addPiece(&new, m.to - 2, Empty);
+      addPiece(&new, m.to + 1, Rook);
     }
     else if (offset == -2)
     { // Kingside castling
-      addPiece(&new, m.to + 1, EMPTY_PIECE);
-      addPiece(&new, m.to - 1, GET_PIECE(Rook, new.turn));
+      addPiece(&new, m.to + 1, Empty);
+      addPiece(&new, m.to - 1, Rook);
     }
   }
 
@@ -163,22 +164,21 @@ ChessBoard ChessBoardPlayMove(ChessBoard *old, Move m)
   return new;
 }
 
-// Adds a piece to a chessboard
-static void addPiece(ChessBoard *cb, Square s, Piece replacement)
+// Adds a piece of given type and current turn color to a chessboard; type=Empty clears the square
+static void addPiece(ChessBoard *cb, Square s, Type type)
 {
   BitBoard b = BitBoardAdd(EMPTY_BOARD, s);
-  Piece captured = cb->squares[s];
-  /* Remove captured piece from type and color bitboards */
-  if (captured != EMPTY_PIECE) {
-    cb->pieceTypeBB[GET_TYPE(captured)] &= ~b;
-    cb->colorBB[GET_COLOR(captured)] &= ~b;
+  Type captured = cb->squares[s];
+  if (captured != Empty) {
+    cb->pieceTypeBB[captured] &= ~b;
+    cb->colorBB[White] &= ~b;
+    cb->colorBB[Black] &= ~b;
   }
-  /* Add replacement piece to type and color bitboards */
-  if (replacement != EMPTY_PIECE) {
-    cb->pieceTypeBB[GET_TYPE(replacement)] |= b;
-    cb->colorBB[GET_COLOR(replacement)] |= b;
+  if (type != Empty) {
+    cb->pieceTypeBB[type] |= b;
+    cb->colorBB[cb->turn] |= b;
   }
-  cb->squares[s] = replacement;
+  cb->squares[s] = type;
 }
 
 void ChessBoardPrintBoard(ChessBoard cb)
@@ -188,8 +188,10 @@ void ChessBoardPrintBoard(ChessBoard cb)
     for (int file = 0; file < EDGE_SIZE; file++)
     {
       Square s = rank * EDGE_SIZE + file;
-      Piece p = cb.squares[s];
-      printf("%c ", getASCIIFromPiece(p));
+      Type t = cb.squares[s];
+      BitBoard b = BitBoardAdd(EMPTY_BOARD, s);
+      Color c = (cb.colorBB[White] & b) ? White : Black;
+      printf("%c ", getASCIIFromType(t, c));
     }
     printf("%d\n", EDGE_SIZE - rank);
   }
@@ -252,7 +254,7 @@ BitBoard ChessBoardAttacked(LookupTable l, ChessBoard *cb)
   while (b)
   {
     Square s = BitBoardPop(&b);
-    attacked |= LookupTableAttacks(l, s, GET_TYPE(cb->squares[s]), occupancies);
+    attacked |= LookupTableAttacks(l, s, cb->squares[s], occupancies);
   }
   return attacked;
 }
@@ -279,20 +281,20 @@ char *ChessBoardToFEN(ChessBoard *cb)
     for (int file = 0; file < EDGE_SIZE; file++)
     {
       Square s = rank * EDGE_SIZE + file;
-      Piece p = cb->squares[s];
+      Type t = cb->squares[s];
 
-      if (p == EMPTY_PIECE)
+      if (t == Empty)
         emptyCount++; // If empty, just count up
       else
       {
-        // If we reach a non-empty square and have some empties counted, flush them
         if (emptyCount > 0)
         {
           fen[index++] = '0' + emptyCount;
           emptyCount = 0;
         }
-        // Convert piece to FEN char (uppercase for White, lowercase for Black)
-        fen[index++] = getASCIIFromPiece(p);
+        BitBoard b = BitBoardAdd(EMPTY_BOARD, s);
+        Color c = (cb->colorBB[White] & b) ? White : Black;
+        fen[index++] = getASCIIFromType(t, c);
       }
     }
 
