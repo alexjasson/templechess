@@ -21,11 +21,11 @@
 #define SINGLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(b) : BitBoardShiftS(b))
 #define DOUBLE_PUSH(b, c) ((c == White) ? BitBoardShiftN(BitBoardShiftN(b)) : BitBoardShiftS(BitBoardShiftS(b)))
 
-static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Type type, Color color);
+static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Type type);
 static BitBoard pawnMoves(BitBoard p, Color c);
 
 // Add the map to moveset if it's non empty
-static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Type type, Color color)
+static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Type type)
 {
   if (to == EMPTY_BOARD || from == EMPTY_BOARD)
     return;
@@ -33,7 +33,6 @@ static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Type type, Color col
   m.to = to;
   m.from = from;
   m.type = type;
-  m.color = color;
   ms->maps[ms->size++] = m;
 }
 
@@ -50,7 +49,6 @@ MoveSet MoveSetNew()
   MoveSet ms;
   ms.size = 0;
   ms.prev.type = Empty;
-  ms.prev.color = White;
   ms.prev.from = EMPTY_SQUARE;
   ms.prev.to = EMPTY_SQUARE;
   return ms;
@@ -83,7 +81,7 @@ void MoveSetFill(LookupTable l, ChessBoard *cb, MoveSet *ms)
     if (ChessBoardQueenSide(cb) && clear)
       moves |= OUR(King) >> 2;
   }
-  addMap(ms, moves, OUR(King), King, ChessBoardColor(cb));
+  addMap(ms, moves, OUR(King), King);
 
   // Piece maps
   b1 = US & ~(OUR(Pawn) | OUR(King));
@@ -93,20 +91,20 @@ void MoveSetFill(LookupTable l, ChessBoard *cb, MoveSet *ms)
     moves = LookupTableAttacks(l, s, ChessBoardSquare(cb, s), ALL) & ~US & checkMask;
     if (BitBoardAdd(EMPTY_BOARD, s) & pinned)
       moves &= LookupTableLineOfSight(l, BitBoardPeek(OUR(King)), s);
-    addMap(ms, moves, BitBoardAdd(EMPTY_BOARD, s), ChessBoardSquare(cb, s), ChessBoardColor(cb));
+    addMap(ms, moves, BitBoardAdd(EMPTY_BOARD, s), ChessBoardSquare(cb, s));
   }
 
   // Pawn maps
   b1 = OUR(Pawn) & ~pinned;
   moves = PAWN_ATTACKS_LEFT(b1, ChessBoardColor(cb)) & THEM & checkMask;
-  addMap(ms, moves, PAWN_ATTACKS_LEFT(moves, (!ChessBoardColor(cb))), Pawn, ChessBoardColor(cb));
+  addMap(ms, moves, PAWN_ATTACKS_LEFT(moves, (!ChessBoardColor(cb))), Pawn);
   moves = PAWN_ATTACKS_RIGHT(b1, ChessBoardColor(cb)) & THEM & checkMask;
-  addMap(ms, moves, PAWN_ATTACKS_RIGHT(moves, (!ChessBoardColor(cb))), Pawn, ChessBoardColor(cb));
+  addMap(ms, moves, PAWN_ATTACKS_RIGHT(moves, (!ChessBoardColor(cb))), Pawn);
   b2 = SINGLE_PUSH(b1, ChessBoardColor(cb)) & ~ALL;
   moves = b2 & checkMask;
-  addMap(ms, moves, SINGLE_PUSH(moves, (!ChessBoardColor(cb))), Pawn, ChessBoardColor(cb));
+  addMap(ms, moves, SINGLE_PUSH(moves, (!ChessBoardColor(cb))), Pawn);
   moves = SINGLE_PUSH(b2 & ENPASSANT_RANK(ChessBoardColor(cb)), ChessBoardColor(cb)) & ~ALL & checkMask;
-  addMap(ms, moves, DOUBLE_PUSH(moves, (!ChessBoardColor(cb))), Pawn, ChessBoardColor(cb));
+  addMap(ms, moves, DOUBLE_PUSH(moves, (!ChessBoardColor(cb))), Pawn);
   b1 = OUR(Pawn) & pinned;
   while (b1)
   {
@@ -116,7 +114,7 @@ void MoveSetFill(LookupTable l, ChessBoard *cb, MoveSet *ms)
     b2 = SINGLE_PUSH(BitBoardAdd(EMPTY_BOARD, s), ChessBoardColor(cb)) & ~ALL;
     moves |= b2;
     moves |= SINGLE_PUSH(b2 & ENPASSANT_RANK(ChessBoardColor(cb)), ChessBoardColor(cb)) & ~ALL;
-    addMap(ms, moves & b3 & checkMask, BitBoardAdd(EMPTY_BOARD, s), Pawn, ChessBoardColor(cb));
+    addMap(ms, moves & b3 & checkMask, BitBoardAdd(EMPTY_BOARD, s), Pawn);
   }
 
   // En passant map
@@ -137,7 +135,7 @@ void MoveSetFill(LookupTable l, ChessBoard *cb, MoveSet *ms)
         b2 &= LookupTableLineOfSight(l, BitBoardPeek(OUR(King)), ChessBoardEnPassant(cb));
     }
     if (b2 != EMPTY_BOARD)
-      addMap(ms, b3, b2, Pawn, ChessBoardColor(cb));
+      addMap(ms, b3, b2, Pawn);
   }
 }
 
@@ -149,7 +147,7 @@ int MoveSetCount(MoveSet *ms)
     int offset = BitBoardCount(ms->maps[i].to) - BitBoardCount(ms->maps[i].from);
     BitBoard promotion = EMPTY_BOARD;
     if (ms->maps[i].type == Pawn)
-      promotion |= (BACK_RANK(!ms->maps[i].color) & ms->maps[i].to);
+      promotion |= ((BACK_RANK(White) | BACK_RANK(Black)) & ms->maps[i].to);
     if (offset < 0)
       nodes++;
     nodes += BitBoardCount(ms->maps[i].to) + BitBoardCount(promotion) * 3;
@@ -166,14 +164,12 @@ Move MoveSetPop(MoveSet *ms)
   m.from = BitBoardPop(&ms->maps[i].from);
   m.to = BitBoardPop(&ms->maps[i].to);
   m.type = ms->maps[i].type;
-  m.color = ms->maps[i].color;
   if (offset > 0)
     ms->maps[i].from = BitBoardAdd(ms->maps[i].from, m.from);
   else if (offset < 0)
     ms->maps[i].to = BitBoardAdd(ms->maps[i].to, m.to);
-  Color c = m.color;
   Type t = m.type;
-  int promotion = (t == Pawn) && (BitBoardAdd(EMPTY_BOARD, m.to) & BACK_RANK(!c));
+  int promotion = (t == Pawn) && (BitBoardAdd(EMPTY_BOARD, m.to) & (BACK_RANK(White) | BACK_RANK(Black)));
 
   if (promotion)
   {
