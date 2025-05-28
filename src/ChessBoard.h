@@ -17,13 +17,24 @@ typedef struct
 } ChessBoard;
 
 /*
+ * Representation of a piece on a chess board
+ */
+typedef struct
+{
+  Type type;
+  Square square;
+} Piece;
+
+/*
  * Representation of a move on a chess board
  */
 typedef struct
 {
-  Square to;
-  Square from;
-  Type type;
+  Piece from;        // piece and origin square before the move
+  Piece to;          // piece and destination square after the move (includes promotion)
+  Piece captured;    // captured piece and its square (Empty type if no capture)
+  Square enPassant;  // en passant square before the move
+  BitBoard castling; // castling rights before the move
 } Move;
 
 /*
@@ -37,9 +48,13 @@ ChessBoard ChessBoardNew(char *fen); // Stack allocated
 char *ChessBoardToFEN(ChessBoard *cb);
 
 /*
- * Given an old board, play the move on the old board and return the new board
+ * Play a move on the given board in-place, recording undo info in Move
  */
-ChessBoard ChessBoardPlayMove(ChessBoard *old, Move move);
+void ChessBoardPlayMove(ChessBoard *cb, Move m);
+/*
+ * Undo a move previously played with ChessBoardPlayMove
+ */
+void ChessBoardUndoMove(ChessBoard *cb, Move m);
 
 /*
  * Prints a chess board to stdout

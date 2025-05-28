@@ -24,6 +24,7 @@ typedef struct
  */
 typedef struct
 {
+  ChessBoard *cb; // The board that was used to generate the MoveSet
   Map maps[MAPS_SIZE];
   int size;  // Number of maps
   Move prev; // The previous move that was removed from the set

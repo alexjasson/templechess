@@ -48,14 +48,23 @@ MoveSet MoveSetNew()
 {
   MoveSet ms;
   ms.size = 0;
-  ms.prev.type = Empty;
-  ms.prev.from = EMPTY_SQUARE;
-  ms.prev.to = EMPTY_SQUARE;
+  // Initialize prev move as empty
+  ms.prev.from.square = EMPTY_SQUARE;
+  ms.prev.from.type = Empty;
+  ms.prev.to.square = EMPTY_SQUARE;
+  ms.prev.to.type = Empty;
+  ms.prev.captured.square = EMPTY_SQUARE;
+  ms.prev.captured.type = Empty;
+  ms.prev.enPassant = EMPTY_SQUARE;
+  ms.prev.castling = 0;
+  ms.cb = NULL;
   return ms;
 }
 
 void MoveSetFill(LookupTable l, ChessBoard *cb, MoveSet *ms)
 {
+  // Store board pointer for MoveSetPop
+  ms->cb = cb;
   Square s;
   BitBoard pinned, checking, attacked, checkMask, moves, b1, b2, b3;
 
@@ -161,45 +170,58 @@ Move MoveSetPop(MoveSet *ms)
   int i = ms->size - 1;
   int offset = BitBoardCount(ms->maps[i].to) - BitBoardCount(ms->maps[i].from);
   Move m;
-  m.from = BitBoardPop(&ms->maps[i].from);
-  m.to = BitBoardPop(&ms->maps[i].to);
-  m.type = ms->maps[i].type;
+  ChessBoard *cb = ms->cb;
+
+  // Save undo info
+  m.enPassant = cb->enPassant;
+  m.castling = cb->castling;
+
+  // Pop a single square from each map to form the move
+  Square fromSq = BitBoardPop(&ms->maps[i].from);
+  Square toSq   = BitBoardPop(&ms->maps[i].to);
+  m.from.square = fromSq;
+  m.to.square   = toSq;
+  m.to.type     = ms->maps[i].type;
+
+  // If not surjective/bijective, put back excess squares
   if (offset > 0)
-    ms->maps[i].from = BitBoardAdd(ms->maps[i].from, m.from);
+    ms->maps[i].from = BitBoardAdd(ms->maps[i].from, fromSq);
   else if (offset < 0)
-    ms->maps[i].to = BitBoardAdd(ms->maps[i].to, m.to);
-  Type t = m.type;
-  int promotion = (t == Pawn) && (BitBoardAdd(EMPTY_BOARD, m.to) & (BACK_RANK(White) | BACK_RANK(Black)));
+    ms->maps[i].to = BitBoardAdd(ms->maps[i].to, toSq);
 
-  if (promotion)
-  {
-    // Last move wasn't the same move - Must be first promotion popped
-    if ((ms->prev.from != m.from) || (ms->prev.to != m.to))
-    {
-      m.type = Knight;
-
-      // Put the move back in the move set
-      ms->maps[i].from = BitBoardAdd(ms->maps[i].from, m.from);
-      ms->maps[i].to = BitBoardAdd(ms->maps[i].to, m.to);
-    }
-    else
-    {
-      Type prevType = ms->prev.type;
-      m.type = (Type)(prevType + 1);
-      // Last move that will be popped for this promotion
-      if (prevType != Rook)
-      {
-        // Put the move back in the move set
-        ms->maps[i].from = BitBoardAdd(ms->maps[i].from, m.from);
-        ms->maps[i].to = BitBoardAdd(ms->maps[i].to, m.to);
+  // Handle pawn promotions: iterate piece types beyond Pawn
+  if ((m.to.type == Pawn) && (BitBoardAdd(EMPTY_BOARD, toSq) & (BACK_RANK(White) | BACK_RANK(Black)))) {
+    // First promotion popped: yield Knight
+    if ((ms->prev.from.square != fromSq) || (ms->prev.to.square != toSq)) {
+      m.to.type = Knight;
+      ms->maps[i].from = BitBoardAdd(ms->maps[i].from, fromSq);
+      ms->maps[i].to   = BitBoardAdd(ms->maps[i].to, toSq);
+    } else {
+      // Subsequent promotions: increment type
+      Type prevType = ms->prev.to.type;
+      m.to.type = (Type)(prevType + 1);
+      if (prevType != Rook) {
+        ms->maps[i].from = BitBoardAdd(ms->maps[i].from, fromSq);
+        ms->maps[i].to   = BitBoardAdd(ms->maps[i].to, toSq);
       }
     }
   }
 
-  // Check whether the map is now empty
+  // If this map is exhausted, shrink size
   if (ms->maps[i].to == EMPTY_BOARD)
     ms->size--;
 
+  // Populate origin and captured pieces for undo
+  m.from.type = cb->squares[fromSq];
+  if ((m.from.type == Pawn) && (toSq == m.enPassant)) {
+    m.captured.square = (cb->turn == White) ? toSq + EDGE_SIZE : toSq - EDGE_SIZE;
+    m.captured.type   = Pawn;
+  } else {
+    m.captured.square = toSq;
+    m.captured.type   = cb->squares[toSq];
+  }
+
+  // Record this move for promotion sequencing
   ms->prev = m;
   return m;
 }

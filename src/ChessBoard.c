@@ -122,45 +122,6 @@ static char getASCIIFromType(Type t, Color c)
   return (c == Black) ? tolower(ch) : ch;
 }
 
-ChessBoard ChessBoardPlayMove(ChessBoard *old, Move m)
-{
-  ChessBoard new;
-  memcpy(&new, old, sizeof(ChessBoard));
-  int offset = m.from - m.to;
-  new.enPassant = EMPTY_SQUARE;
-  new.castling &= ~(BitBoardAdd(EMPTY_BOARD, m.from) | BitBoardAdd(EMPTY_BOARD, m.to));
-  addPiece(&new, m.to, m.type);
-  addPiece(&new, m.from, Empty);
-
-  if (m.type == Pawn)
-  {
-    if ((offset == 16) || (offset == -16))
-    { // Double push
-      new.enPassant = m.from - (offset / 2);
-    }
-    else if (m.to == old->enPassant)
-    { // En passant capture
-      addPiece(&new, m.to + (new.turn ? -8 : 8), Empty);
-    }
-  }
-  else if (m.type == King)
-  {
-    if (offset == 2)
-    { // Queenside castling
-      addPiece(&new, m.to - 2, Empty);
-      addPiece(&new, m.to + 1, Rook);
-    }
-    else if (offset == -2)
-    { // Kingside castling
-      addPiece(&new, m.to + 1, Empty);
-      addPiece(&new, m.to - 1, Rook);
-    }
-  }
-
-  new.turn = !new.turn;
-
-  return new;
-}
 
 // Adds a piece of given type and current turn color to a chessboard; type=Empty clears the square
 static void addPiece(ChessBoard *cb, Square s, Type type)
@@ -177,6 +138,75 @@ static void addPiece(ChessBoard *cb, Square s, Type type)
     cb->colors[cb->turn] |= b;
   }
   cb->squares[s] = type;
+}
+
+void ChessBoardPlayMove(ChessBoard *cb, Move m)
+{
+  // Update castling rights and clear en passant
+  cb->castling &= ~(BitBoardAdd(EMPTY_BOARD, m.from.square) | BitBoardAdd(EMPTY_BOARD, m.to.square));
+  cb->enPassant = EMPTY_SQUARE;
+
+  // Pawn double push: set en passant target
+  if (m.from.type == Pawn) {
+    int diff = (int)m.to.square - (int)m.from.square;
+    if (diff == 2 * EDGE_SIZE || diff == -2 * EDGE_SIZE)
+      cb->enPassant = m.from.square + diff / 2;
+  }
+
+  // Remove captured piece
+  if (m.captured.type != Empty)
+    addPiece(cb, m.captured.square, Empty);
+
+  // Move piece from origin to destination (handles promotion)
+  addPiece(cb, m.from.square, Empty);
+  addPiece(cb, m.to.square, m.to.type);
+
+  // Castling: move rook if king moved two squares
+  if (m.from.type == King) {
+    int offset = (int)m.from.square - (int)m.to.square;
+    if (offset == 2) {
+      addPiece(cb, m.to.square - 2, Empty);
+      addPiece(cb, m.to.square + 1, Rook);
+    } else if (offset == -2) {
+      addPiece(cb, m.to.square + 1, Empty);
+      addPiece(cb, m.to.square - 1, Rook);
+    }
+  }
+
+  // Toggle side to move
+  cb->turn = !cb->turn;
+}
+
+void ChessBoardUndoMove(ChessBoard *cb, Move m)
+{
+  // Remove piece from destination
+  addPiece(cb, m.to.square, Empty);
+
+  // Restore captured piece
+  if (m.captured.type != Empty)
+    addPiece(cb, m.captured.square, m.captured.type);
+
+  // Toggle side to move back
+  cb->turn = !cb->turn;
+
+  // Restore moved piece to origin
+  addPiece(cb, m.from.square, m.from.type);
+
+  // Undo castling: move rook back if king moved two squares
+  if (m.from.type == King) {
+    int offset = (int)m.from.square - (int)m.to.square;
+    if (offset == 2) {
+      addPiece(cb, m.to.square + 1, Empty);
+      addPiece(cb, m.to.square - 2, Rook);
+    } else if (offset == -2) {
+      addPiece(cb, m.to.square - 1, Empty);
+      addPiece(cb, m.to.square + 1, Rook);
+    }
+  }
+
+  // Restore en passant and castling rights
+  cb->enPassant = m.enPassant;
+  cb->castling = m.castling;
 }
 
 void ChessBoardPrintBoard(ChessBoard cb)
@@ -198,7 +228,11 @@ void ChessBoardPrintBoard(ChessBoard cb)
 
 void ChessBoardPrintMove(Move m)
 {
-  printf("%c%d%c%d", 'a' + (m.from % EDGE_SIZE), EDGE_SIZE - (m.from / EDGE_SIZE), 'a' + (m.to % EDGE_SIZE), EDGE_SIZE - (m.to / EDGE_SIZE));
+  printf("%c%d%c%d",
+         'a' + (m.from.square % EDGE_SIZE),
+         EDGE_SIZE - (m.from.square / EDGE_SIZE),
+         'a' + (m.to.square % EDGE_SIZE),
+         EDGE_SIZE - (m.to.square / EDGE_SIZE));
 }
 
 BitBoard ChessBoardChecking(LookupTable l, ChessBoard *cb)

@@ -44,11 +44,12 @@ static long root(LookupTable l, ChessBoard *cb, int depth)
   while (!MoveSetIsEmpty(&ms))
   {
     Move m = MoveSetPop(&ms);
-    ChessBoard new = ChessBoardPlayMove(cb, m);
-    long subTree = (depth > 1) ? treeSearch(l, &new, depth - 1) : 1;
+    ChessBoardPlayMove(cb, m);
+    long subTree = (depth > 1) ? treeSearch(l, cb, depth - 1) : 1;
     ChessBoardPrintMove(m);
     printf(": %ld\n", subTree);
     nodes += subTree;
+    ChessBoardUndoMove(cb, m);
   }
 
   return nodes;
@@ -70,8 +71,9 @@ static long treeSearch(LookupTable l, ChessBoard *cb, int depth)
   while (!MoveSetIsEmpty(&ms))
   {
     Move m = MoveSetPop(&ms);
-    ChessBoard new = ChessBoardPlayMove(cb, m);
-    nodes += treeSearch(l, &new, depth - 1);
+    ChessBoardPlayMove(cb, m);
+    nodes += treeSearch(l, cb, depth - 1);
+    ChessBoardUndoMove(cb, m);
   }
 
   return nodes;
