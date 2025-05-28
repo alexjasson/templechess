@@ -67,35 +67,13 @@ void ChessBoardPrintBoard(ChessBoard cb);
 void ChessBoardPrintMove(Move m);
 
 /*
- * Given a chess board, returns a set of squares representing their pieces that are giving check
- */
-BitBoard ChessBoardChecking(LookupTable l, ChessBoard *cb);
-
-/*
- * Given a chess board, returns a set of squares representing our pieces that are pinned
- */
-BitBoard ChessBoardPinned(LookupTable l, ChessBoard *cb);
-
-/*
- * Given a chess board, returns a set of squares representing the squares that are attacked by their pieces
- */
-BitBoard ChessBoardAttacked(LookupTable l, ChessBoard *cb);
-
-/*
  * Given a chess board, return a new chess board where the turn is passed to the other color
  */
 ChessBoard ChessBoardFlip(ChessBoard *cb);
 
-/*
- * Returns 1 if the side to move has king-side castling rights, 0 otherwise
- */
-int ChessBoardKingSide(ChessBoard *cb);
-
-/*
- * Returns 1 if the side to move has queen-side castling rights, 0 otherwise
- */
-int ChessBoardQueenSide(ChessBoard *cb);
-
+// Accessor functions for ChessBoard properties
+static inline int ChessBoardKingSide(ChessBoard *cb)  { return !(~cb->castling & (KINGSIDE_CASTLING & ((cb->turn == White) ? SOUTH_EDGE : NORTH_EDGE))); }
+static inline int ChessBoardQueenSide(ChessBoard *cb) { return !(~cb->castling & (QUEENSIDE_CASTLING & ((cb->turn == White) ? SOUTH_EDGE : NORTH_EDGE)));}
 static inline Color ChessBoardColor(ChessBoard *cb)            { return cb->turn; }
 static inline Square ChessBoardEnPassant(ChessBoard *cb)       { return cb->enPassant; }
 static inline Type ChessBoardSquare(ChessBoard *cb, Square s)  { return cb->squares[s]; }

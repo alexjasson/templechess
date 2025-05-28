@@ -23,6 +23,9 @@
 
 static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Type type);
 static BitBoard pawnMoves(BitBoard p, Color c);
+static BitBoard getChecking(LookupTable l, ChessBoard *cb);
+static BitBoard getPinned(LookupTable l, ChessBoard *cb);
+static BitBoard getAttacked(LookupTable l, ChessBoard *cb);
 
 // Add the map to moveset if it's non empty
 static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Type type)
@@ -44,33 +47,82 @@ static BitBoard pawnMoves(BitBoard p, Color c)
   return moves;
 }
 
+static BitBoard getChecking(LookupTable l, ChessBoard *cb)
+{
+  Square ourKing = BitBoardPeek(ChessBoardOur(cb, King));
+  BitBoard checking = (PAWN_ATTACKS(ChessBoardOur(cb, King), cb->turn) & ChessBoardTheir(cb, Pawn)) |
+                      (LookupTableAttacks(l, ourKing, Knight, EMPTY_BOARD) & ChessBoardTheir(cb, Knight));
+  BitBoard candidates = (LookupTableAttacks(l, ourKing, Bishop, ChessBoardThem(cb)) & (ChessBoardTheir(cb, Bishop) | ChessBoardTheir(cb, Queen))) |
+                        (LookupTableAttacks(l, ourKing, Rook, ChessBoardThem(cb)) & (ChessBoardTheir(cb, Rook) | ChessBoardTheir(cb, Queen)));
+
+  while (candidates)
+  {
+    Square s = BitBoardPop(&candidates);
+    BitBoard b = LookupTableSquaresBetween(l, ourKing, s) & ChessBoardAll(cb) & ~ChessBoardThem(cb);
+    if (b == EMPTY_BOARD)
+    {
+      checking |= BitBoardAdd(EMPTY_BOARD, s);
+    }
+  }
+
+  return checking;
+}
+
+static BitBoard getPinned(LookupTable l, ChessBoard *cb)
+{
+  Square ourKing = BitBoardPeek(ChessBoardOur(cb, King));
+  BitBoard candidates = (LookupTableAttacks(l, ourKing, Bishop, ChessBoardThem(cb)) & (ChessBoardTheir(cb, Bishop) | ChessBoardTheir(cb, Queen))) |
+                        (LookupTableAttacks(l, ourKing, Rook, ChessBoardThem(cb)) & (ChessBoardTheir(cb, Rook) | ChessBoardTheir(cb, Queen)));
+  BitBoard pinned = EMPTY_BOARD;
+
+  while (candidates)
+  {
+    Square s = BitBoardPop(&candidates);
+    BitBoard b = LookupTableSquaresBetween(l, ourKing, s) & ChessBoardAll(cb) & ~ChessBoardThem(cb);
+    if (b != EMPTY_BOARD && (b & (b - 1)) == EMPTY_BOARD)
+    {
+      pinned |= b;
+    }
+  }
+
+  return pinned;
+}
+
+static BitBoard getAttacked(LookupTable l, ChessBoard *cb)
+{
+  BitBoard attacked, b;
+  BitBoard occupancies = ChessBoardAll(cb) & ~ChessBoardOur(cb, King);
+
+  attacked = PAWN_ATTACKS(ChessBoardTheir(cb, Pawn), (!cb->turn));
+  b = ChessBoardThem(cb) & ~ChessBoardTheir(cb, Pawn);
+  while (b)
+  {
+    Square s = BitBoardPop(&b);
+    attacked |= LookupTableAttacks(l, s, cb->squares[s], occupancies);
+  }
+  return attacked;
+}
+
 MoveSet MoveSetNew()
 {
   MoveSet ms;
   ms.size = 0;
-  // Initialize prev move as empty
   ms.prev.from.square = EMPTY_SQUARE;
   ms.prev.from.type = Empty;
   ms.prev.to.square = EMPTY_SQUARE;
   ms.prev.to.type = Empty;
-  ms.prev.captured.square = EMPTY_SQUARE;
-  ms.prev.captured.type = Empty;
-  ms.prev.enPassant = EMPTY_SQUARE;
-  ms.prev.castling = 0;
-  ms.cb = NULL;
   return ms;
 }
 
 void MoveSetFill(LookupTable l, ChessBoard *cb, MoveSet *ms)
 {
-  // Store board pointer for MoveSetPop
   ms->cb = cb;
   Square s;
   BitBoard pinned, checking, attacked, checkMask, moves, b1, b2, b3;
 
-  attacked = ChessBoardAttacked(l, cb);
-  checking = ChessBoardChecking(l, cb);
-  pinned = ChessBoardPinned(l, cb);
+  attacked = getAttacked(l, cb);
+  checking = getChecking(l, cb);
+  pinned = getPinned(l, cb);
   checkMask = ~EMPTY_BOARD;
   while (checking)
   {
@@ -246,9 +298,10 @@ void MoveSetPrint(MoveSet ms)
   printf("}\n");
 }
 
-int MoveSetMultiply(LookupTable l, ChessBoard *cb, MoveSet *ms)
+int MoveSetMultiply(LookupTable l, MoveSet *ms)
 {
   int prevCount = MoveSetCount(ms);
+  ChessBoard *cb = ms->cb;
   ChessBoard temp = ChessBoardFlip(cb); // cb is unchanged
   MoveSet next = MoveSetNew();
   MoveSetFill(l, &temp, &next);

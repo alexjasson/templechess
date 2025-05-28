@@ -86,17 +86,6 @@ ChessBoard ChessBoardNew(char *fen)
   return cb;
 }
 
-// Returns 1 if the side to move has king-side castling rights, 0 otherwise
-int ChessBoardKingSide(ChessBoard *cb) {
-  return !(~cb->castling & (KINGSIDE_CASTLING & BACK_RANK(cb->turn)));
-}
-
-// Returns 1 if the side to move has queen-side castling rights, 0 otherwise
-int ChessBoardQueenSide(ChessBoard *cb)
-{
-  return !(~cb->castling & (QUEENSIDE_CASTLING & BACK_RANK(cb->turn)));
-}
-
 static Color getColorFromASCII(char asciiColor)
 {
   return (asciiColor == 'w') ? White : Black;
@@ -233,62 +222,6 @@ void ChessBoardPrintMove(Move m)
          EDGE_SIZE - (m.from.square / EDGE_SIZE),
          'a' + (m.to.square % EDGE_SIZE),
          EDGE_SIZE - (m.to.square / EDGE_SIZE));
-}
-
-BitBoard ChessBoardChecking(LookupTable l, ChessBoard *cb)
-{
-  Square ourKing = BitBoardPeek(ChessBoardOur(cb, King));
-  BitBoard checking = (PAWN_ATTACKS(ChessBoardOur(cb, King), cb->turn) & ChessBoardTheir(cb, Pawn)) |
-                      (LookupTableAttacks(l, ourKing, Knight, EMPTY_BOARD) & ChessBoardTheir(cb, Knight));
-  BitBoard candidates = (LookupTableAttacks(l, ourKing, Bishop, ChessBoardThem(cb)) & (ChessBoardTheir(cb, Bishop) | ChessBoardTheir(cb, Queen))) |
-                        (LookupTableAttacks(l, ourKing, Rook, ChessBoardThem(cb)) & (ChessBoardTheir(cb, Rook) | ChessBoardTheir(cb, Queen)));
-
-  while (candidates)
-  {
-    Square s = BitBoardPop(&candidates);
-    BitBoard b = LookupTableSquaresBetween(l, ourKing, s) & ChessBoardAll(cb) & ~ChessBoardThem(cb);
-    if (b == EMPTY_BOARD)
-    {
-      checking |= BitBoardAdd(EMPTY_BOARD, s);
-    }
-  }
-
-  return checking;
-}
-
-BitBoard ChessBoardPinned(LookupTable l, ChessBoard *cb)
-{
-  Square ourKing = BitBoardPeek(ChessBoardOur(cb, King));
-  BitBoard candidates = (LookupTableAttacks(l, ourKing, Bishop, ChessBoardThem(cb)) & (ChessBoardTheir(cb, Bishop) | ChessBoardTheir(cb, Queen))) |
-                        (LookupTableAttacks(l, ourKing, Rook, ChessBoardThem(cb)) & (ChessBoardTheir(cb, Rook) | ChessBoardTheir(cb, Queen)));
-  BitBoard pinned = EMPTY_BOARD;
-
-  while (candidates)
-  {
-    Square s = BitBoardPop(&candidates);
-    BitBoard b = LookupTableSquaresBetween(l, ourKing, s) & ChessBoardAll(cb) & ~ChessBoardThem(cb);
-    if (b != EMPTY_BOARD && (b & (b - 1)) == EMPTY_BOARD)
-    {
-      pinned |= b;
-    }
-  }
-
-  return pinned;
-}
-
-BitBoard ChessBoardAttacked(LookupTable l, ChessBoard *cb)
-{
-  BitBoard attacked, b;
-  BitBoard occupancies = ChessBoardAll(cb) & ~ChessBoardOur(cb, King);
-
-  attacked = PAWN_ATTACKS(ChessBoardTheir(cb, Pawn), (!cb->turn));
-  b = ChessBoardThem(cb) & ~ChessBoardTheir(cb, Pawn);
-  while (b)
-  {
-    Square s = BitBoardPop(&b);
-    attacked |= LookupTableAttacks(l, s, cb->squares[s], occupancies);
-  }
-  return attacked;
 }
 
 ChessBoard ChessBoardFlip(ChessBoard *cb)
