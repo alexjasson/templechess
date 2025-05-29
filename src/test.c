@@ -87,13 +87,14 @@ static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int count)
     return MoveSetCount(&ms);
 
   if ((depth == 2) && (!count))
-    nodes += MoveSetMultiply(l, cb, &ms);
+    nodes += MoveSetMultiply(l, &ms);
 
   while (!MoveSetIsEmpty(&ms))
   {
     Move m = MoveSetPop(&ms);
-    ChessBoard new = ChessBoardPlayMove(cb, m);
-    nodes += treeSearch(l, &new, depth - 1, count);
+    ChessBoardPlayMove(cb, m);
+    nodes += treeSearch(l, cb, depth - 1, count);
+    ChessBoardUndoMove(cb, m);
   }
 
   return nodes;
@@ -139,8 +140,10 @@ static int testMoveSetMultiply(LookupTable l, ChessBoard *cb, int depth, long no
   while (!MoveSetIsEmpty(&ms))
   {
     Move m = MoveSetPop(&ms);
-    ChessBoard new = ChessBoardPlayMove(cb, m);
-    if (!testMoveSetMultiply(l, &new, depth - 1, nodes))
+    ChessBoardPlayMove(cb, m);
+    int ok = testMoveSetMultiply(l, cb, depth - 1, nodes);
+    ChessBoardUndoMove(cb, m);
+    if (!ok)
       return 0; // Failure
   }
 

@@ -1,24 +1,6 @@
 #ifndef CHESSBOARD_H
 #define CHESSBOARD_H
 
-#define PIECE_SIZE 12
-#define EMPTY_PIECE 12
-#define GET_PIECE(t, c) ((t << 1) | c) // Get the piece given a type and color
-#define GET_TYPE(p) (p >> 1)           // Get the type of a piece
-#define GET_COLOR(p) (p & 1)           // Get the color of a piece
-
-#define OUR(t) (cb->pieces[GET_PIECE(t, cb->turn)])                                     // Bitboard representing our pieces of type t
-#define THEIR(t) (cb->pieces[GET_PIECE(t, !cb->turn)])                                  // Bitboard representing their pieces of type t
-#define ALL (~cb->pieces[EMPTY_PIECE])                                                  // Bitboard of all the pieces
-#define US (OUR(Pawn) | OUR(Knight) | OUR(Bishop) | OUR(Rook) | OUR(Queen) | OUR(King)) // Bitboard of all our pieces
-#define THEM (ALL & ~US)                                                                // Bitboard of all their pieces
-
-/*
- * A piece is a number from 0 to 11 representing a piece on a chess board.
- * 0 = White Pawn, 1 = Black Pawn, 2 = White Knight, 3 = Black Knight, etc.
- */
-typedef uint8_t Piece;
-
 /*
  * Representation of a chess board. Note that castling rights are representated as a set of
  * squares where if the original square of a king and the original square of a rook is present,
@@ -26,21 +8,33 @@ typedef uint8_t Piece;
  */
 typedef struct
 {
-  BitBoard pieces[PIECE_SIZE + 1]; // A set of squares for each piece, including empty pieces
-  Piece squares[BOARD_SIZE];       // A piece for each square, including empty pieces
+  BitBoard types[TYPE_SIZE];       // A set of squares for each piece type (Pawn, King, Knight, Bishop, Rook, Queen)
+  BitBoard colors[COLOR_SIZE];     // A set of squares for each color (White, Black)
+  Type squares[BOARD_SIZE];        // A piece type for each square, Empty if no piece
   Color turn;
   Square enPassant;
   BitBoard castling;
 } ChessBoard;
 
 /*
+ * Representation of a piece on a chess board
+ */
+typedef struct
+{
+  Type type;
+  Square square;
+} Piece;
+
+/*
  * Representation of a move on a chess board
  */
 typedef struct
 {
-  Square to;
-  Square from;
-  Piece moved;
+  Piece from;        // piece and origin square before the move
+  Piece to;          // piece and destination square after the move (includes promotion)
+  Piece captured;    // captured piece and its square (Empty type if no capture)
+  Square enPassant;  // en passant square before the move
+  BitBoard castling; // castling rights before the move
 } Move;
 
 /*
@@ -54,9 +48,14 @@ ChessBoard ChessBoardNew(char *fen); // Stack allocated
 char *ChessBoardToFEN(ChessBoard *cb);
 
 /*
- * Given an old board, play the move on the old board and return the new board
+ * Play a move on the given board in-place, recording undo info in Move
  */
-ChessBoard ChessBoardPlayMove(ChessBoard *old, Move move);
+void ChessBoardPlayMove(ChessBoard *cb, Move m);
+
+/*
+ * Undo a move previously played with ChessBoardPlayMove
+ */
+void ChessBoardUndoMove(ChessBoard *cb, Move m);
 
 /*
  * Prints a chess board to stdout
@@ -69,23 +68,20 @@ void ChessBoardPrintBoard(ChessBoard cb);
 void ChessBoardPrintMove(Move m);
 
 /*
- * Given a chess board, returns a set of squares representing their pieces that are giving check
- */
-BitBoard ChessBoardChecking(LookupTable l, ChessBoard *cb);
-
-/*
- * Given a chess board, returns a set of squares representing our pieces that are pinned
- */
-BitBoard ChessBoardPinned(LookupTable l, ChessBoard *cb);
-
-/*
- * Given a chess board, returns a set of squares representing the squares that are attacked by their pieces
- */
-BitBoard ChessBoardAttacked(LookupTable l, ChessBoard *cb);
-
-/*
  * Given a chess board, return a new chess board where the turn is passed to the other color
  */
 ChessBoard ChessBoardFlip(ChessBoard *cb);
+
+// Accessor functions for ChessBoard properties
+static inline int ChessBoardKingSide(ChessBoard *cb)  { return !(~cb->castling & (KINGSIDE_CASTLING & ((cb->turn == White) ? SOUTH_EDGE : NORTH_EDGE))); }
+static inline int ChessBoardQueenSide(ChessBoard *cb) { return !(~cb->castling & (QUEENSIDE_CASTLING & ((cb->turn == White) ? SOUTH_EDGE : NORTH_EDGE)));}
+static inline Color ChessBoardColor(ChessBoard *cb)            { return cb->turn; }
+static inline Square ChessBoardEnPassant(ChessBoard *cb)       { return cb->enPassant; }
+static inline Type ChessBoardSquare(ChessBoard *cb, Square s)  { return cb->squares[s]; }
+static inline BitBoard ChessBoardOur(ChessBoard *cb, Type t)   { return cb->types[t] & cb->colors[cb->turn]; }
+static inline BitBoard ChessBoardTheir(ChessBoard *cb, Type t) { return cb->types[t] & cb->colors[!cb->turn]; }
+static inline BitBoard ChessBoardAll(ChessBoard *cb)           { return cb->colors[White] | cb->colors[Black]; }
+static inline BitBoard ChessBoardUs(ChessBoard *cb)            { return cb->colors[cb->turn]; }
+static inline BitBoard ChessBoardThem(ChessBoard *cb)          { return cb->colors[!cb->turn]; }
 
 #endif
