@@ -298,6 +298,11 @@ void MoveSetPrint(MoveSet ms)
   printf("}\n");
 }
 
+/*
+ * This algorithm can count specific edges at "depth 2" in the tree of moves. It returns
+ * the number of edges that would've been searched had that edge been explored to "depth 1".
+ * Found by: Alex Jasson
+ */
 int MoveSetMultiply(LookupTable l, MoveSet *ms)
 {
   int prevCount = MoveSetCount(ms);

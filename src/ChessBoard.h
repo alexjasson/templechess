@@ -51,6 +51,7 @@ char *ChessBoardToFEN(ChessBoard *cb);
  * Play a move on the given board in-place, recording undo info in Move
  */
 void ChessBoardPlayMove(ChessBoard *cb, Move m);
+
 /*
  * Undo a move previously played with ChessBoardPlayMove
  */

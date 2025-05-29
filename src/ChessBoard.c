@@ -7,12 +7,8 @@
 #include "LookupTable.h"
 #include "ChessBoard.h"
 
-// Returns a bitboard representing a set of moves given a set of pawns and a color
-#define PAWN_ATTACKS(b, c) ((c == White) ? BitBoardShiftNW(b) | BitBoardShiftNE(b) : BitBoardShiftSW(b) | BitBoardShiftSE(b))
-
 // Bitboards representing the ranks from the perspective of the given color c
 #define BACK_RANK(c) (BitBoard)((c == White) ? SOUTH_EDGE : NORTH_EDGE)
-
 #define FEN_SIZE 128
 
 static Color getColorFromASCII(char asciiColor);
@@ -90,6 +86,7 @@ static Color getColorFromASCII(char asciiColor)
 {
   return (asciiColor == 'w') ? White : Black;
 }
+
 // Returns the piece type represented by the FEN character (or Empty for '-')
 static Type getTypeFromASCII(char asciiPiece)
 {
@@ -101,6 +98,7 @@ static Type getTypeFromASCII(char asciiPiece)
     return (Type)(ptr - pieces);
   return Empty;
 }
+
 // Returns the ASCII representation of a piece type given its color
 static char getASCIIFromType(Type t, Color c)
 {
@@ -110,7 +108,6 @@ static char getASCIIFromType(Type t, Color c)
   char ch = pieces[t];
   return (c == Black) ? tolower(ch) : ch;
 }
-
 
 // Adds a piece of given type and current turn color to a chessboard; type=Empty clears the square
 static void addPiece(ChessBoard *cb, Square s, Type type)
