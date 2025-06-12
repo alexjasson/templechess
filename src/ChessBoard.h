@@ -77,6 +77,7 @@ static inline int ChessBoardKingSide(ChessBoard *cb)  { return !(~cb->castling &
 static inline int ChessBoardQueenSide(ChessBoard *cb) { return !(~cb->castling & (QUEENSIDE_CASTLING & ((cb->turn == White) ? SOUTH_EDGE : NORTH_EDGE)));}
 static inline Color ChessBoardColor(ChessBoard *cb)            { return cb->turn; }
 static inline Square ChessBoardEnPassant(ChessBoard *cb)       { return cb->enPassant; }
+static inline BitBoard ChessBoardCastling(ChessBoard *cb)      { return cb->castling; }
 static inline Type ChessBoardSquare(ChessBoard *cb, Square s)  { return cb->squares[s]; }
 static inline BitBoard ChessBoardOur(ChessBoard *cb, Type t)   { return cb->types[t] & cb->colors[cb->turn]; }
 static inline BitBoard ChessBoardTheir(ChessBoard *cb, Type t) { return cb->types[t] & cb->colors[!cb->turn]; }
