@@ -72,6 +72,19 @@ void ChessBoardPrintMove(Move m);
  */
 ChessBoard ChessBoardFlip(ChessBoard *cb);
 
+/*
+ * Directly count the legal number of moves in a given chess board
+ */
+int ChessBoardCount(LookupTable l, ChessBoard *cb);
+
+/*
+ * Returns sets of squares corresponding to their checking pieces,
+ * our pinned pieces and squares attacked by their pieces
+ */
+BitBoard ChessBoardChecking(LookupTable l, ChessBoard *cb);
+BitBoard ChessBoardPinned(LookupTable l, ChessBoard *cb);
+BitBoard ChessBoardAttacked(LookupTable l, ChessBoard *cb);
+
 // Accessor functions for ChessBoard properties
 static inline int ChessBoardKingSide(ChessBoard *cb)  { return !(~cb->castling & (KINGSIDE_CASTLING & ((cb->turn == White) ? SOUTH_EDGE : NORTH_EDGE))); }
 static inline int ChessBoardQueenSide(ChessBoard *cb) { return !(~cb->castling & (QUEENSIDE_CASTLING & ((cb->turn == White) ? SOUTH_EDGE : NORTH_EDGE)));}
