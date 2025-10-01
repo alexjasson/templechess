@@ -250,13 +250,8 @@ void MoveSetPrint(MoveSet ms)
  */
 int MoveSetMultiply(LookupTable l, MoveSet *ms)
 {
-  int prevCount = MoveSetCount(ms);
-  ChessBoard *cb = ms->cb;
-  ChessBoard temp = ChessBoardFlip(cb); // cb is unchanged
-  MoveSet next = MoveSetNew();
-  MoveSetFill(l, &temp, &next);
-
-  BitBoard theirMoves = EMPTY_BOARD;  // To squares of their moves
+  ChessBoard *curr = ms->cb;
+  ChessBoard next = ChessBoardFlip(curr);
   BitBoard special = EMPTY_BOARD;     // From squares of special pawn moves - en passant, promotion
   BitBoard castling = EMPTY_BOARD;    // To squares of castling moves
   BitBoard pinned = EMPTY_BOARD;      // Squares that are pinned
@@ -265,24 +260,24 @@ int MoveSetMultiply(LookupTable l, MoveSet *ms)
   memset(canAttack, EMPTY_BOARD, sizeof(canAttack));
 
   // Consider their moves that could be disrupted by our moves
-  theirMoves |= pawnMoves(ChessBoardTheir(cb, Pawn), !ChessBoardColor(cb));
-  for (int i = 0; i < next.size; i++)
-  {
-    if (next.maps[i].type > Knight)
-      theirMoves |= next.maps[i].to;
+  BitBoard theirMoves = pawnMoves(ChessBoardTheir(curr, Pawn), !ChessBoardColor(curr));
+  BitBoard theirSliders = ChessBoardTheir(curr, Bishop) | ChessBoardTheir(curr, Rook) | ChessBoardTheir(curr, Queen);
+  while (theirSliders) {
+    Square s = BitBoardPop(&theirSliders);
+    theirMoves |= LookupTableAttacks(l, s, ChessBoardSquare(curr, s), ChessBoardAll(curr));
   }
 
   // Consider our moves that could disrupt their king moves
-  BitBoard kingRelevant = (LookupTableAttacks(l, BitBoardPeek(ChessBoardTheir(cb, King)), King, EMPTY_BOARD) &
-                           ~ChessBoardThem(cb)) | BitBoardAdd(EMPTY_BOARD, BitBoardPeek(ChessBoardTheir(cb, King)));
+  BitBoard kingRelevant = (LookupTableAttacks(l, BitBoardPeek(ChessBoardTheir(curr, King)), King, EMPTY_BOARD) &
+                           ~ChessBoardThem(curr)) | BitBoardAdd(EMPTY_BOARD, BitBoardPeek(ChessBoardTheir(curr, King)));
   while (kingRelevant)
   {
     Square s1 = BitBoardPop(&kingRelevant);
-    BitBoard ourPieces = ChessBoardUs(cb) & ~ChessBoardOur(cb, Pawn);
+    BitBoard ourPieces = ChessBoardUs(curr) & ~ChessBoardOur(curr, Pawn);
     while (ourPieces)
     {
       Square s2 = BitBoardPop(&ourPieces);
-      Type t = ChessBoardSquare(cb, s2);
+      Type t = ChessBoardSquare(curr, s2);
       BitBoard piece = BitBoardAdd(EMPTY_BOARD, s2);
       BitBoard projection = LookupTableAttacks(l, s1, t, EMPTY_BOARD);
       BitBoard moves = LookupTableAttacks(l, s2, t, EMPTY_BOARD);
@@ -292,10 +287,10 @@ int MoveSetMultiply(LookupTable l, MoveSet *ms)
         pinned |= LookupTableSquaresBetween(l, s1, s2);
     }
     BitBoard king = BitBoardAdd(EMPTY_BOARD, s1);
-    BitBoard projection = PAWN_ATTACKS(king, !ChessBoardColor(cb));
-    BitBoard moves = pawnMoves(ChessBoardOur(cb, Pawn), ChessBoardColor(cb));
+    BitBoard projection = PAWN_ATTACKS(king, !ChessBoardColor(curr));
+    BitBoard moves = pawnMoves(ChessBoardOur(curr, Pawn), ChessBoardColor(curr));
     canAttack[Pawn] |= moves & projection;
-    isAttacking |= ChessBoardOur(cb, Pawn) & projection;
+    isAttacking |= ChessBoardOur(curr, Pawn) & projection;
   }
 
   // Consider special moves that are annoying to calculate
@@ -307,14 +302,14 @@ int MoveSetMultiply(LookupTable l, MoveSet *ms)
     if (t == Pawn)
     {
       if (squareOffset == 16 || squareOffset == -16) // Double pushes causing en passant
-        special |= SINGLE_PUSH(SINGLE_PUSH(ms->maps[i].from, ChessBoardColor(cb)) &
-                   PAWN_ATTACKS(ChessBoardTheir(cb, Pawn), !ChessBoardColor(cb)), !ChessBoardColor(cb));
-      if (ChessBoardEnPassant(cb) != EMPTY_SQUARE) // En passant
-        special |= PAWN_ATTACKS(BitBoardAdd(EMPTY_BOARD, ChessBoardEnPassant(cb)), !ChessBoardColor(cb)) & ms->maps[i].from;
-      special |= ms->maps[i].from & PROMOTION_RANK(ChessBoardColor(cb)); // Promotion
+        special |= SINGLE_PUSH(SINGLE_PUSH(ms->maps[i].from, ChessBoardColor(curr)) &
+                   PAWN_ATTACKS(ChessBoardTheir(curr, Pawn), !ChessBoardColor(curr)), !ChessBoardColor(curr));
+      if (ChessBoardEnPassant(curr) != EMPTY_SQUARE) // En passant
+        special |= PAWN_ATTACKS(BitBoardAdd(EMPTY_BOARD, ChessBoardEnPassant(curr)), !ChessBoardColor(curr)) & ms->maps[i].from;
+      special |= ms->maps[i].from & PROMOTION_RANK(ChessBoardColor(curr)); // Promotion
     }
     else if (t == King) // Castling
-      castling = ms->maps[i].to & ~LookupTableAttacks(l, BitBoardPeek(ChessBoardOur(cb, King)), King, EMPTY_BOARD);
+      castling = ms->maps[i].to & ~LookupTableAttacks(l, BitBoardPeek(ChessBoardOur(curr, King)), King, EMPTY_BOARD);
   }
 
   // Remove moves from ms that can be easily multiplied by the next moveset
@@ -326,20 +321,20 @@ int MoveSetMultiply(LookupTable l, MoveSet *ms)
     if (mapOffset > 0) // Injective
     {
       if (!(ms->maps[i].from & (pinned | isAttacking | theirMoves)))
-        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | ChessBoardThem(cb) | castling;
+        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | ChessBoardThem(curr) | castling;
     }
     else if (mapOffset == 0) // Bijective
     {
       int squareOffset = BitBoardPeek(ms->maps[i].to) - BitBoardPeek(ms->maps[i].from);
       if (squareOffset > 0)
       {
-        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | ChessBoardThem(cb) |
+        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | ChessBoardThem(curr) |
                         ((pinned | isAttacking | theirMoves | special) << squareOffset);
         ms->maps[i].from = ms->maps[i].to >> squareOffset;
       }
       else // squareOffset < 0
       {
-        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | ChessBoardThem(cb) |
+        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | ChessBoardThem(curr) |
                         ((pinned | isAttacking | theirMoves | special) >> -squareOffset);
         ms->maps[i].from = ms->maps[i].to << -squareOffset;
       }
@@ -355,5 +350,5 @@ int MoveSetMultiply(LookupTable l, MoveSet *ms)
       i++;
   }
 
-  return (prevCount - MoveSetCount(ms)) * MoveSetCount(&next);
+  return (ChessBoardCount(l, curr) - MoveSetCount(ms)) * ChessBoardCount(l, &next);
 }
