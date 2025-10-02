@@ -95,7 +95,7 @@ static long treeSearch(LookupTable l, ChessBoard *cb, TestFunction t, int depth)
   {
     Move m = MoveSetPop(&ms);
     ChessBoardPlayMove(cb, m);
-    nodes += treeSearch(l, cb, testMoveSetCount, depth - 1);
+    nodes += treeSearch(l, cb, t, depth - 1);
     ChessBoardUndoMove(cb, m);
   }
 
