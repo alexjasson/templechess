@@ -9,11 +9,12 @@
 
 #define POSITIONS "data/testPositions.in"
 #define BUFFER_SIZE 128
-#define NUM_TESTS 2
+#define NUM_TESTS 3
 
 typedef int (*TestFunction)(LookupTable, ChessBoard *, int, long);
 
-static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int count);
+static long treeSearch(LookupTable l, ChessBoard *cb, TestFunction t, int depth);
+static int testChessBoardCount(LookupTable l, ChessBoard *cb, int depth, long nodes);
 static int testMoveSetCount(LookupTable l, ChessBoard *cb, int depth, long nodes);
 static int testMoveSetMultiply(LookupTable l, ChessBoard *cb, int depth, long nodes);
 
@@ -32,10 +33,8 @@ int main()
   char *fen;
   LookupTable l = LookupTableNew();
 
-  TestFunction testFns[NUM_TESTS] = {testMoveSetCount, testMoveSetMultiply};
-  const char *testNames[NUM_TESTS] = {
-      "MoveSetCount",
-      "MoveSetMultiply"};
+  TestFunction testFns[NUM_TESTS] = {testChessBoardCount, testMoveSetCount, testMoveSetMultiply};
+  const char *testNames[NUM_TESTS] = {"ChessBoardCount", "MoveSetCount", "MoveSetMultiply"};
 
   for (int i = 0; i < NUM_TESTS; i++)
   {
@@ -76,33 +75,52 @@ int main()
   return 0;
 }
 
-static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int count)
+static long treeSearch(LookupTable l, ChessBoard *cb, TestFunction t, int depth)
 {
-  (void)count;
   long nodes = 0;
   MoveSet ms = MoveSetNew();
   MoveSetFill(l, cb, &ms);
 
-  if (depth == 1)
-    return MoveSetCount(&ms);
+  if (depth == 1) {
+    if (t == testMoveSetCount)
+      return MoveSetCount(&ms);
+    else // t == ChessBoardCount
+      return ChessBoardCount(l, cb);
+  }
 
-  if ((depth == 2) && (!count))
+  if ((depth == 2) && (t == testMoveSetMultiply))
     nodes += MoveSetMultiply(l, &ms);
 
   while (!MoveSetIsEmpty(&ms))
   {
     Move m = MoveSetPop(&ms);
     ChessBoardPlayMove(cb, m);
-    nodes += treeSearch(l, cb, depth - 1, count);
+    nodes += treeSearch(l, cb, testMoveSetCount, depth - 1);
     ChessBoardUndoMove(cb, m);
   }
 
   return nodes;
 }
 
+static int testChessBoardCount(LookupTable l, ChessBoard *cb, int depth, long nodes) {
+  long result = treeSearch(l, cb, testChessBoardCount, depth);
+
+  // Print results
+  if (result != nodes)
+  {
+    printf("\033[0;31mTest FAILED: %s at depth %d\033[0m\n", ChessBoardToFEN(cb), depth);
+    printf("Expected: %ld, got: %ld\n", nodes, result);
+    return 0; // Failure
+  }
+  else
+  {
+    return 1; // Success
+  }
+}
+
 static int testMoveSetCount(LookupTable l, ChessBoard *cb, int depth, long nodes)
 {
-  long result = treeSearch(l, cb, depth, 1);
+  long result = treeSearch(l, cb, testMoveSetCount, depth);
 
   // Print results
   if (result != nodes)
@@ -124,8 +142,8 @@ static int testMoveSetMultiply(LookupTable l, ChessBoard *cb, int depth, long no
   (void)nodes;
   if (depth == 1)
     return 1; // Success
-  long count = treeSearch(l, cb, 2, 1);
-  long multiply = treeSearch(l, cb, 2, 0);
+  long count = treeSearch(l, cb, testMoveSetCount, 2);
+  long multiply = treeSearch(l, cb, testMoveSetMultiply, 2);
 
   if (count != multiply)
   {
