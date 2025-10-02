@@ -58,11 +58,11 @@ static long root(LookupTable l, ChessBoard *cb, int depth)
 // Recursively search the tree (for non-root levels)
 static long treeSearch(LookupTable l, ChessBoard *cb, int depth)
 {
+  if (depth == 1) 
+    return ChessBoardCount(l, cb);
+  
   MoveSet ms = MoveSetNew();
   MoveSetFill(l, cb, &ms);
-
-  if (depth == 1)
-    return MoveSetCount(&ms);
 
   long nodes = 0;
   if (depth == 2)

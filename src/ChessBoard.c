@@ -7,8 +7,6 @@
 #include "LookupTable.h"
 #include "ChessBoard.h"
 
-// Bitboards representing the ranks from the perspective of the given color c
-#define BACK_RANK(c) (BitBoard)((c == White) ? SOUTH_EDGE : NORTH_EDGE)
 #define FEN_SIZE 128
 
 static Color getColorFromASCII(char asciiColor);
@@ -230,6 +228,121 @@ ChessBoard ChessBoardFlip(ChessBoard *cb)
   return new;
 }
 
+int ChessBoardCount(LookupTable l, ChessBoard *cb)
+{
+  int count = 0;
+  Square s;
+  BitBoard pinned, checking, attacked, checkMask, moves, b1, b2, b3;
+  attacked = ChessBoardAttacked(l, cb);
+  checking = ChessBoardChecking(l, cb);
+  pinned   = ChessBoardPinned(l, cb);
+
+  // Cache hot values
+  const BitBoard us    = ChessBoardUs(cb);
+  const BitBoard them  = ChessBoardThem(cb);
+  const BitBoard all   = ChessBoardAll(cb);
+  const BitBoard kingB = ChessBoardOur(cb, King);
+  const Square kingSq  = BitBoardPeek(kingB);
+  const int color      = ChessBoardColor(cb);
+
+  // Determine check mask
+  int numChecks = BitBoardCount(checking);
+  if (numChecks == 0) {
+    checkMask = ~EMPTY_BOARD;
+  } else if (numChecks == 1) {
+    Square cs = BitBoardPeek(checking);
+    checkMask = BitBoardAdd(EMPTY_BOARD, cs) |
+                LookupTableSquaresBetween(l, kingSq, cs);
+  } else {
+    checkMask = EMPTY_BOARD;
+  }
+
+  // King moves
+  moves = LookupTableAttacks(l, kingSq, King, EMPTY_BOARD) & ~us & ~attacked;
+  if (numChecks == 0) {
+    // Kingside: check rights and interior squares f/g
+    int clear = (((attacked & ATTACK_MASK) | (all & OCCUPANCY_MASK)) &
+                 (KINGSIDE & ~KINGSIDE_CASTLING) & BACK_RANK(color)) == EMPTY_BOARD;
+    if (ChessBoardKingSide(cb) && clear)
+      moves |= (kingB << 2);
+
+    // Queenside: check rights and interior squares b/c/d
+    clear = (((attacked & ATTACK_MASK) | (all & OCCUPANCY_MASK)) &
+             (QUEENSIDE & ~QUEENSIDE_CASTLING) & BACK_RANK(color)) == EMPTY_BOARD;
+    if (ChessBoardQueenSide(cb) && clear)
+      moves |= (kingB >> 2);
+  }
+  count += BitBoardCount(moves);
+
+  // If double-check, return early
+  if (numChecks == 2) return count;
+
+  // Piece moves
+  b1 = us & ~(ChessBoardOur(cb, Pawn) | kingB);
+  while (b1)
+  {
+    s = BitBoardPop(&b1);
+    moves = LookupTableAttacks(l, s, ChessBoardSquare(cb, s), all) & ~us & checkMask;
+    if (BitBoardAdd(EMPTY_BOARD, s) & pinned)
+      moves &= LookupTableLineOfSight(l, kingSq, s);
+    count += BitBoardCount(moves);
+  }
+
+  // Pawn moves
+  BitBoard promotion = BACK_RANK(White) | BACK_RANK(Black);
+  BitBoard enpassant   = ENPASSANT_RANK(color);
+
+  b1 = ChessBoardOur(cb, Pawn) & ~pinned;
+  moves = PAWN_ATTACKS_LEFT(b1, color) & them & checkMask;
+  count += BitBoardCount(moves) + BitBoardCount(moves & promotion) * 3;
+  moves = PAWN_ATTACKS_RIGHT(b1, color) & them & checkMask;
+  count += BitBoardCount(moves) + BitBoardCount(moves & promotion) * 3;
+  b2    = SINGLE_PUSH(b1, color) & ~all;
+  moves = b2 & checkMask;
+  count += BitBoardCount(moves) + BitBoardCount(moves & promotion) * 3;
+  moves = SINGLE_PUSH(b2 & enpassant, color) & ~all & checkMask;
+  count += BitBoardCount(moves);
+
+  b1 = ChessBoardOur(cb, Pawn) & pinned;
+  while (b1)
+  {
+    s = BitBoardPop(&b1);
+    b3 = LookupTableLineOfSight(l, kingSq, s);
+    moves  = PAWN_ATTACKS(BitBoardAdd(EMPTY_BOARD, s), color) & them;
+    b2     = SINGLE_PUSH(BitBoardAdd(EMPTY_BOARD, s), color) & ~all;
+    moves |= b2;
+    moves |= SINGLE_PUSH(b2 & enpassant, color) & ~all;
+    count += BitBoardCount(moves & b3 & checkMask) + BitBoardCount(moves & b3 & checkMask & promotion) * 3;
+  }
+
+  // En passant moves
+  if (ChessBoardEnPassant(cb) != EMPTY_SQUARE)
+  {
+    b1 = PAWN_ATTACKS(BitBoardAdd(EMPTY_BOARD, ChessBoardEnPassant(cb)), (!color)) & ChessBoardOur(cb, Pawn);
+    b2 = EMPTY_BOARD;
+    b3 = BitBoardAdd(EMPTY_BOARD, ChessBoardEnPassant(cb));
+    while (b1)
+    {
+      s = BitBoardPop(&b1);
+      // Check pseudo-pinning for en passant
+      if (LookupTableAttacks(l, kingSq, Rook, all &
+          ~BitBoardAdd(SINGLE_PUSH(b3, (!color)), s)) &
+          RANK_OF(kingSq) & (ChessBoardTheir(cb, Rook) | ChessBoardTheir(cb, Queen)))
+        continue;
+
+      b2 |= BitBoardAdd(EMPTY_BOARD, s);
+      if (b2 & pinned)
+        b2 &= LookupTableLineOfSight(l, kingSq, ChessBoardEnPassant(cb));
+    }
+    if (b2 != EMPTY_BOARD)
+      count += BitBoardCount(b2);
+  }
+
+  return count;
+}
+
+
+
 char *ChessBoardToFEN(ChessBoard *cb)
 {
   static char fen[FEN_SIZE];
@@ -324,4 +437,62 @@ char *ChessBoardToFEN(ChessBoard *cb)
   // 5) Null-terminate the string
   fen[index] = '\0';
   return fen;
+}
+
+BitBoard ChessBoardChecking(LookupTable l, ChessBoard *cb)
+{
+  Square ourKing = BitBoardPeek(ChessBoardOur(cb, King));
+  BitBoard checking = (PAWN_ATTACKS(ChessBoardOur(cb, King), ChessBoardColor(cb)) & ChessBoardTheir(cb, Pawn)) |
+                      (LookupTableAttacks(l, ourKing, Knight, EMPTY_BOARD) & ChessBoardTheir(cb, Knight));
+  BitBoard candidates = (LookupTableAttacks(l, ourKing, Bishop, ChessBoardThem(cb)) & (ChessBoardTheir(cb, Bishop) |
+                         ChessBoardTheir(cb, Queen))) | (LookupTableAttacks(l, ourKing, Rook, ChessBoardThem(cb)) &
+                        (ChessBoardTheir(cb, Rook) | ChessBoardTheir(cb, Queen)));
+
+  while (candidates)
+  {
+    Square s = BitBoardPop(&candidates);
+    BitBoard b = LookupTableSquaresBetween(l, ourKing, s) & ChessBoardAll(cb) & ~ChessBoardThem(cb);
+    if (b == EMPTY_BOARD)
+    {
+      checking |= BitBoardAdd(EMPTY_BOARD, s);
+    }
+  }
+
+  return checking;
+}
+
+BitBoard ChessBoardPinned(LookupTable l, ChessBoard *cb)
+{
+  Square ourKing = BitBoardPeek(ChessBoardOur(cb, King));
+  BitBoard candidates = (LookupTableAttacks(l, ourKing, Bishop, ChessBoardThem(cb)) & (ChessBoardTheir(cb, Bishop) |
+                         ChessBoardTheir(cb, Queen))) | (LookupTableAttacks(l, ourKing, Rook, ChessBoardThem(cb)) &
+                        (ChessBoardTheir(cb, Rook) | ChessBoardTheir(cb, Queen)));
+  BitBoard pinned = EMPTY_BOARD;
+
+  while (candidates)
+  {
+    Square s = BitBoardPop(&candidates);
+    BitBoard b = LookupTableSquaresBetween(l, ourKing, s) & ChessBoardAll(cb) & ~ChessBoardThem(cb);
+    if (b != EMPTY_BOARD && (b & (b - 1)) == EMPTY_BOARD)
+    {
+      pinned |= b;
+    }
+  }
+
+  return pinned;
+}
+
+BitBoard ChessBoardAttacked(LookupTable l, ChessBoard *cb)
+{
+  BitBoard attacked, b;
+  BitBoard occupancies = ChessBoardAll(cb) & ~ChessBoardOur(cb, King);
+
+  attacked = PAWN_ATTACKS(ChessBoardTheir(cb, Pawn), !ChessBoardColor(cb));
+  b = ChessBoardThem(cb) & ~ChessBoardTheir(cb, Pawn);
+  while (b)
+  {
+    Square s = BitBoardPop(&b);
+    attacked |= LookupTableAttacks(l, s, ChessBoardSquare(cb, s), occupancies);
+  }
+  return attacked;
 }
