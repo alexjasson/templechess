@@ -250,30 +250,44 @@ void MoveSetPrint(MoveSet ms)
  */
 int MoveSetMultiply(LookupTable l, MoveSet *ms)
 {
+  // Note: We call squares "interesting" if they involve moves that will change the number of moves in the next move set
   ChessBoard *curr = ms->cb;
   ChessBoard next = ChessBoardFlip(curr);
-  BitBoard special = EMPTY_BOARD;     // From squares of special pawn moves - en passant, promotion
-  BitBoard castling = EMPTY_BOARD;    // To squares of castling moves
-  BitBoard pinned = EMPTY_BOARD;      // Squares that are pinned
-  BitBoard isAttacking = EMPTY_BOARD; // From squares that are attacking relevant king squares
-  BitBoard canAttack[TYPE_SIZE];      // To squares that would attack relevant king squares for each piece type
-  memset(canAttack, EMPTY_BOARD, sizeof(canAttack));
+  BitBoard from = EMPTY_BOARD; // Interesting from squares
+  BitBoard to = EMPTY_BOARD;   // Interesting to squares
+  BitBoard toType[TYPE_SIZE];  // Type specific interesting to squares - To squares that would attack relevant king squares, castling to squares
+                               // and special pawn move to squares
+  memset(toType, EMPTY_BOARD, sizeof(toType));
+
+  // Cache hot values
+  const BitBoard us = ChessBoardUs(curr);
+  const BitBoard them = ChessBoardThem(curr);
+  const BitBoard all = ChessBoardAll(curr);
+  const BitBoard ourPawns = ChessBoardOur(curr, Pawn);
+  const BitBoard ourKing = ChessBoardOur(curr, King);
+  const int color = ChessBoardColor(curr);
+
+
+  // Consider their pieces that could be taken by one of our moves
+  to |= them;
 
   // Consider their moves that could be disrupted by our moves
-  BitBoard theirMoves = pawnMoves(ChessBoardTheir(curr, Pawn), !ChessBoardColor(curr));
+  BitBoard theirMoves = pawnMoves(ChessBoardTheir(curr, Pawn), !color);
   BitBoard theirSliders = ChessBoardTheir(curr, Bishop) | ChessBoardTheir(curr, Rook) | ChessBoardTheir(curr, Queen);
   while (theirSliders) {
     Square s = BitBoardPop(&theirSliders);
-    theirMoves |= LookupTableAttacks(l, s, ChessBoardSquare(curr, s), ChessBoardAll(curr));
+    theirMoves |= LookupTableAttacks(l, s, ChessBoardSquare(curr, s), all);
   }
+  to |= theirMoves;
+  from |= theirMoves;
 
   // Consider our moves that could disrupt their king moves
   BitBoard kingRelevant = (LookupTableAttacks(l, BitBoardPeek(ChessBoardTheir(curr, King)), King, EMPTY_BOARD) &
-                           ~ChessBoardThem(curr)) | BitBoardAdd(EMPTY_BOARD, BitBoardPeek(ChessBoardTheir(curr, King)));
+                           ~them) | ChessBoardTheir(curr, King);
   while (kingRelevant)
   {
     Square s1 = BitBoardPop(&kingRelevant);
-    BitBoard ourPieces = ChessBoardUs(curr) & ~ChessBoardOur(curr, Pawn);
+    BitBoard ourPieces = us & ~ourPawns;
     while (ourPieces)
     {
       Square s2 = BitBoardPop(&ourPieces);
@@ -281,70 +295,45 @@ int MoveSetMultiply(LookupTable l, MoveSet *ms)
       BitBoard piece = BitBoardAdd(EMPTY_BOARD, s2);
       BitBoard projection = LookupTableAttacks(l, s1, t, EMPTY_BOARD);
       BitBoard moves = LookupTableAttacks(l, s2, t, EMPTY_BOARD);
-      canAttack[t] |= moves & projection;
-      isAttacking |= piece & projection;
-      if (piece & projection)
-        pinned |= LookupTableSquaresBetween(l, s1, s2);
+      toType[t] |= moves & projection; // To squares that would attack relevant king squares
+      from |= piece & projection; // From squares that are attacking relevant king squares
+      if (piece & projection) {
+        BitBoard pinned = LookupTableSquaresBetween(l, s1, s2); // These squares are "pinned" to relevant king squares
+        to |= pinned;
+        from |= pinned;
+      }
     }
     BitBoard king = BitBoardAdd(EMPTY_BOARD, s1);
-    BitBoard projection = PAWN_ATTACKS(king, !ChessBoardColor(curr));
-    BitBoard moves = pawnMoves(ChessBoardOur(curr, Pawn), ChessBoardColor(curr));
-    canAttack[Pawn] |= moves & projection;
-    isAttacking |= ChessBoardOur(curr, Pawn) & projection;
+    BitBoard projection = PAWN_ATTACKS(king, !color);
+    BitBoard moves = pawnMoves(ourPawns, color);
+    toType[Pawn] |= moves & projection; // To squares that would attack relevant king squares
+    from |= ourPawns & projection; // From squares that are attacking relevant king squares
   }
 
-  // Consider special moves that are annoying to calculate
-  for (int i = 0; i < ms->size; i++)
-  {
-    Type t = ms->maps[i].type;
-    int squareOffset = BitBoardPeek(ms->maps[i].to) - BitBoardPeek(ms->maps[i].from);
+  toType[Pawn] |= SINGLE_PUSH(SINGLE_PUSH(ourPawns, color) & PAWN_ATTACKS(ChessBoardTheir(curr, Pawn), !color), color); // Double push
+  if (ChessBoardEnPassant(curr) != EMPTY_SQUARE) // En passant
+    toType[Pawn] |= BitBoardAdd(EMPTY_BOARD, ChessBoardEnPassant(curr));
+  toType[Pawn] |= BACK_RANK(!color); // Promotion
+  toType[King] |= ourKing >> 2 | ourKing << 2; // Castling
 
-    if (t == Pawn)
-    {
-      if (squareOffset == 16 || squareOffset == -16) // Double pushes causing en passant
-        special |= SINGLE_PUSH(SINGLE_PUSH(ms->maps[i].from, ChessBoardColor(curr)) &
-                   PAWN_ATTACKS(ChessBoardTheir(curr, Pawn), !ChessBoardColor(curr)), !ChessBoardColor(curr));
-      if (ChessBoardEnPassant(curr) != EMPTY_SQUARE) // En passant
-        special |= PAWN_ATTACKS(BitBoardAdd(EMPTY_BOARD, ChessBoardEnPassant(curr)), !ChessBoardColor(curr)) & ms->maps[i].from;
-      special |= ms->maps[i].from & PROMOTION_RANK(ChessBoardColor(curr)); // Promotion
+  // Remove moves from ms that can be easily multiplied by the next moveset and only keep "interesting" moves
+  for (int i = 0; i < ms->size;) {
+    Map *m = &ms->maps[i];
+    Type t = m->type;
+    int mapOffset = BitBoardCount(m->to) - BitBoardCount(m->from);
+
+    if (mapOffset > 0) {  // Injective
+      if ((m->from & from) == 0)
+        m->to &= (to | toType[t]);
+    } else if (mapOffset == 0) {  // Bijective
+      int squareOffset = BitBoardPeek(m->to) - BitBoardPeek(m->from);
+      BitBoard fromShifted = (squareOffset >= 0) ? (from << squareOffset) : (from >> -squareOffset);
+      m->to   &= (to | toType[t] | fromShifted);
+      m->from  = (squareOffset >= 0) ? (m->to >> squareOffset) : (m->to << -squareOffset);
     }
-    else if (t == King) // Castling
-      castling = ms->maps[i].to & ~LookupTableAttacks(l, BitBoardPeek(ChessBoardOur(curr, King)), King, EMPTY_BOARD);
-  }
 
-  // Remove moves from ms that can be easily multiplied by the next moveset
-  for (int i = 0; i < ms->size; i++)
-  {
-    Type t = ms->maps[i].type;
-    int mapOffset = BitBoardCount(ms->maps[i].to) - BitBoardCount(ms->maps[i].from);
-
-    if (mapOffset > 0) // Injective
-    {
-      if (!(ms->maps[i].from & (pinned | isAttacking | theirMoves)))
-        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | ChessBoardThem(curr) | castling;
-    }
-    else if (mapOffset == 0) // Bijective
-    {
-      int squareOffset = BitBoardPeek(ms->maps[i].to) - BitBoardPeek(ms->maps[i].from);
-      if (squareOffset > 0)
-      {
-        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | ChessBoardThem(curr) |
-                        ((pinned | isAttacking | theirMoves | special) << squareOffset);
-        ms->maps[i].from = ms->maps[i].to >> squareOffset;
-      }
-      else // squareOffset < 0
-      {
-        ms->maps[i].to &= pinned | canAttack[t] | theirMoves | ChessBoardThem(curr) |
-                        ((pinned | isAttacking | theirMoves | special) >> -squareOffset);
-        ms->maps[i].from = ms->maps[i].to << -squareOffset;
-      }
-    }
-  }
-
-  // Remove empty maps from ms
-  for (int i = 0; i < ms->size;)
-  {
-    if ((ms->maps[i].to == EMPTY_BOARD) || (ms->maps[i].from == EMPTY_BOARD))
+    // Remove map if empty; otherwise advance
+    if ((m->to == EMPTY_BOARD) || (m->from == EMPTY_BOARD))
       ms->maps[i] = ms->maps[--ms->size];
     else
       i++;
