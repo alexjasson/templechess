@@ -254,10 +254,8 @@ int MoveSetMultiply(LookupTable l, MoveSet *ms)
   ChessBoard *curr = ms->cb;
   ChessBoard next = ChessBoardFlip(curr);
   BitBoard from = EMPTY_BOARD; // Interesting from squares
-  BitBoard to = EMPTY_BOARD;   // Interesting to squares
-  BitBoard toType[TYPE_SIZE];  // Type specific interesting to squares - To squares that would attack relevant king squares, castling to squares
-                               // and special pawn move to squares
-  memset(toType, EMPTY_BOARD, sizeof(toType));
+  BitBoard to[TYPE_SIZE];  // Type specific interesting to squares - Use empty piece to represent all pieces
+  memset(to, EMPTY_BOARD, sizeof(to));
 
   // Cache hot values
   const BitBoard us = ChessBoardUs(curr);
@@ -267,9 +265,8 @@ int MoveSetMultiply(LookupTable l, MoveSet *ms)
   const BitBoard ourKing = ChessBoardOur(curr, King);
   const int color = ChessBoardColor(curr);
 
-
   // Consider their pieces that could be taken by one of our moves
-  to |= them;
+  to[Empty] |= them;
 
   // Consider their moves that could be disrupted by our moves
   BitBoard theirMoves = pawnMoves(ChessBoardTheir(curr, Pawn), !color);
@@ -278,7 +275,7 @@ int MoveSetMultiply(LookupTable l, MoveSet *ms)
     Square s = BitBoardPop(&theirSliders);
     theirMoves |= LookupTableAttacks(l, s, ChessBoardSquare(curr, s), all);
   }
-  to |= theirMoves;
+  to[Empty] |= theirMoves; // <- Significant speedup possible if a move delta could be calculated quickly instead
   from |= theirMoves;
 
   // Consider our moves that could disrupt their king moves
@@ -295,26 +292,26 @@ int MoveSetMultiply(LookupTable l, MoveSet *ms)
       BitBoard piece = BitBoardAdd(EMPTY_BOARD, s2);
       BitBoard projection = LookupTableAttacks(l, s1, t, EMPTY_BOARD);
       BitBoard moves = LookupTableAttacks(l, s2, t, EMPTY_BOARD);
-      toType[t] |= moves & projection; // To squares that would attack relevant king squares
+      to[t] |= moves & projection; // To squares that would attack relevant king squares
       from |= piece & projection; // From squares that are attacking relevant king squares
       if (piece & projection) {
         BitBoard pinned = LookupTableSquaresBetween(l, s1, s2); // These squares are "pinned" to relevant king squares
-        to |= pinned;
+        to[Empty] |= pinned;
         from |= pinned;
       }
     }
     BitBoard king = BitBoardAdd(EMPTY_BOARD, s1);
     BitBoard projection = PAWN_ATTACKS(king, !color);
     BitBoard moves = pawnMoves(ourPawns, color);
-    toType[Pawn] |= moves & projection; // To squares that would attack relevant king squares
+    to[Pawn] |= moves & projection; // To squares that would attack relevant king squares
     from |= ourPawns & projection; // From squares that are attacking relevant king squares
   }
 
-  toType[Pawn] |= SINGLE_PUSH(SINGLE_PUSH(ourPawns, color) & PAWN_ATTACKS(ChessBoardTheir(curr, Pawn), !color), color); // Double push
+  to[Pawn] |= SINGLE_PUSH(SINGLE_PUSH(ourPawns, color) & PAWN_ATTACKS(ChessBoardTheir(curr, Pawn), !color), color); // Double push causing ep
   if (ChessBoardEnPassant(curr) != EMPTY_SQUARE) // En passant
-    toType[Pawn] |= BitBoardAdd(EMPTY_BOARD, ChessBoardEnPassant(curr));
-  toType[Pawn] |= BACK_RANK(!color); // Promotion
-  toType[King] |= ourKing >> 2 | ourKing << 2; // Castling
+    to[Pawn] |= BitBoardAdd(EMPTY_BOARD, ChessBoardEnPassant(curr));
+  to[Pawn] |= BACK_RANK(!color); // Promotion
+  to[King] |= ourKing >> 2 | ourKing << 2; // Castling
 
   // Remove moves from ms that can be easily multiplied by the next moveset and only keep "interesting" moves
   for (int i = 0; i < ms->size;) {
@@ -324,11 +321,11 @@ int MoveSetMultiply(LookupTable l, MoveSet *ms)
 
     if (mapOffset > 0) {  // Injective
       if ((m->from & from) == 0)
-        m->to &= (to | toType[t]);
+        m->to &= (to[Empty] | to[t]);
     } else if (mapOffset == 0) {  // Bijective
       int squareOffset = BitBoardPeek(m->to) - BitBoardPeek(m->from);
       BitBoard fromShifted = (squareOffset >= 0) ? (from << squareOffset) : (from >> -squareOffset);
-      m->to   &= (to | toType[t] | fromShifted);
+      m->to   &= (to[Empty] | to[t] | fromShifted);
       m->from  = (squareOffset >= 0) ? (m->to >> squareOffset) : (m->to << -squareOffset);
     }
 
