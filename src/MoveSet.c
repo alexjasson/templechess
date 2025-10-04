@@ -263,23 +263,19 @@ int MoveSetMultiply(LookupTable l, MoveSet *ms)
   // Cache hot values
   const BitBoard us = ChessBoardUs(curr);
   const BitBoard them = ChessBoardThem(curr);
-  const BitBoard all = ChessBoardAll(curr);
   const BitBoard ourPawns = ChessBoardOur(curr, Pawn);
   const BitBoard ourKing = ChessBoardOur(curr, King);
+  const BitBoard theirPawns = ChessBoardTheir(curr, Pawn);
   const BitBoard theirKing = ChessBoardTheir(curr, King);
   const int color = ChessBoardColor(curr);
 
-  // Consider their pieces that could be taken by one of our moves
-  to[Empty] |= them;
-
-  // Consider their moves that could be disrupted by our moves
-  BitBoard theirMoves = pawnMoves(ChessBoardTheir(curr, Pawn), !color);
-  BitBoard theirSliders = ChessBoardTheir(curr, Bishop) | ChessBoardTheir(curr, Rook) | ChessBoardTheir(curr, Queen);
-  while (theirSliders) {
-    Square s = BitBoardPop(&theirSliders);
-    theirMoves |= LookupTableAttacks(l, s, ChessBoardSquare(curr, s), all);
+  // Consider our moves that could disrupt their moves (either captures or blocking)
+  BitBoard theirMoves = pawnMoves(theirPawns, !color);
+  for (int i = 0; i < next.size; i++) {
+    if (next.maps[i].type < Bishop) continue;
+    theirMoves |= next.maps[i].to;
   }
-  to[Empty] |= theirMoves; // <- Significant speedup possible if a move delta could be calculated quickly instead
+  to[Empty] |= theirMoves | them;
   from |= theirMoves;
 
   // Consider our moves that could disrupt their king moves
@@ -310,7 +306,7 @@ int MoveSetMultiply(LookupTable l, MoveSet *ms)
   }
 
   // Consider special moves
-  to[Pawn] |= SINGLE_PUSH(SINGLE_PUSH(ourPawns, color) & PAWN_ATTACKS(ChessBoardTheir(curr, Pawn), !color), color); // Double push causing ep
+  to[Pawn] |= SINGLE_PUSH(SINGLE_PUSH(ourPawns, color) & PAWN_ATTACKS(theirPawns, !color), color); // Double push causing ep
   if (ChessBoardEnPassant(curr) != EMPTY_SQUARE) // En passant
     to[Pawn] |= BitBoardAdd(EMPTY_BOARD, ChessBoardEnPassant(curr));
   to[Pawn] |= BACK_RANK(!color); // Promotion
@@ -350,8 +346,6 @@ int MoveSetMultiply(LookupTable l, MoveSet *ms)
     else
       i++;
   }
-
-  // You can calculate move delta here!
 
   return MoveSetCount(&removed) * MoveSetCount(&next);
 }
