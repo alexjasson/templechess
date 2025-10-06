@@ -250,13 +250,12 @@ void MoveSetPrint(MoveSet ms)
  */
 int MoveSetMultiply(LookupTable l, MoveSet *ms)
 {
-  // Note: We call squares "interesting" if they involve moves that will change the number of moves in the next move set
   ChessBoard *curr = ms->cb;
   ChessBoard flip = ChessBoardFlip(curr);
   MoveSet next = MoveSetNew(); // Next set of moves
   MoveSet removed = MoveSetNew(); // Moves that will be removed from ms
-  BitBoard from = EMPTY_BOARD; // Interesting from squares
-  BitBoard to[TYPE_SIZE];  // Type specific interesting to squares - Use empty piece to represent all pieces
+  BitBoard from = EMPTY_BOARD; // 'from' squares to be removed
+  BitBoard to[TYPE_SIZE];  // Type specific 'to' squares to be removed - Use empty piece to represent all pieces
   memset(to, EMPTY_BOARD, sizeof(to));
   MoveSetFill(l, &flip, &next);
 
@@ -312,15 +311,13 @@ int MoveSetMultiply(LookupTable l, MoveSet *ms)
   to[Pawn] |= BACK_RANK(!color); // Promotion
   to[King] |= ourKing >> 2 | ourKing << 2; // Castling
 
-  // Remove moves from ms that aren't interesting and put them in removed
+  // Remove moves from ms and put them in removed
   for (int i = 0; i < ms->size;) {
     Map *m = &ms->maps[i];
     Type t = m->type;
-    int mapOffset = BitBoardCount(m->to) - BitBoardCount(m->from);
-
-    // Save original maps before filtering
     BitBoard origTo = m->to;
     BitBoard origFrom = m->from;
+    int mapOffset = BitBoardCount(m->to) - BitBoardCount(m->from);
 
     if (mapOffset > 0) {  // Injective
       if ((m->from & from) == 0)
@@ -332,7 +329,6 @@ int MoveSetMultiply(LookupTable l, MoveSet *ms)
       m->from  = (squareOffset >= 0) ? (m->to >> squareOffset) : (m->to << -squareOffset);
     }
 
-    // Track removed moves
     BitBoard removedTo = origTo & ~m->to;
     BitBoard removedFrom = origFrom & ~m->from;
     if (removedTo != EMPTY_BOARD || removedFrom != EMPTY_BOARD) {
@@ -340,7 +336,7 @@ int MoveSetMultiply(LookupTable l, MoveSet *ms)
                        removedFrom != EMPTY_BOARD ? removedFrom : origFrom, t);
     }
 
-    // Remove map if empty; otherwise advance
+    // Remove map from ms if empty; otherwise advance
     if ((m->to == EMPTY_BOARD) || (m->from == EMPTY_BOARD))
       ms->maps[i] = ms->maps[--ms->size];
     else
