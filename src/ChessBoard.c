@@ -513,15 +513,17 @@ BitBoard ChessBoardPinned(LookupTable l, ChessBoard *cb)
 
 BitBoard ChessBoardAttacked(LookupTable l, ChessBoard *cb)
 {
-  BitBoard attacked, b;
   BitBoard occupancies = ChessBoardAll(cb) & ~ChessBoardOur(cb, King);
-
-  attacked = PAWN_ATTACKS(ChessBoardTheir(cb, Pawn), !ChessBoardColor(cb));
-  b = ChessBoardThem(cb) & ~ChessBoardTheir(cb, Pawn);
-  while (b)
-  {
-    Square s = BitBoardPop(&b);
-    attacked |= LookupTableAttacks(l, s, ChessBoardSquare(cb, s), occupancies);
-  }
+  BitBoard attacked = PAWN_ATTACKS(ChessBoardTheir(cb, Pawn), !ChessBoardColor(cb));
+  BitBoard b = ChessBoardTheir(cb, Knight);
+  while (b) attacked |= LookupTableAttacks(l, BitBoardPop(&b), Knight, occupancies);
+  b = ChessBoardTheir(cb, Bishop);
+  while (b) attacked |= LookupTableAttacks(l, BitBoardPop(&b), Bishop, occupancies);
+  b = ChessBoardTheir(cb, Rook);
+  while (b) attacked |= LookupTableAttacks(l, BitBoardPop(&b), Rook, occupancies);
+  b = ChessBoardTheir(cb, Queen);
+  while (b) attacked |= LookupTableAttacks(l, BitBoardPop(&b), Queen, occupancies);
+  b = ChessBoardTheir(cb, King);
+  while (b) attacked |= LookupTableAttacks(l, BitBoardPop(&b), King, occupancies);
   return attacked;
 }
