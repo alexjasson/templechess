@@ -1,8 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <immintrin.h>
 #include "BitBoard.h"
 #include "LookupTable.h"
+
+# if defined(__BMI2__)
+#   define BMI2 1
+# else
+#   define BMI2 0
+# endif
 
 #define TRUE 1
 #define FALSE 0
@@ -37,26 +44,32 @@ struct lookupTable
   BitBoard kingAttacks[BOARD_SIZE];
   BitBoard bishopAttacks[BOARD_SIZE][BISHOP_ATTACKS_POWERSET];
   BitBoard rookAttacks[BOARD_SIZE][ROOK_ATTACKS_POWERSET];
-  Magic bishopMagics[BOARD_SIZE]; // Used for bishop attacks
-  Magic rookMagics[BOARD_SIZE];   // Used for rook attacks
-
+  BitBoard bishopMasks[BOARD_SIZE];
+  BitBoard rookMasks[BOARD_SIZE];
   BitBoard squaresBetween[BOARD_SIZE][BOARD_SIZE]; // Squares Between exclusive
   BitBoard lineOfSight[BOARD_SIZE][BOARD_SIZE];    // All squares of a rank/file/diagonal/antidiagonal
+  
+  #if !BMI2
+  Magic bishopMagics[BOARD_SIZE]; // Used for bishop attacks
+  Magic rookMagics[BOARD_SIZE];   // Used for rook attacks
+  #endif
 };
 
 static BitBoard getMove(Square s, Type t, Direction d, int steps);
 static BitBoard getAttacks(Square s, Type t, BitBoard occupancies);
-
 static BitBoard getRelevantBits(Square s, Type t);
 static BitBoard getBitsSubset(int index, BitBoard bits);
+static BitBoard getSquaresBetween(LookupTable l, Square s1, Square s2);
+static BitBoard getLineOfSight(LookupTable l, Square s1, Square s2);
+static void initializeLookupTable(LookupTable l);
+static inline int hash(LookupTable l, Square s, Type t, BitBoard o); // The hash fn for our lookup table
+
+#if !BMI2
 static Magic getMagic(Square s, Type t, FILE *fp);
 static int magicHash(Magic m, BitBoard occupancies);
 static uint64_t getRandomU64();
 static uint32_t xorshift();
-
-static BitBoard getSquaresBetween(LookupTable l, Square s1, Square s2);
-static BitBoard getLineOfSight(LookupTable l, Square s1, Square s2);
-static void initializeLookupTable(LookupTable l);
+#endif
 
 LookupTable LookupTableNew(void)
 {
@@ -86,8 +99,26 @@ void initializeLookupTable(LookupTable l)
     // Fill knight and king attack tables
     l->knightAttacks[s] = getAttacks(s, Knight, EMPTY_BOARD);
     l->kingAttacks[s] = getAttacks(s, King, EMPTY_BOARD);
+    l->bishopMasks[s] = getRelevantBits(s, Bishop);
+    l->rookMasks[s] = getRelevantBits(s, Rook);
 
-    // Fill bishop and rook attack tables
+#if BMI2
+    // Fill bishop and rook attack tables using PEXT
+    int bishopBits = BitBoardCount(l->bishopMasks[s]);
+    for (int i = 0; i < (1 << bishopBits); i++)
+    {
+      BitBoard occupancies = getBitsSubset(i, l->bishopMasks[s]);
+      l->bishopAttacks[s][i] = getAttacks(s, Bishop, occupancies);
+    }
+
+    int rookBits = BitBoardCount(l->rookMasks[s]);
+    for (int i = 0; i < (1 << rookBits); i++)
+    {
+      BitBoard occupancies = getBitsSubset(i, l->rookMasks[s]);
+      l->rookAttacks[s][i] = getAttacks(s, Rook, occupancies);
+    }
+#else
+    // Fill bishop and rook attack tables using magic bitboards
     l->bishopMagics[s] = getMagic(s, Bishop, fp);
     for (int i = 0; i < BISHOP_ATTACKS_POWERSET; i++)
     {
@@ -103,6 +134,7 @@ void initializeLookupTable(LookupTable l)
       int index = magicHash(l->rookMagics[s], occupancies);
       l->rookAttacks[s][index] = getAttacks(s, Rook, occupancies);
     }
+#endif
   }
   fclose(fp);
 
@@ -131,12 +163,12 @@ BitBoard LookupTableAttacks(LookupTable l, Square s, Type t, BitBoard occupancie
   case King:
     return l->kingAttacks[s];
   case Bishop:
-    return l->bishopAttacks[s][magicHash(l->bishopMagics[s], occupancies)];
+    return l->bishopAttacks[s][hash(l, s, Bishop, occupancies)];
   case Rook:
-    return l->rookAttacks[s][magicHash(l->rookMagics[s], occupancies)];
+    return l->rookAttacks[s][hash(l, s, Rook, occupancies)];
   case Queen:
-    return l->bishopAttacks[s][magicHash(l->bishopMagics[s], occupancies)] |
-           l->rookAttacks[s][magicHash(l->rookMagics[s], occupancies)];
+    return l->bishopAttacks[s][hash(l, s, Bishop, occupancies)] |
+           l->rookAttacks[s][hash(l, s, Rook, occupancies)];
   default:
     printf("Piece: %d\n", t); // "Invalid piece type\n
     fprintf(stderr, "Invalid piece type\n");
@@ -239,6 +271,15 @@ static BitBoard getBitsSubset(int index, BitBoard bits)
   return relevantBitsSubset;
 }
 
+static inline int hash(LookupTable l, Square s, Type t, BitBoard o) {
+#if BMI2
+  return (int)_pext_u64(o, (t == Bishop) ? l->bishopMasks[s] : l->rookMasks[s]);
+#else
+  return magicHash((t == Bishop) ? l->bishopMagics[s] : l->rookMagics[s], o);
+#endif
+}
+
+#if !BMI2
 static int magicHash(Magic m, BitBoard occupancies)
 {
   return (int)(((m.bits & occupancies) * m.magicNumber) >> (m.bitShift));
@@ -331,6 +372,7 @@ static uint32_t xorshift()
   state = x;
   return x;
 }
+#endif
 
 static BitBoard getSquaresBetween(LookupTable l, Square s1, Square s2)
 {
