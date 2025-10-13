@@ -5,9 +5,17 @@ else
     $(error Compiler not found! Please install gcc)
 endif
 
-CFLAGS0 = -Ofast -march=native -flto -fprofile-generate
-CFLAGS1 = -Ofast -march=native -flto -fprofile-use
-CFLAGS2 = -fsanitize=undefined -Wall -Wextra -Werror -pedantic -Ofast -march=native -flto
+# Detect BMI2 support
+ifeq ($(shell grep -q bmi2 /proc/cpuinfo && echo yes),yes)
+    BMI2 := -mbmi2
+else
+    BMI2 :=
+    $(info BMI2 instructions not supported, compiling without it)
+endif
+
+CFLAGS0 = -Ofast -march=native -flto -fprofile-generate $(BMI2)
+CFLAGS1 = -Ofast -march=native -flto -fprofile-use $(BMI2)
+CFLAGS2 = -fsanitize=undefined -Wall -Wextra -Werror -pedantic -Ofast -march=native -flto $(BMI2)
 
 # Position/depth to be used for profiling
 BOARD = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
