@@ -12,7 +12,6 @@
 static Color getColorFromASCII(char asciiColor);
 static char getASCIIFromType(Type t, Color c);
 static Type getTypeFromASCII(char asciiPiece);
-static void addPiece(ChessBoard *cb, Square s, Type type);
 
 // Assumes FEN is valid
 ChessBoard ChessBoardNew(char *fen)
@@ -107,30 +106,18 @@ static char getASCIIFromType(Type t, Color c)
   return (c == Black) ? tolower(ch) : ch;
 }
 
-// Adds a piece of given type and current turn color to a chessboard; type=Empty clears the square
-static void addPiece(ChessBoard *cb, Square s, Type type)
-{
-  BitBoard b = BitBoardAdd(EMPTY_BOARD, s);
-  Type captured = cb->squares[s];
-  if (captured != Empty) {
-    cb->types[captured] &= ~b;
-    cb->colors[White] &= ~b;
-    cb->colors[Black] &= ~b;
-  }
-  if (type != Empty) {
-    cb->types[type] |= b;
-    cb->colors[cb->turn] |= b;
-  }
-  cb->squares[s] = type;
-}
 
 void ChessBoardPlayMove(ChessBoard *cb, Move m)
 {
+  BitBoard fromBit = BitBoardAdd(EMPTY_BOARD, m.from.square);
+  BitBoard toBit   = BitBoardAdd(EMPTY_BOARD, m.to.square);
+  Color us = cb->turn;
+
   // Update castling rights and clear en passant
-  cb->castling &= ~(BitBoardAdd(EMPTY_BOARD, m.from.square) | BitBoardAdd(EMPTY_BOARD, m.to.square));
+  cb->castling &= ~(fromBit | toBit);
   cb->enPassant = EMPTY_SQUARE;
 
-  // Pawn double push: set en passant target
+  // Pawn double push: set en passant square
   if (m.from.type == Pawn) {
     int diff = (int)m.to.square - (int)m.from.square;
     if (diff == 2 * EDGE_SIZE || diff == -2 * EDGE_SIZE)
@@ -138,22 +125,31 @@ void ChessBoardPlayMove(ChessBoard *cb, Move m)
   }
 
   // Remove captured piece
-  if (m.captured.type != Empty)
-    addPiece(cb, m.captured.square, Empty);
+  if (m.captured.type != Empty) {
+    BitBoard capBit = BitBoardAdd(EMPTY_BOARD, m.captured.square);
+    cb->types[m.captured.type] ^= capBit;
+    cb->colors[!us] ^= capBit;
+    cb->squares[m.captured.square] = Empty;
+  }
 
-  // Move piece from origin to destination (handles promotion)
-  addPiece(cb, m.from.square, Empty);
-  addPiece(cb, m.to.square, m.to.type);
+  // Move piece: remove from origin, place at destination
+  cb->types[m.from.type] ^= fromBit;
+  cb->types[m.to.type]   ^= toBit;
+  cb->colors[us] ^= fromBit | toBit;
+  cb->squares[m.from.square] = Empty;
+  cb->squares[m.to.square]   = m.to.type;
 
   // Castling: move rook if king moved two squares
   if (m.from.type == King) {
     int offset = (int)m.from.square - (int)m.to.square;
-    if (offset == 2) {
-      addPiece(cb, m.to.square - 2, Empty);
-      addPiece(cb, m.to.square + 1, Rook);
-    } else if (offset == -2) {
-      addPiece(cb, m.to.square + 1, Empty);
-      addPiece(cb, m.to.square - 1, Rook);
+    if (offset == 2 || offset == -2) {
+      Square rookFrom = (offset == 2) ? m.to.square - 2 : m.to.square + 1;
+      Square rookTo   = (offset == 2) ? m.to.square + 1 : m.to.square - 1;
+      BitBoard rookBits = BitBoardAdd(EMPTY_BOARD, rookFrom) | BitBoardAdd(EMPTY_BOARD, rookTo);
+      cb->types[Rook]  ^= rookBits;
+      cb->colors[us]   ^= rookBits;
+      cb->squares[rookFrom] = Empty;
+      cb->squares[rookTo]   = Rook;
     }
   }
 
@@ -163,29 +159,40 @@ void ChessBoardPlayMove(ChessBoard *cb, Move m)
 
 void ChessBoardUndoMove(ChessBoard *cb, Move m)
 {
-  // Remove piece from destination
-  addPiece(cb, m.to.square, Empty);
-
-  // Restore captured piece
-  if (m.captured.type != Empty)
-    addPiece(cb, m.captured.square, m.captured.type);
+  BitBoard fromBit = BitBoardAdd(EMPTY_BOARD, m.from.square);
+  BitBoard toBit   = BitBoardAdd(EMPTY_BOARD, m.to.square);
 
   // Toggle side to move back
   cb->turn = !cb->turn;
-
-  // Restore moved piece to origin
-  addPiece(cb, m.from.square, m.from.type);
+  Color us = cb->turn;
 
   // Undo castling: move rook back if king moved two squares
   if (m.from.type == King) {
     int offset = (int)m.from.square - (int)m.to.square;
-    if (offset == 2) {
-      addPiece(cb, m.to.square + 1, Empty);
-      addPiece(cb, m.to.square - 2, Rook);
-    } else if (offset == -2) {
-      addPiece(cb, m.to.square - 1, Empty);
-      addPiece(cb, m.to.square + 1, Rook);
+    if (offset == 2 || offset == -2) {
+      Square rookFrom = (offset == 2) ? m.to.square - 2 : m.to.square + 1;
+      Square rookTo   = (offset == 2) ? m.to.square + 1 : m.to.square - 1;
+      BitBoard rookBits = BitBoardAdd(EMPTY_BOARD, rookFrom) | BitBoardAdd(EMPTY_BOARD, rookTo);
+      cb->types[Rook]  ^= rookBits;
+      cb->colors[us]   ^= rookBits;
+      cb->squares[rookTo]   = Empty;
+      cb->squares[rookFrom] = Rook;
     }
+  }
+
+  // Move piece back: remove from destination, place at origin
+  cb->types[m.to.type]   ^= toBit;
+  cb->types[m.from.type] ^= fromBit;
+  cb->colors[us] ^= fromBit | toBit;
+  cb->squares[m.to.square]   = Empty;
+  cb->squares[m.from.square] = m.from.type;
+
+  // Restore captured piece
+  if (m.captured.type != Empty) {
+    BitBoard capBit = BitBoardAdd(EMPTY_BOARD, m.captured.square);
+    cb->types[m.captured.type] ^= capBit;
+    cb->colors[!us] ^= capBit;
+    cb->squares[m.captured.square] = m.captured.type;
   }
 
   // Restore en passant and castling rights
@@ -232,9 +239,9 @@ int ChessBoardCount(LookupTable l, ChessBoard *cb)
 {
   int count = 0;
   Square s;
-  BitBoard pinned   = ChessBoardPinned(l, cb);
-  BitBoard checking = ChessBoardChecking(l, cb);
   BitBoard attacked = ChessBoardAttacked(l, cb);
+  BitBoard pinned, checking;
+  ChessBoardCheckingAndPinned(l, cb, &checking, &pinned);
 
   // Cache hot values
   const BitBoard us    = ChessBoardUs(cb);
@@ -369,9 +376,6 @@ int ChessBoardCount(LookupTable l, ChessBoard *cb)
   return count;
 }
 
-
-
-
 char *ChessBoardToFEN(ChessBoard *cb)
 {
   static char fen[FEN_SIZE];
@@ -468,11 +472,14 @@ char *ChessBoardToFEN(ChessBoard *cb)
   return fen;
 }
 
-BitBoard ChessBoardChecking(LookupTable l, ChessBoard *cb)
+void ChessBoardCheckingAndPinned(LookupTable l, ChessBoard *cb, BitBoard *checking, BitBoard *pinned)
 {
   Square ourKing = BitBoardPeek(ChessBoardOur(cb, King));
-  BitBoard checking = (PAWN_ATTACKS(ChessBoardOur(cb, King), ChessBoardColor(cb)) & ChessBoardTheir(cb, Pawn)) |
-                      (LookupTableAttacks(l, ourKing, Knight, EMPTY_BOARD) & ChessBoardTheir(cb, Knight));
+
+  *checking = (PAWN_ATTACKS(ChessBoardOur(cb, King), ChessBoardColor(cb)) & ChessBoardTheir(cb, Pawn)) |
+              (LookupTableAttacks(l, ourKing, Knight, EMPTY_BOARD) & ChessBoardTheir(cb, Knight));
+  *pinned = EMPTY_BOARD;
+
   BitBoard candidates = (LookupTableAttacks(l, ourKing, Bishop, ChessBoardThem(cb)) & (ChessBoardTheir(cb, Bishop) |
                          ChessBoardTheir(cb, Queen))) | (LookupTableAttacks(l, ourKing, Rook, ChessBoardThem(cb)) &
                         (ChessBoardTheir(cb, Rook) | ChessBoardTheir(cb, Queen)));
@@ -482,33 +489,10 @@ BitBoard ChessBoardChecking(LookupTable l, ChessBoard *cb)
     Square s = BitBoardPop(&candidates);
     BitBoard b = LookupTableSquaresBetween(l, ourKing, s) & ChessBoardAll(cb) & ~ChessBoardThem(cb);
     if (b == EMPTY_BOARD)
-    {
-      checking |= BitBoardAdd(EMPTY_BOARD, s);
-    }
+      *checking |= BitBoardAdd(EMPTY_BOARD, s);
+    else if ((b & (b - 1)) == EMPTY_BOARD)
+      *pinned |= b;
   }
-
-  return checking;
-}
-
-BitBoard ChessBoardPinned(LookupTable l, ChessBoard *cb)
-{
-  Square ourKing = BitBoardPeek(ChessBoardOur(cb, King));
-  BitBoard candidates = (LookupTableAttacks(l, ourKing, Bishop, ChessBoardThem(cb)) & (ChessBoardTheir(cb, Bishop) |
-                         ChessBoardTheir(cb, Queen))) | (LookupTableAttacks(l, ourKing, Rook, ChessBoardThem(cb)) &
-                        (ChessBoardTheir(cb, Rook) | ChessBoardTheir(cb, Queen)));
-  BitBoard pinned = EMPTY_BOARD;
-
-  while (candidates)
-  {
-    Square s = BitBoardPop(&candidates);
-    BitBoard b = LookupTableSquaresBetween(l, ourKing, s) & ChessBoardAll(cb) & ~ChessBoardThem(cb);
-    if (b != EMPTY_BOARD && (b & (b - 1)) == EMPTY_BOARD)
-    {
-      pinned |= b;
-    }
-  }
-
-  return pinned;
 }
 
 BitBoard ChessBoardAttacked(LookupTable l, ChessBoard *cb)

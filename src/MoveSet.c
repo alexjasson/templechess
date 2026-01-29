@@ -44,8 +44,8 @@ void MoveSetFill(LookupTable l, ChessBoard *cb, MoveSet *ms)
 {
   ms->cb = cb;
   Square s;
-  BitBoard pinned   = ChessBoardPinned(l, cb);
-  BitBoard checking = ChessBoardChecking(l, cb);
+  BitBoard pinned, checking;
+  ChessBoardCheckingAndPinned(l, cb, &checking, &pinned);
   BitBoard attacked = ChessBoardAttacked(l, cb);
 
   // Cache hot values
