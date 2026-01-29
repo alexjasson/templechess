@@ -94,40 +94,33 @@ void MoveSetFill(LookupTable l, ChessBoard *cb, MoveSet *ms)
   BitBoard piecesKnight = ChessBoardOur(cb, Knight);
   while (piecesKnight) {
     s = BitBoardPop(&piecesKnight);
+    BitBoard sqBit = BitBoardAdd(EMPTY_BOARD, s);
     moves = LookupTableAttacks(l, s, Knight, all) & notUsAndCheck;
-    if (BitBoardAdd(EMPTY_BOARD, s) & pinned)
+    if (sqBit & pinned)
       moves &= LookupTableLineOfSight(l, kingSq, s);
-    addMap(ms, moves, BitBoardAdd(EMPTY_BOARD, s), Knight);
+    addMap(ms, moves, sqBit, Knight);
   }
 
-  // Bishop maps
-  BitBoard piecesBishop = ChessBoardOur(cb, Bishop);
-  while (piecesBishop) {
-    s = BitBoardPop(&piecesBishop);
+  // Diagonal slider maps (bishops + queens)
+  BitBoard diagSliders = ChessBoardOur(cb, Bishop) | ChessBoardOur(cb, Queen);
+  while (diagSliders) {
+    s = BitBoardPop(&diagSliders);
+    BitBoard sqBit = BitBoardAdd(EMPTY_BOARD, s);
     moves = LookupTableAttacks(l, s, Bishop, all) & notUsAndCheck;
-    if (BitBoardAdd(EMPTY_BOARD, s) & pinned)
+    if (sqBit & pinned)
       moves &= LookupTableLineOfSight(l, kingSq, s);
-    addMap(ms, moves, BitBoardAdd(EMPTY_BOARD, s), Bishop);
+    addMap(ms, moves, sqBit, ChessBoardSquare(cb, s));
   }
 
-  // Rook maps
-  BitBoard piecesRook = ChessBoardOur(cb, Rook);
-  while (piecesRook) {
-    s = BitBoardPop(&piecesRook);
+  // Orthogonal slider maps (rooks + queens)
+  BitBoard orthoSliders = ChessBoardOur(cb, Rook) | ChessBoardOur(cb, Queen);
+  while (orthoSliders) {
+    s = BitBoardPop(&orthoSliders);
+    BitBoard sqBit = BitBoardAdd(EMPTY_BOARD, s);
     moves = LookupTableAttacks(l, s, Rook, all) & notUsAndCheck;
-    if (BitBoardAdd(EMPTY_BOARD, s) & pinned)
+    if (sqBit & pinned)
       moves &= LookupTableLineOfSight(l, kingSq, s);
-    addMap(ms, moves, BitBoardAdd(EMPTY_BOARD, s), Rook);
-  }
-
-  // Queen maps
-  BitBoard piecesQueen = ChessBoardOur(cb, Queen);
-  while (piecesQueen) {
-    s = BitBoardPop(&piecesQueen);
-    moves = LookupTableAttacks(l, s, Queen, all) & notUsAndCheck;
-    if (BitBoardAdd(EMPTY_BOARD, s) & pinned)
-      moves &= LookupTableLineOfSight(l, kingSq, s);
-    addMap(ms, moves, BitBoardAdd(EMPTY_BOARD, s), Queen);
+    addMap(ms, moves, sqBit, ChessBoardSquare(cb, s));
   }
 
   // Pawn maps

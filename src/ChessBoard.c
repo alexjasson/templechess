@@ -293,31 +293,21 @@ int ChessBoardCount(LookupTable l, ChessBoard *cb)
     count += BitBoardCount(moves);
   }
 
-  // Bishop moves
-  BitBoard piecesBishop = ChessBoardOur(cb, Bishop);
-  while (piecesBishop) {
-    s = BitBoardPop(&piecesBishop);
+  // Diagonal slider moves (bishops + queens)
+  BitBoard diagSliders = ChessBoardOur(cb, Bishop) | ChessBoardOur(cb, Queen);
+  while (diagSliders) {
+    s = BitBoardPop(&diagSliders);
     moves = LookupTableAttacks(l, s, Bishop, all) & notUsAndCheck;
     if (BitBoardAdd(EMPTY_BOARD, s) & pinned)
       moves &= LookupTableLineOfSight(l, kingSq, s);
     count += BitBoardCount(moves);
   }
 
-  // Rook moves
-  BitBoard piecesRook = ChessBoardOur(cb, Rook);
-  while (piecesRook) {
-    s = BitBoardPop(&piecesRook);
+  // Orthogonal slider moves (rooks + queens)
+  BitBoard orthoSliders = ChessBoardOur(cb, Rook) | ChessBoardOur(cb, Queen);
+  while (orthoSliders) {
+    s = BitBoardPop(&orthoSliders);
     moves = LookupTableAttacks(l, s, Rook, all) & notUsAndCheck;
-    if (BitBoardAdd(EMPTY_BOARD, s) & pinned)
-      moves &= LookupTableLineOfSight(l, kingSq, s);
-    count += BitBoardCount(moves);
-  }
-
-  // Queen moves
-  BitBoard piecesQueen = ChessBoardOur(cb, Queen);
-  while (piecesQueen) {
-    s = BitBoardPop(&piecesQueen);
-    moves = LookupTableAttacks(l, s, Queen, all) & notUsAndCheck;
     if (BitBoardAdd(EMPTY_BOARD, s) & pinned)
       moves &= LookupTableLineOfSight(l, kingSq, s);
     count += BitBoardCount(moves);
