@@ -13,7 +13,6 @@ Prerequisites:
 From the project root, run:
 
 ```bash
-cd src
 make
 ```
 
@@ -37,4 +36,4 @@ To run the tests:
 ./perft "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" 7
 ```
 
-![](<perft(7).png>)
+![](<images/perft(7).png>)
