@@ -1,6 +1,6 @@
 # templechess
 
-This is an open source chess move generator written in C. The goal of the project is to count the legal number of moves branching from any given chess position as fast as possible on a CPU. It's currently single threaded and doesn't have a transposition table. With my Intel i5-8400 (Max 4Ghz), it completes perft(7) in ~3.3s which equates to ~960M moves per second.
+This is an open source chess move generator written in C. The goal of the project is to count the legal number of moves branching from any given chess position as fast as possible on a CPU. It's currently single threaded and doesn't have a transposition table. With my Intel i5-8400 (Max 4Ghz), it completes perft(7) in ~3.2s which equates to ~1 billion moves per second.
 
 ## Compilation
 
@@ -13,7 +13,6 @@ Prerequisites:
 From the project root, run:
 
 ```bash
-cd src
 make
 ```
 
@@ -37,4 +36,4 @@ To run the tests:
 ./perft "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" 7
 ```
 
-![](<perft(7).png>)
+![](<images/perft(7).png>)

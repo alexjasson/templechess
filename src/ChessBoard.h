@@ -78,11 +78,14 @@ ChessBoard ChessBoardFlip(ChessBoard *cb);
 int ChessBoardCount(LookupTable l, ChessBoard *cb);
 
 /*
- * Returns sets of squares corresponding to their checking pieces,
+ * Adds sets of squares corresponding to their checking pieces,
  * our pinned pieces and squares attacked by their pieces
  */
-BitBoard ChessBoardChecking(LookupTable l, ChessBoard *cb);
-BitBoard ChessBoardPinned(LookupTable l, ChessBoard *cb);
+void ChessBoardCheckingAndPinned(LookupTable l, ChessBoard *cb, BitBoard *checking, BitBoard *pinned);
+
+/*
+ * Returns set of squares attacked by their pieces
+ */
 BitBoard ChessBoardAttacked(LookupTable l, ChessBoard *cb);
 
 // Accessor functions for ChessBoard properties

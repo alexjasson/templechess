@@ -27,13 +27,13 @@ DEPTH = 5
 all: perft test
 
 perft:
-	@$(CC) $(CFLAGS0) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c MoveSet.c -lm
+	@$(CC) $(CFLAGS0) -o perft src/perft.c src/BitBoard.c src/LookupTable.c src/ChessBoard.c src/MoveSet.c -lm
 	@./perft $(BOARD) $(DEPTH) >/dev/null 2>&1
-	$(CC) $(CFLAGS1) -o perft perft.c BitBoard.c LookupTable.c ChessBoard.c MoveSet.c -lm
+	$(CC) $(CFLAGS1) -o perft src/perft.c src/BitBoard.c src/LookupTable.c src/ChessBoard.c src/MoveSet.c -lm
 	@rm -f *.gcda *.gcno
 
 test:
-	$(CC) $(CFLAGS2) -o test test.c BitBoard.c LookupTable.c ChessBoard.c MoveSet.c -lm
+	$(CC) $(CFLAGS2) -o test src/test.c src/BitBoard.c src/LookupTable.c src/ChessBoard.c src/MoveSet.c -lm
 
 clean:
 	rm -f *.o perft test
