@@ -1,6 +1,6 @@
 # templechess
 
-This is an open source chess move generator written in C. The goal of the project is to count the number of chess positions (nodes) reachable from a given position as fast as possible on a CPU. It is currently single-threaded and does not use a transposition table. On an Intel i5-8400 (up to 4.0 GHz), it completes perft(7) in ~3.2 s, corresponding to ~1 billion nodes per second.
+This is an open source chess move generator written in C. The goal of the project is to count the legal number of chess positions (nodes) reachable from any given position as fast as possible on a CPU. It's currently single threaded and doesn't have a transposition table. With my Intel i5-8400 (Max 4Ghz), it completes perft(7) in ~3.2s which equates to ~1 billion nodes per second.
 
 ## Compilation
 

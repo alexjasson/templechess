@@ -1,6 +1,6 @@
 /*
  * TempleChess v2
- * © 2025 Alex Jasson
+ * © 2026 Alex Jasson
  */
 
 #include "BitBoard.h"
