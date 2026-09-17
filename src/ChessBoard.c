@@ -18,6 +18,7 @@ ChessBoard ChessBoardNew(char *fen)
 {
   ChessBoard cb;
   memset(&cb, 0, sizeof(ChessBoard));
+  cb.enPassant = EMPTY_SQUARE;
 
   // Parse pieces and squares
   for (Square s = 0; s < BOARD_SIZE && *fen; fen++)
@@ -341,29 +342,43 @@ int ChessBoardCount(LookupTable l, ChessBoard *cb)
            + BitBoardCount((moves & b3 & checkMask) & promotion) * 3;
   }
 
-  // En passant moves
-  if (ChessBoardEnPassant(cb) != EMPTY_SQUARE) {
-    BitBoard epSq = BitBoardAdd(EMPTY_BOARD, ChessBoardEnPassant(cb));
-    b1 = PAWN_ATTACKS(epSq, !color) & ourPawns;
-    b2 = EMPTY_BOARD;
-    while (b1) {
-      s = BitBoardPop(&b1);
-
-      // Pseudo-pin check for en passant
-      if (LookupTableAttacks(l, kingSq, Rook,
-            all & ~BitBoardAdd(SINGLE_PUSH(epSq, !color), s)) &
-          RANK_OF(kingSq) & (ChessBoardTheir(cb, Rook) | ChessBoardTheir(cb, Queen)))
-        continue;
-
-      b2 |= BitBoardAdd(EMPTY_BOARD, s);
-      if (b2 & pinned)
-        b2 &= LookupTableLineOfSight(l, kingSq, ChessBoardEnPassant(cb));
-    }
-    if (b2 != EMPTY_BOARD)
-      count += BitBoardCount(b2);
-  }
+  if (ChessBoardEnPassant(cb) != EMPTY_SQUARE)
+    count += BitBoardCount(ChessBoardEnPassantCapturers(l, cb));
 
   return count;
+}
+
+static int kingAttacked(LookupTable l, ChessBoard *cb, Color color,
+                        BitBoard occupancy, BitBoard enemy)
+{
+  Square king = BitBoardPeek(cb->types[King] & cb->colors[color]);
+  return (((PAWN_ATTACKS(BitBoardAdd(0, king), color) & cb->types[Pawn]) |
+           (LookupTableAttacks(l, king, Knight, 0) & cb->types[Knight]) |
+           (LookupTableAttacks(l, king, King, 0) & cb->types[King]) |
+           (LookupTableAttacks(l, king, Bishop, occupancy) & (cb->types[Bishop] | cb->types[Queen])) |
+           (LookupTableAttacks(l, king, Rook, occupancy) & (cb->types[Rook] | cb->types[Queen]))) & enemy) != 0;
+}
+
+int ChessBoardInCheck(LookupTable l, ChessBoard *cb, Color color)
+{
+  return kingAttacked(l, cb, color, ChessBoardAll(cb), cb->colors[!color]);
+}
+
+BitBoard ChessBoardEnPassantCapturers(LookupTable l, ChessBoard *cb)
+{
+  if (cb->enPassant == EMPTY_SQUARE) return 0;
+  Color color = cb->turn;
+  BitBoard target = BitBoardAdd(0, cb->enPassant);
+  BitBoard captured = SINGLE_PUSH(target, !color);
+  BitBoard candidates = PAWN_ATTACKS(target, !color) & ChessBoardOur(cb, Pawn);
+  BitBoard legal = 0;
+  while (candidates) {
+    BitBoard origin = BitBoardAdd(0, BitBoardPop(&candidates));
+    BitBoard occupancy = (ChessBoardAll(cb) & ~(origin | captured)) | target;
+    if (!kingAttacked(l, cb, color, occupancy, ChessBoardThem(cb) & ~captured))
+      legal |= origin;
+  }
+  return legal;
 }
 
 char *ChessBoardToFEN(ChessBoard *cb)

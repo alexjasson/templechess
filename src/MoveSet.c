@@ -6,8 +6,28 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Context for MoveSetMultiply algorithm
+typedef struct
+{
+  MoveSet s;
+
+  int kingSide, queenSide;
+  BitBoard attacked, pinned, from, to[TYPE_SIZE]; // to[Empty] represents all types
+  BitBoard kingDestinations;
+  BitBoard changed, captured, theirKnights;
+
+  // Their pawn moves
+  BitBoard pawnLeft, pawnRight, pawnSingle, pawnDoubles, pawnDoubleFirst, pawnDoubleLast;
+
+  // Their slider moves
+  BitBoard sliderAttacks[MAPS_SIZE], sliderLines[MAPS_SIZE];
+  Square sliderSquares[MAPS_SIZE];
+  Type sliderTypes[MAPS_SIZE];
+  int sliderCounts[MAPS_SIZE];
+  int sliderCount;
+} Context;
+
 static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Type type);
-static BitBoard pawnMoves(BitBoard p, Color c);
 
 // Add the map to moveset if it's non empty
 static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Type type)
@@ -19,14 +39,6 @@ static void addMap(MoveSet *ms, BitBoard to, BitBoard from, Type type)
   m.from = from;
   m.type = type;
   ms->maps[ms->size++] = m;
-}
-
-static BitBoard pawnMoves(BitBoard p, Color c)
-{
-  BitBoard moves = SINGLE_PUSH(p, c);
-  moves |= SINGLE_PUSH(moves & ENPASSANT_RANK(c), c);
-  moves |= PAWN_ATTACKS(p, c);
-  return moves;
 }
 
 MoveSet MoveSetNew()
@@ -148,26 +160,10 @@ void MoveSetFill(LookupTable l, ChessBoard *cb, MoveSet *ms)
   }
 
   // En passant map
-  if (ChessBoardEnPassant(cb) != EMPTY_SQUARE) {
-    b3 = BitBoardAdd(EMPTY_BOARD, ChessBoardEnPassant(cb));
-    b1 = PAWN_ATTACKS(b3, (!color)) & ChessBoardOur(cb, Pawn);
-    b2 = EMPTY_BOARD;
-    while (b1) {
-      s = BitBoardPop(&b1);
-      // Pseudo-pinning check for en passant
-      if (LookupTableAttacks(l, kingSq, Rook,
-            all & ~BitBoardAdd(SINGLE_PUSH(b3, (!color)), s)) &
-          RANK_OF(kingSq) & (ChessBoardTheir(cb, Rook) | ChessBoardTheir(cb, Queen)))
-        continue;
-      b2 |= BitBoardAdd(EMPTY_BOARD, s);
-      if (b2 & pinned)
-        b2 &= LookupTableLineOfSight(l, kingSq, ChessBoardEnPassant(cb));
-    }
-    if (b2 != EMPTY_BOARD)
-      addMap(ms, b3, b2, Pawn);
-  }
+  if (ChessBoardEnPassant(cb) != EMPTY_SQUARE)
+    addMap(ms, BitBoardAdd(0, ChessBoardEnPassant(cb)),
+           ChessBoardEnPassantCapturers(l, cb), Pawn);
 }
-
 
 int MoveSetCount(MoveSet *ms)
 {
@@ -267,161 +263,415 @@ void MoveSetPrint(MoveSet ms)
   printf("}\n");
 }
 
+static inline Context getContext(LookupTable l, MoveSet *ms)
+{
+  Context ctx;
+  if (ms->size == 0) {
+    ctx.s.size = 0;
+    return ctx;
+  }
+  ChessBoard *cb = ms->cb;
+  // Cache hot values
+  const Color color = ChessBoardColor(cb);
+  const BitBoard us = ChessBoardUs(cb), them = ChessBoardThem(cb);
+  const BitBoard ourKing = ChessBoardOur(cb, King);
+  const BitBoard theirKing = ChessBoardTheir(cb, King);
+  const BitBoard theirPawns = ChessBoardTheir(cb, Pawn);
+  const Square kingSq = BitBoardPeek(theirKing);
+  const BitBoard enemy = them & ~theirKing;  // Their pieces, excluding their king
+  const BitBoard knights = ChessBoardOur(cb, Knight);
+  const BitBoard diagSliders = ChessBoardOur(cb, Bishop) | ChessBoardOur(cb, Queen);
+  const BitBoard orthoSliders = ChessBoardOur(cb, Rook) | ChessBoardOur(cb, Queen);
+
+  ctx.attacked = PAWN_ATTACKS(ChessBoardOur(cb, Pawn), color) |
+                      LookupTableAttacks(l, BitBoardPeek(ourKing), King, EMPTY_BOARD);
+  ctx.pinned = EMPTY_BOARD;
+  ctx.from = EMPTY_BOARD;
+  memset(ctx.to, EMPTY_BOARD, sizeof(ctx.to));
+
+  // Their relevant king squares
+  ctx.kingDestinations = LookupTableAttacks(l, kingSq, King, EMPTY_BOARD) & ~them;
+  BitBoard relevant = ctx.kingDestinations | theirKing;
+  BitBoard missingRights = ~ChessBoardCastling(cb) & BACK_RANK(!color);
+  ctx.kingSide = !(missingRights & KINGSIDE_CASTLING) && !(them & (theirKing << 1 | theirKing << 2));
+  ctx.queenSide = !(missingRights & QUEENSIDE_CASTLING) && !(them & (theirKing >> 1 | theirKing >> 2 | theirKing >> 3));
+  if (ctx.kingSide) {
+    relevant |= theirKing << 1 | theirKing << 2;
+    ctx.to[Empty] |= theirKing << 1 | theirKing << 2;
+  }
+  if (ctx.queenSide) {
+    relevant |= theirKing >> 1 | theirKing >> 2;
+    ctx.to[Empty] |= theirKing >> 1 | theirKing >> 2 | theirKing >> 3;
+  }
+  ctx.from |= ctx.to[Empty];
+
+  // Our moves that could attack or unattack one of those squares
+  ctx.to[Pawn] = PAWN_ATTACKS(relevant, !color);
+  ctx.from |= ChessBoardOur(cb, Pawn) & ctx.to[Pawn];
+  BitBoard adjacent = ((relevant & ~WEST_EDGE) >> 1) | ((relevant & ~EAST_EDGE) << 1);
+  ctx.to[King] = adjacent | BitBoardShiftN(adjacent | relevant) | BitBoardShiftS(adjacent | relevant);
+  relevant &= ~theirKing;
+  Square sq = kingSq;
+  int pins = 1;
+  while (1) {
+    if (knights) {
+      BitBoard attacks = LookupTableAttacks(l, sq, Knight, EMPTY_BOARD);
+      ctx.to[Knight] |= attacks;
+      if (attacks & knights) ctx.attacked |= BitBoardAdd(EMPTY_BOARD, sq);
+    }
+
+    BitBoard bishops = EMPTY_BOARD, rooks = EMPTY_BOARD;
+    if (diagSliders) {
+      bishops = LookupTableAttacks(l, sq, Bishop, EMPTY_BOARD) & diagSliders;
+      BitBoard enemyRay = LookupTableAttacks(l, sq, Bishop, enemy);
+      if (pins) enemyRay = LookupTableAttacks(l, sq, Bishop, enemy & ~enemyRay);
+      ctx.to[Bishop] |= LookupTableAttacks(l, sq, Bishop, us & ~diagSliders) & enemyRay;
+    }
+    if (orthoSliders) {
+      rooks = LookupTableAttacks(l, sq, Rook, EMPTY_BOARD) & orthoSliders;
+      BitBoard enemyRay = LookupTableAttacks(l, sq, Rook, enemy);
+      if (pins) enemyRay = LookupTableAttacks(l, sq, Rook, enemy & ~enemyRay);
+      ctx.to[Rook] |= LookupTableAttacks(l, sq, Rook, us & ~orthoSliders) & enemyRay;
+    }
+
+    BitBoard sliders = bishops | rooks;
+    BitBoard rest = sliders & (sliders - 1);
+    if (sliders && !(rest & (rest - 1))) {
+      while (sliders) {
+        BitBoard slider = sliders & -sliders;
+        sliders &= sliders - 1;
+        BitBoard between = LookupTableSquaresBetween(l, sq, BitBoardPeek(slider));
+        BitBoard friendly = between & us, opposing = between & enemy;
+        if (opposing && (!pins || (opposing & (opposing - 1))))
+          continue;
+        if (!friendly) {
+          if (!opposing) ctx.attacked |= BitBoardAdd(EMPTY_BOARD, sq);
+          else if (pins) ctx.pinned |= opposing;
+          ctx.from |= slider;
+          ctx.to[Empty] |= between;
+        } else if (!(friendly & (friendly - 1))) {
+          ctx.from |= friendly;
+        }
+      }
+    } else if (sliders) {
+      for (Type t = Bishop; t <= Rook; t++) {
+        BitBoard typeSliders = (t == Bishop) ? bishops : rooks;
+        if (typeSliders == EMPTY_BOARD) continue;
+        BitBoard firstRay = LookupTableAttacks(l, sq, t, us);
+        BitBoard first = firstRay & us;
+        BitBoard secondRay = LookupTableAttacks(l, sq, t, us & ~first);
+        BitBoard enemyRay = LookupTableAttacks(l, sq, t, enemy);
+        BitBoard throughEnemy = pins ? LookupTableAttacks(l, sq, t, enemy & ~enemyRay) : enemyRay;
+        BitBoard candidates = typeSliders & secondRay & throughEnemy;
+        BitBoard visible = candidates & first;
+        if (visible) {
+          if (visible & enemyRay) ctx.attacked |= BitBoardAdd(EMPTY_BOARD, sq);
+          if (pins && (visible & ~enemyRay))
+            ctx.pinned |= enemy & enemyRay & LookupTableRays(l, sq, t, visible & ~enemyRay);
+          ctx.from |= visible;
+          ctx.to[Empty] |= firstRay & LookupTableRays(l, sq, t, visible);
+        }
+        BitBoard behind = candidates & ~first;
+        if (behind)
+          ctx.from |= first & LookupTableRays(l, sq, t, behind);
+      }
+    }
+
+    if (pins && (ctx.attacked & theirKing)) {
+      ctx.s.size = 0;
+      return ctx;
+    }
+    if (relevant == EMPTY_BOARD) break;
+    sq = BitBoardPop(&relevant);
+    pins = 0;
+  }
+  ctx.to[Queen] = ctx.to[Bishop] | ctx.to[Rook];
+  ctx.from |= (knights & ctx.to[Knight]) | (ourKing & ctx.to[King]);
+
+  // Captures that change their replies, and our special moves
+  ctx.to[Empty] |= them & (LookupTableAttacks(l, kingSq, King, EMPTY_BOARD) | theirKing | ChessBoardCastling(cb));
+  ctx.to[Pawn] |= BACK_RANK(!color);                                   // Promotion
+  ctx.to[Pawn] |= SINGLE_PUSH(SINGLE_PUSH(ChessBoardOur(cb, Pawn), color) & PAWN_ATTACKS(theirPawns, !color), color); // Double push causing ep
+  if (ChessBoardEnPassant(cb) != EMPTY_SQUARE)
+    ctx.to[Pawn] |= BitBoardAdd(EMPTY_BOARD, ChessBoardEnPassant(cb));  // En passant
+  ctx.to[King] |= (ourKing << 2) | (ourKing >> 2);                      // Castling
+
+  // Create the subset S
+  MoveSet *s = &ctx.s;
+  s->size = 0;
+  s->prev.from.square = EMPTY_SQUARE;
+  s->prev.from.type = Empty;
+  s->prev.to.square = EMPTY_SQUARE;
+  s->prev.to.type = Empty;
+  BitBoard *changed = &ctx.changed;
+  int remainingCount = 0;
+  *changed = EMPTY_BOARD;
+  for (int i = 0; i < ms->size; i++) {
+    Map map = ms->maps[i];
+    Map *m = &map;
+    BitBoard origTo = m->to, origFrom = m->from;
+    if (!(m->from & (m->from - 1))) {  // One origin
+      if (!(m->from & ctx.from)) m->to &= ctx.to[Empty] | ctx.to[m->type];
+    } else if (m->to & (m->to - 1)) {  // Bijective pawn map
+      int shift = BitBoardPeek(m->to) - BitBoardPeek(m->from);
+      BitBoard shifted = (shift >= 0) ? (ctx.from << shift) : (ctx.from >> -shift);
+      m->to &= ctx.to[Empty] | ctx.to[m->type] | shifted;
+      m->from = (shift >= 0) ? (m->to >> shift) : (m->to << -shift);
+    }
+
+    BitBoard removedTo = origTo & ~m->to;
+    if (removedTo != EMPTY_BOARD) {
+      BitBoard removedFrom = origFrom & ~m->from;
+      BitBoard origins = (removedFrom != EMPTY_BOARD) ? removedFrom : origFrom;
+      *changed |= removedTo | origins;
+      if (origins != EMPTY_BOARD) {
+        Map *accepted = &s->maps[s->size++];
+        accepted->to = removedTo;
+        accepted->from = origins;
+        accepted->type = m->type;
+      }
+    }
+
+    if (m->to) ms->maps[remainingCount++] = *m;
+  }
+  ctx.captured = ctx.changed & them;
+  if (s->size == 0) return ctx;
+  ms->size = remainingCount;
+  return ctx;
+}
+
+static inline int cZero(LookupTable l, ChessBoard *cb, Context *ctx)
+{
+  const BitBoard them = ChessBoardThem(cb), all = ChessBoardAll(cb);
+  const BitBoard pinned = ctx->pinned;
+  const Square kingSq = BitBoardPeek(ChessBoardTheir(cb, King));
+  const BitBoard theirKing = ChessBoardTheir(cb, King);
+  int c0 = BitBoardCount(ctx->kingDestinations & ~ctx->attacked);
+  if (ctx->kingSide && !((all | ctx->attacked) & (theirKing << 1 | theirKing << 2))) c0++;
+  if (ctx->queenSide && !(all & (theirKing >> 1 | theirKing >> 2 | theirKing >> 3)) &&
+      !(ctx->attacked & (theirKing >> 1 | theirKing >> 2))) c0++;
+
+  // knights
+  ctx->theirKnights = ChessBoardTheir(cb, Knight) & ~pinned;
+  BitBoard knights = ctx->theirKnights;
+  while (knights)
+    c0 += BitBoardCount(LookupTableAttacks(l, BitBoardPop(&knights), Knight, EMPTY_BOARD) & ~them);
+
+  // sliders
+  ctx->sliderCount = 0;
+  for (Type t = Bishop; t <= Rook; t++) {
+    BitBoard pieces = ChessBoardTheir(cb, t) | ChessBoardTheir(cb, Queen);
+    while (pieces) {
+      Square s = BitBoardPop(&pieces);
+      BitBoard piece = BitBoardAdd(EMPTY_BOARD, s);
+      BitBoard line = (piece & pinned) ? LookupTableLineOfSight(l, kingSq, s) : ~(BitBoard)EMPTY_BOARD;
+      BitBoard attacks = LookupTableAttacks(l, s, t, all) & line;
+      int count = BitBoardCount(attacks & ~them);
+      c0 += count;
+      if (!((attacks | piece) & ctx->changed)) continue;
+      int i = ctx->sliderCount++;
+      ctx->sliderAttacks[i] = attacks;
+      ctx->sliderLines[i] = line;
+      ctx->sliderSquares[i] = s;
+      ctx->sliderTypes[i] = t;
+      ctx->sliderCounts[i] = count;
+    }
+  }
+
+  // pawns
+  const Color color = ChessBoardColor(cb);
+  const BitBoard theirPawns = ChessBoardTheir(cb, Pawn);
+  BitBoard pawns = theirPawns & ~pinned;
+  ctx->pawnLeft = PAWN_ATTACKS_LEFT(pawns, !color);
+  ctx->pawnRight = PAWN_ATTACKS_RIGHT(pawns, !color);
+  ctx->pawnSingle = SINGLE_PUSH(pawns, !color);
+  ctx->pawnDoubles = SINGLE_PUSH(ctx->pawnSingle & ENPASSANT_RANK(!color), !color);
+  BitBoard pinnedPawns = theirPawns & pinned;
+  while (pinnedPawns) {
+    Square ps = BitBoardPop(&pinnedPawns);
+    BitBoard pawn = BitBoardAdd(EMPTY_BOARD, ps), line = LookupTableLineOfSight(l, kingSq, ps);
+    ctx->pawnLeft |= PAWN_ATTACKS_LEFT(pawn, !color) & line;
+    ctx->pawnRight |= PAWN_ATTACKS_RIGHT(pawn, !color) & line;
+    ctx->pawnSingle |= SINGLE_PUSH(pawn, !color) & line;
+    ctx->pawnDoubles |= SINGLE_PUSH(SINGLE_PUSH(pawn, !color) & ENPASSANT_RANK(!color), !color) & line;
+  }
+  ctx->pawnDoubleFirst = SINGLE_PUSH(ctx->pawnDoubles & ~all, color);
+  ctx->pawnDoubleLast = ctx->pawnDoubles & SINGLE_PUSH(~all, !color);
+  const BitBoard us = ChessBoardUs(cb);
+  BitBoard promotion = BACK_RANK(color);
+  BitBoard capturesLeft = ctx->pawnLeft & us, capturesRight = ctx->pawnRight & us;
+  BitBoard pushes = ctx->pawnSingle & ~all;
+  return c0 + BitBoardCount(capturesLeft) + BitBoardCount(capturesRight) + BitBoardCount(pushes) +
+         BitBoardCount(ctx->pawnDoubleLast & ~all) +
+         3 * (BitBoardCount(capturesLeft & promotion) + BitBoardCount(capturesRight & promotion) +
+              BitBoardCount(pushes & promotion));
+}
+
+static inline int deltaSliders(LookupTable l, ChessBoard *cb, const Context *ctx)
+{
+  const MoveSet *s = &ctx->s;
+  const BitBoard captured = ctx->captured;
+  const BitBoard them = ChessBoardThem(cb), all = ChessBoardAll(cb);
+  int delta = 0;
+  for (int j = 0; j < ctx->sliderCount; j++) {
+    const Square sq = ctx->sliderSquares[j];
+    const Type t = ctx->sliderTypes[j];
+    const BitBoard piece = BitBoardAdd(EMPTY_BOARD, sq);
+    const BitBoard line = ctx->sliderLines[j], attacks = ctx->sliderAttacks[j];
+    const BitBoard mask = ~them & line;
+    const int count = ctx->sliderCounts[j];
+
+    for (int i = 0; i < s->size; i++) {
+      Map m = s->maps[i];
+      if (!((m.from | m.to) & (attacks | (piece & captured)))) continue;
+      int bijective = (m.from & (m.from - 1)) != EMPTY_BOARD;
+      int shift = BitBoardPeek(m.to) - BitBoardPeek(m.from);
+      if (m.to & piece) {
+        // captured slider
+        delta -= count;
+        m.to &= ~piece;
+      }
+      if (!m.to || !((m.from | m.to) & attacks)) continue;
+      if (bijective) {
+        BitBoard shifted = (shift >= 0) ? (attacks << shift) : (attacks >> -shift);
+        m.to &= attacks | shifted;
+      } else if (!(m.from & attacks)) {
+        m.to &= attacks;
+      }
+      while (m.to) {
+        Square target = BitBoardPop(&m.to);
+        Square origin = bijective ? (Square)(target - shift) : BitBoardPeek(m.from);
+        BitBoard targetBit = BitBoardAdd(EMPTY_BOARD, target);
+        BitBoard occupancy = (all & ~BitBoardAdd(EMPTY_BOARD, origin)) | targetBit;
+        BitBoard afterMask = mask | (targetBit & line);
+        delta += BitBoardCount(LookupTableAttacks(l, sq, t, occupancy) & afterMask) - count;
+      }
+    }
+  }
+  return delta;
+}
+
+static inline int deltaPawns(LookupTable l, ChessBoard *cb, const Context *ctx)
+{
+  const MoveSet *s = &ctx->s;
+  const BitBoard pinned = ctx->pinned, changed = ctx->changed;
+  const Color color = ChessBoardColor(cb);
+  const BitBoard them = ChessBoardThem(cb), theirPawns = ChessBoardTheir(cb, Pawn);
+  const BitBoard us = ChessBoardUs(cb), all = ChessBoardAll(cb);
+  const Square kingSq = BitBoardPeek(ChessBoardTheir(cb, King));
+  const BitBoard promotion = BACK_RANK(color);
+  int delta = 0;
+  BitBoard pawnSquares = ctx->pawnLeft | ctx->pawnRight | ctx->pawnSingle |
+                         ctx->pawnDoubles | theirPawns;
+  if (!(changed & pawnSquares)) return delta;
+
+  BitBoard pushPaths = ctx->pawnDoubleFirst | ctx->pawnDoubleLast;
+  BitBoard blockedPushes = ctx->pawnSingle | pushPaths;
+  BitBoard sharedPushes = ctx->pawnSingle & pushPaths;
+  BitBoard promotionSquares = (ctx->pawnLeft | ctx->pawnRight | ctx->pawnSingle) & promotion;
+  for (int i = 0; i < s->size; i++) {
+    Map m = s->maps[i];
+    if (!((m.from | m.to) & pawnSquares)) continue;
+    int count = BitBoardCount(m.to);
+    int bijective = (m.from & (m.from - 1)) != EMPTY_BOARD;
+    int originWeight = bijective ? 1 : count;
+    BitBoard emptyTargets = m.to & ~them;
+    delta += BitBoardCount(m.to & ctx->pawnLeft) + BitBoardCount(m.to & ctx->pawnRight) -
+             BitBoardCount(emptyTargets & blockedPushes) -
+             BitBoardCount(emptyTargets & sharedPushes) -
+             originWeight * (BitBoardCount(m.from & ctx->pawnLeft) +
+                             BitBoardCount(m.from & ctx->pawnRight) -
+                             BitBoardCount(m.from & blockedPushes) -
+                             BitBoardCount(m.from & sharedPushes));
+    // Promotion changes
+    if ((m.from | m.to) & promotionSquares) {
+      BitBoard targetPromotions = m.to & promotion;
+      BitBoard originPromotions = m.from & promotion;
+      delta += 3 * (BitBoardCount(targetPromotions & ctx->pawnLeft) +
+                    BitBoardCount(targetPromotions & ctx->pawnRight) -
+                    BitBoardCount(targetPromotions & ~them & ctx->pawnSingle) -
+                    originWeight * (BitBoardCount(originPromotions & ctx->pawnLeft) +
+                                    BitBoardCount(originPromotions & ctx->pawnRight) -
+                                    BitBoardCount(originPromotions & ctx->pawnSingle)));
+    }
+
+    // Double push changes
+    if (m.from & (ctx->pawnDoubles | SINGLE_PUSH(ctx->pawnDoubles, color))) {
+      int shift = BitBoardPeek(m.to) - BitBoardPeek(m.from);
+      int pushShift = (color == White) ? -EDGE_SIZE : EDGE_SIZE;
+      BitBoard swaps = EMPTY_BOARD;
+      if (!bijective || shift == -pushShift)
+        swaps |= SINGLE_PUSH(m.from, !color) & ctx->pawnDoubles;
+      if (!bijective || shift == pushShift)
+        swaps |= SINGLE_PUSH(m.from & ctx->pawnDoubles, color);
+      delta -= BitBoardCount(emptyTargets & swaps);
+    }
+
+    // Captured pawns
+    int lost = 0;
+    BitBoard capturedPawns = m.to & theirPawns;
+    int shift = capturedPawns ? BitBoardPeek(m.to) - BitBoardPeek(m.from) : 0;
+    while (capturedPawns) {
+      Square target = BitBoardPop(&capturedPawns);
+      Square origin = bijective ? (Square)(target - shift) : BitBoardPeek(m.from);
+      BitBoard pawn = BitBoardAdd(EMPTY_BOARD, target), fromBit = BitBoardAdd(EMPTY_BOARD, origin);
+      BitBoard occupancy = (all & ~fromBit) | pawn;
+      BitBoard ours = (us & ~fromBit) | pawn;
+      BitBoard line = (pawn & pinned) ? LookupTableLineOfSight(l, kingSq, target) : ~(BitBoard)EMPTY_BOARD;
+      BitBoard captures = PAWN_ATTACKS(pawn, !color) & ours & line;
+      BitBoard push = SINGLE_PUSH(pawn, !color) & ~occupancy;
+      BitBoard twice = SINGLE_PUSH(push & ENPASSANT_RANK(!color), !color) & ~occupancy & line;
+      push &= line;
+      lost += BitBoardCount(captures) + BitBoardCount(push) + BitBoardCount(twice) +
+              3 * BitBoardCount((captures | push) & promotion);
+    }
+    delta -= lost;
+  }
+  return delta;
+}
+
+static inline int deltaKnights(LookupTable l, ChessBoard *cb, const Context *ctx)
+{
+  const MoveSet *s = &ctx->s;
+  const BitBoard them = ChessBoardThem(cb);
+  const BitBoard theirKnights = ctx->theirKnights;
+  int delta = 0;
+  if (ctx->captured && theirKnights) {
+    for (int i = 0; i < s->size; i++) {
+      BitBoard captures = s->maps[i].to & them;
+      while (captures) {
+        Square sq = BitBoardPop(&captures);
+        BitBoard attacks = LookupTableAttacks(l, sq, Knight, EMPTY_BOARD);
+        delta += BitBoardCount(attacks & theirKnights);
+        if (BitBoardAdd(EMPTY_BOARD, sq) & theirKnights)
+          // captured knight
+          delta -= BitBoardCount(attacks & ~them);
+      }
+    }
+  }
+  return delta;
+}
+
 /*
  * This algorithm can count specific edges at "depth 2" in the tree of moves. It returns
  * the number of edges that would've been searched had that edge been explored to "depth 1".
- * Found by: Alex Jasson
+ * It returns |S| * C_0 + sum_{m in S}(delta_sl(m) + delta_pa(m) + delta_kn(m)).
+ * |S| is the size of the subset removed from the given move set. C_0 is the opponents 
+ * move count before applying any move in S, excluding enpassant. The delta terms are 
+ * the amount that each move in S changes the reply count away from C_0.
+ * Found by: Alex Jasson, GPT6
  */
 int MoveSetMultiply(LookupTable l, MoveSet *ms)
 {
-  ChessBoard *curr = ms->cb;
-  ChessBoard flip = ChessBoardFlip(curr);
-  MoveSet next = MoveSetNew();    // Next set of moves
-  MoveSet removed = MoveSetNew(); // Moves that will be removed from ms
-  BitBoard from = EMPTY_BOARD;    // 'from' squares to be removed
-  BitBoard to[TYPE_SIZE];         // Type-specific 'to' squares (Empty index = all)
-  memset(to, EMPTY_BOARD, sizeof(to));
-  MoveSetFill(l, &flip, &next);
+  ChessBoard *cb = ms->cb;
+  Context ctx = getContext(l, ms);
+  int sSize = MoveSetCount(&ctx.s);
+  if (!sSize) return 0;
 
-  // Cache hot values
-  const BitBoard them       = ChessBoardThem(curr);
-  const BitBoard ourPawns   = ChessBoardOur(curr, Pawn);
-  const BitBoard ourKing    = ChessBoardOur(curr, King);
-  const BitBoard theirPawns = ChessBoardTheir(curr, Pawn);
-  const BitBoard theirKing  = ChessBoardTheir(curr, King);
-  const int      color      = ChessBoardColor(curr);
+  int c0 = cZero(l, cb, &ctx);
+  int deltaSl = deltaSliders(l, cb, &ctx);
+  int deltaPa = deltaPawns(l, cb, &ctx);
+  int deltaKn = deltaKnights(l, cb, &ctx);
 
-  // Per-type piece sets
-  BitBoard piecesKnight = ChessBoardOur(curr, Knight);
-  BitBoard piecesBishop = ChessBoardOur(curr, Bishop);
-  BitBoard piecesRook   = ChessBoardOur(curr, Rook);
-  BitBoard piecesQueen  = ChessBoardOur(curr, Queen);
-  BitBoard piecesKing   = ourKing;
-
-  // 1) Our moves that could disrupt their moves (captures or blocking)
-  BitBoard theirMoves = pawnMoves(theirPawns, !color);
-  for (int i = 0; i < next.size; i++) {
-    if (next.maps[i].type < Bishop) continue;
-    theirMoves |= next.maps[i].to;
-  }
-  to[Empty] |= theirMoves | them;
-  from      |= theirMoves;
-
-  // 2) Our moves that could disrupt their king moves
-  BitBoard kingRelevant = (LookupTableAttacks(l, BitBoardPeek(theirKing), King, EMPTY_BOARD) & ~them) | theirKing;
-
-  // Pawns
-  BitBoard projection    = PAWN_ATTACKS(kingRelevant, !color);
-  BitBoard pawnMovesUs = pawnMoves(ourPawns, color);
-  to[Pawn] |= (pawnMovesUs & projection);  // to squares that would attack relevant king squares
-  from     |= (ourPawns   & projection);   // from squares already attacking relevant king squares
-
-  while (kingRelevant) {
-    Square s1 = BitBoardPop(&kingRelevant);
-    // Knights
-    BitBoard bb = piecesKnight;
-    projection = LookupTableAttacks(l, s1, Knight, EMPTY_BOARD);
-    while (bb) {
-      Square s2   = BitBoardPop(&bb);
-      BitBoard piece = BitBoardAdd(EMPTY_BOARD, s2);
-      BitBoard moves = LookupTableAttacks(l, s2, Knight, EMPTY_BOARD);
-      to[Knight] |= (moves & projection);
-      from       |= (piece & projection);
-    }
-    // Bishops
-    projection = LookupTableAttacks(l, s1, Bishop, EMPTY_BOARD);
-    bb = piecesBishop;
-    while (bb) {
-      Square s2   = BitBoardPop(&bb);
-      BitBoard piece = BitBoardAdd(EMPTY_BOARD, s2);
-      BitBoard moves = LookupTableAttacks(l, s2, Bishop, EMPTY_BOARD);
-      to[Bishop] |= (moves & projection);
-      from       |= (piece & projection);
-      if (piece & projection) {
-        BitBoard pinned = LookupTableSquaresBetween(l, s1, s2);
-        to[Empty] |= pinned;
-        from      |= pinned;
-      }
-    }
-    // Rooks
-    projection = LookupTableAttacks(l, s1, Rook, EMPTY_BOARD);
-    bb = piecesRook;
-    while (bb) {
-      Square s2   = BitBoardPop(&bb);
-      BitBoard piece = BitBoardAdd(EMPTY_BOARD, s2);
-      BitBoard moves = LookupTableAttacks(l, s2, Rook, EMPTY_BOARD);
-      to[Rook] |= (moves & projection);
-      from     |= (piece & projection);
-      if (piece & projection) {
-        BitBoard pinned = LookupTableSquaresBetween(l, s1, s2);
-        to[Empty] |= pinned;
-        from      |= pinned;
-      }
-    }
-    // Queens
-    projection = LookupTableAttacks(l, s1, Queen, EMPTY_BOARD);
-    bb = piecesQueen;
-    while (bb) {
-      Square s2   = BitBoardPop(&bb);
-      BitBoard piece = BitBoardAdd(EMPTY_BOARD, s2);
-      BitBoard moves = LookupTableAttacks(l, s2, Queen, EMPTY_BOARD);
-      to[Queen] |= (moves & projection);
-      from      |= (piece & projection);
-      if (piece & projection) {
-        BitBoard pinned = LookupTableSquaresBetween(l, s1, s2);
-        to[Empty] |= pinned;
-        from      |= pinned;
-      }
-    }
-    // Kings
-    projection = LookupTableAttacks(l, s1, King, EMPTY_BOARD);
-    bb = piecesKing;
-    while (bb) {
-      Square s2   = BitBoardPop(&bb);
-      BitBoard piece = BitBoardAdd(EMPTY_BOARD, s2);
-      BitBoard moves = LookupTableAttacks(l, s2, King, EMPTY_BOARD);
-      to[King] |= (moves & projection);
-      from     |= (piece & projection);
-    }
-  }
-
-  // 3) Special moves
-  to[Pawn] |= SINGLE_PUSH(SINGLE_PUSH(ourPawns, color) & PAWN_ATTACKS(theirPawns, !color), color); // Double push causing ep
-  if (ChessBoardEnPassant(curr) != EMPTY_SQUARE)
-    to[Pawn] |= BitBoardAdd(EMPTY_BOARD, ChessBoardEnPassant(curr)); // En passant
-  to[Pawn] |= BACK_RANK(!color);                                     // Promotion
-  to[King] |= (ourKing >> 2) | (ourKing << 2);                       // Castling
-
-  // 4) Remove moves from ms and put them in removed
-  for (int i = 0; i < ms->size;) {
-    Map *m = &ms->maps[i];
-    Type t = m->type;
-    BitBoard origTo   = m->to;
-    BitBoard origFrom = m->from;
-    int mapOffset = BitBoardCount(m->to) - BitBoardCount(m->from);
-
-    if (mapOffset > 0) {  // Injective
-      if ((m->from & from) == 0)
-        m->to &= (to[Empty] | to[t]);
-    } else if (mapOffset == 0) {  // Bijective
-      int squareOffset = BitBoardPeek(m->to) - BitBoardPeek(m->from);
-      BitBoard fromShifted = (squareOffset >= 0) ? (from << squareOffset) : (from >> -squareOffset);
-      m->to   &= (to[Empty] | to[t] | fromShifted);
-      m->from  = (squareOffset >= 0) ? (m->to >> squareOffset) : (m->to << -squareOffset);
-    }
-
-    BitBoard removedTo   = origTo   & ~m->to;
-    BitBoard removedFrom = origFrom & ~m->from;
-    if (removedTo != EMPTY_BOARD || removedFrom != EMPTY_BOARD) {
-      addMap(&removed, removedTo   != EMPTY_BOARD ? removedTo   : origTo,
-             removedFrom != EMPTY_BOARD ? removedFrom : origFrom, t);
-    }
-
-    if ((m->to == EMPTY_BOARD) || (m->from == EMPTY_BOARD))
-      ms->maps[i] = ms->maps[--ms->size];
-    else
-      i++;
-  }
-
-  return MoveSetCount(&removed) * MoveSetCount(&next);
+  return sSize * c0 + deltaSl + deltaPa + deltaKn;
 }

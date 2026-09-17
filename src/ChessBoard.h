@@ -77,6 +77,16 @@ ChessBoard ChessBoardFlip(ChessBoard *cb);
  */
 int ChessBoardCount(LookupTable l, ChessBoard *cb);
 
+/* 
+ * Test the specified king against all enemy attacks in the current position.
+ */
+int ChessBoardInCheck(LookupTable l, ChessBoard *cb, Color color);
+
+/*
+ * Legal en passant origins, including check evasions and discovered attacks.
+ */
+BitBoard ChessBoardEnPassantCapturers(LookupTable l, ChessBoard *cb);
+
 /*
  * Adds sets of squares corresponding to their checking pieces,
  * our pinned pieces and squares attacked by their pieces

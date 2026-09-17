@@ -13,6 +13,7 @@
 
 #define TRUE 1
 #define FALSE 0
+#define DIRECTION_SIZE 8
 #define IS_DIAGONAL(d) (d % 2 == 1)
 #define POWERSET_SIZE(n) (1 << n)
 #define BISHOP_ATTACKS_POWERSET 512
@@ -40,6 +41,7 @@ typedef struct
 
 struct lookupTable
 {
+  BitBoard rays[BOARD_SIZE][DIRECTION_SIZE];
   BitBoard knightAttacks[BOARD_SIZE];
   BitBoard kingAttacks[BOARD_SIZE];
   BitBoard bishopAttacks[BOARD_SIZE][BISHOP_ATTACKS_POWERSET];
@@ -96,6 +98,11 @@ void initializeLookupTable(LookupTable l)
 
   for (Square s = 0; s < BOARD_SIZE; s++)
   {
+    for (Direction d = North; d <= Northwest; d++) {
+      l->rays[s][d] = 0;
+      for (int steps = 1; steps < EDGE_SIZE; steps++)
+        l->rays[s][d] |= getMove(s, Queen, d, steps);
+    }
     // Fill knight and king attack tables
     l->knightAttacks[s] = getAttacks(s, Knight, EMPTY_BOARD);
     l->kingAttacks[s] = getAttacks(s, King, EMPTY_BOARD);
@@ -174,6 +181,15 @@ BitBoard LookupTableAttacks(LookupTable l, Square s, Type t, BitBoard occupancie
     fprintf(stderr, "Invalid piece type\n");
     exit(EXIT_FAILURE);
   }
+}
+
+BitBoard LookupTableRays(LookupTable l, Square s, Type t, BitBoard targets)
+{
+  int d = t == Bishop ? Northeast : North;
+  BitBoard a = l->rays[s][d], b = l->rays[s][d + 2];
+  BitBoard c = l->rays[s][d + 4], e = l->rays[s][d + 6];
+  return (a & -(BitBoard)!!(a & targets)) | (b & -(BitBoard)!!(b & targets)) |
+         (c & -(BitBoard)!!(c & targets)) | (e & -(BitBoard)!!(e & targets));
 }
 
 BitBoard LookupTableSquaresBetween(LookupTable l, Square s1, Square s2)

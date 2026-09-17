@@ -42,6 +42,11 @@ void LookupTableFree(LookupTable l);
 BitBoard LookupTableAttacks(LookupTable l, Square s, Type t, BitBoard o);
 
 /*
+ * Full rays from s through any targets, for Bishop or Rook directions.
+ */
+BitBoard LookupTableRays(LookupTable l, Square s, Type t, BitBoard targets);
+
+/*
  * Given two squares, return a bitboard representing the squares between them (exclusive).
  */
 BitBoard LookupTableSquaresBetween(LookupTable l, Square s1, Square s2);
