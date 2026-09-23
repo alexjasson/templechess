@@ -6,12 +6,15 @@
 #include "BitBoard.h"
 #include "LookupTable.h"
 #include "ChessBoard.h"
+#include "MoveSet.h"
 
 #define FEN_SIZE 128
+#define MAX_PLIES 256
 
 static Color getColorFromASCII(char asciiColor);
 static char getASCIIFromType(Type t, Color c);
 static Type getTypeFromASCII(char asciiPiece);
+static uint32_t xorshift(uint32_t *state);
 
 // Assumes FEN is valid
 ChessBoard ChessBoardNew(char *fen)
@@ -234,6 +237,50 @@ ChessBoard ChessBoardFlip(ChessBoard *cb)
   new.turn = !new.turn;
   new.enPassant = EMPTY_SQUARE;
   return new;
+}
+
+ChessBoard ChessBoardRandom(LookupTable l, unsigned seed)
+{
+  uint32_t state = (seed ^ 61) ^ (seed >> 16);
+  state *= 9;
+  state ^= state >> 4;
+  state *= 0x27d4eb2d;
+  state ^= state >> 15;
+  if (!state) state = 0x91e10da5;
+
+  for (;;)
+  {
+    ChessBoard cb = ChessBoardNew("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -");
+    int plies = (int)(xorshift(&state) % (MAX_PLIES + 1));
+
+    for (int ply = 0;; ply++)
+    {
+      MoveSet ms = MoveSetNew();
+      MoveSetFill(l, &cb, &ms);
+      int count = MoveSetCount(&ms);
+      if (!count)
+        break;
+      if (ply == plies)
+        return cb;
+
+      uint32_t index = xorshift(&state) % (uint32_t)count;
+      Move m = MoveSetPop(&ms);
+      while (index--)
+        m = MoveSetPop(&ms);
+      ChessBoardPlayMove(&cb, m);
+    }
+  }
+}
+
+static uint32_t xorshift(uint32_t *state)
+{
+  uint32_t x = *state;
+  x ^= x << 13;
+  x ^= x >> 17;
+  x ^= x << 5;
+
+  *state = x;
+  return x;
 }
 
 int ChessBoardCount(LookupTable l, ChessBoard *cb)

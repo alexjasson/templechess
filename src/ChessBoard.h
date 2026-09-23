@@ -73,6 +73,12 @@ void ChessBoardPrintMove(Move m);
 ChessBoard ChessBoardFlip(ChessBoard *cb);
 
 /*
+ * Returns a random position reached from the start position by playing between 0 and 256
+ * random plies. The resulting position always has atleat 1 legal move.
+ */
+ChessBoard ChessBoardRandom(LookupTable l, unsigned seed);
+
+/*
  * Directly count the legal number of moves in a given chess board
  */
 int ChessBoardCount(LookupTable l, ChessBoard *cb);

@@ -21,21 +21,29 @@ CFLAGS2 = -fsanitize=undefined -Wall -Wextra -Werror -pedantic -Ofast -march=nat
 BOARD = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 DEPTH = 5
 
+SOURCES = src/BitBoard.c src/LookupTable.c src/ChessBoard.c src/MoveSet.c
+HEADERS = src/BitBoard.h src/LookupTable.h src/ChessBoard.h src/MoveSet.h
+
 # Targets
 .PHONY: all clean
 
-all: perft test
+all: perft test benchmark
 
-perft:
+perft: src/perft.c $(SOURCES) $(HEADERS)
 	@$(CC) $(CFLAGS0) -o perft src/perft.c src/BitBoard.c src/LookupTable.c src/ChessBoard.c src/MoveSet.c -lm
 	@./perft $(BOARD) $(DEPTH) >/dev/null 2>&1
 	$(CC) $(CFLAGS1) -o perft src/perft.c src/BitBoard.c src/LookupTable.c src/ChessBoard.c src/MoveSet.c -lm
 	@rm -f *.gcda *.gcno
 
-test:
+benchmark: src/benchmark.c $(SOURCES) $(HEADERS)
+	@$(CC) $(CFLAGS0) -o benchmark src/benchmark.c src/BitBoard.c src/LookupTable.c src/ChessBoard.c src/MoveSet.c -lm
+	@./benchmark 4 4 1 >/dev/null 2>&1
+	$(CC) $(CFLAGS1) -o benchmark src/benchmark.c src/BitBoard.c src/LookupTable.c src/ChessBoard.c src/MoveSet.c -lm
+	@rm -f *.gcda *.gcno data/benchmark.out
+
+test: src/test.c $(SOURCES) $(HEADERS)
 	$(CC) $(CFLAGS2) -o test src/test.c src/BitBoard.c src/LookupTable.c src/ChessBoard.c src/MoveSet.c -lm
 
 clean:
-	rm -f *.o perft test
-
+	rm -f *.o perft test benchmark
 
