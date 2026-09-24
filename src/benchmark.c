@@ -26,6 +26,12 @@ typedef struct
   double without; // seconds, depth-two counting disabled
 } Result;
 
+typedef struct
+{
+  long moves;    // moves at depth two
+  long factored; // moves removed by MoveSetMultiply
+} Work;
+
 static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int with)
 {
   if (depth == 1)
@@ -49,6 +55,32 @@ static long treeSearch(LookupTable l, ChessBoard *cb, int depth, int with)
   return nodes;
 }
 
+// Same search as treeSearch, but tallies how many depth two moves are factored
+static void workSearch(LookupTable l, ChessBoard *cb, int depth, Work *w)
+{
+  MoveSet ms = MoveSetNew();
+  MoveSetFill(l, cb, &ms);
+
+  if (depth == 2)
+  {
+    int moves = MoveSetCount(&ms);
+    MoveSetMultiply(l, &ms);
+    w->moves += moves;
+    w->factored += moves - MoveSetCount(&ms);
+    return;
+  }
+
+  while (!MoveSetIsEmpty(&ms))
+  {
+    Move m = MoveSetPop(&ms);
+    ChessBoardPlayMove(cb, m);
+    workSearch(l, cb, depth - 1, w);
+    ChessBoardUndoMove(cb, m);
+  }
+}
+
+static double percent(Work w) { return w.moves ? 100.0 * (double)w.factored / (double)w.moves : 0; }
+
 static double now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (double)t.tv_sec + (double)t.tv_nsec * 1e-9; }
 static int compareDouble(const void *a, const void *b) { double x = *(const double *)a, y = *(const double *)b; return (x > y) - (x < y); }
 
@@ -58,7 +90,7 @@ static double median(double *values, int n)
   return (n & 1) ? values[n / 2] : (values[n / 2 - 1] + values[n / 2]) / 2;
 }
 
-static void printSpeedups(const char *name, double *speedups, int n)
+static void printSpeedups(const char *name, double *speedups, int n, Work w)
 {
   if (n == 0)
   {
@@ -72,8 +104,8 @@ static void printSpeedups(const char *name, double *speedups, int n)
   double middle = median(speedups, n);
 
   printf("%-12s %3d positions: %.2fx geometric mean, %.2fx median, "
-         "%.2fx min, %.2fx max\n",
-         name, n, exp(logSum / n), middle, speedups[0], speedups[n - 1]);
+         "%.2fx min, %.2fx max, %.1f%% factored\n",
+         name, n, exp(logSum / n), middle, speedups[0], speedups[n - 1], percent(w));
 }
 
 int main(int argc, char **argv)
@@ -117,11 +149,14 @@ int main(int argc, char **argv)
     return EXIT_FAILURE;
   }
   int bucketCounts[BUCKETS] = {0};
+  Work totalWork = {0, 0};
+  Work bucketWork[BUCKETS] = {{0, 0}};
 
   for (int i = 0; i < positions; i++)
     sample[i] = ChessBoardRandom(l, (seed << 16) + (unsigned)i);
 
-  fprintf(out, "index,pieces,nodes,with_ms,without_ms,speedup,fen\n");
+  fprintf(out, "index,pieces,nodes,with_ms,without_ms,speedup,"
+               "depth_two_moves,factored,fen\n");
 
   long totalNodes = 0;
   double totalWith = 0, totalWithout = 0;
@@ -164,9 +199,16 @@ int main(int argc, char **argv)
     int b = (pieces - 1) / 4;
     bucketSpeedups[b * positions + bucketCounts[b]++] = speedups[i];
 
-    fprintf(out, "%d,%d,%ld,%.4f,%.4f,%.4f,%s\n",
-            i + 1, pieces, r.nodes, r.with * 1e3, r.without * 1e3,
-            speedups[i], ChessBoardToFEN(&cb));
+    Work work = {0, 0};
+    workSearch(l, &cb, depth, &work);
+    totalWork.moves += work.moves;
+    totalWork.factored += work.factored;
+    bucketWork[b].moves += work.moves;
+    bucketWork[b].factored += work.factored;
+
+    fprintf(out, "%d,%d,%ld,%.4f,%.4f,%.4f,%ld,%ld,%s\n",
+            i + 1, pieces, r.nodes, r.with * 1e3, r.without * 1e3, speedups[i],
+            work.moves, work.factored, ChessBoardToFEN(&cb));
     fflush(out);
     fprintf(stderr, "\rposition %d/%d", i + 1, positions);
   }
@@ -175,12 +217,12 @@ int main(int argc, char **argv)
 
   printf("nodes per second: %.2f M with, %.2f M without\n",
         (double)totalNodes / totalWith / 1e6, (double)totalNodes / totalWithout / 1e6);
-  printSpeedups("all", speedups, positions);
+  printSpeedups("all", speedups, positions, totalWork);
   for (int b = 0; b < BUCKETS; b++)
   {
     char name[16];
     snprintf(name, sizeof name, "%d-%d pieces", b ? 4 * b + 1 : 2, 4 * b + 4);
-    printSpeedups(name, bucketSpeedups + b * positions, bucketCounts[b]);
+    printSpeedups(name, bucketSpeedups + b * positions, bucketCounts[b], bucketWork[b]);
   }
   printf("Results saved to %s\n", OUTPUT);
 
