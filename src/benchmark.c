@@ -1,5 +1,5 @@
 /*
- * TempleChess v2
+ * TempleChess v3
  * © 2026 Alex Jasson
  */
 
